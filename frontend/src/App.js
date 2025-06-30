@@ -11,7 +11,7 @@ function App() {
   const [expandedDepartment, setExpandedDepartment] = useState(null);
   const [selectedCourse, setSelectedCourse] = useState(null);
   
-  // Plan management state
+
   const [selectedCourses, setSelectedCourses] = useState([]);
   const [planName, setPlanName] = useState('');
   const [sourceInstitution, setSourceInstitution] = useState('');
@@ -120,7 +120,7 @@ function App() {
       return;
     }
     
-    console.log('Updating plan with code:', loadedPlan.code); // Debug log
+    console.log('Updating plan with code:', loadedPlan.code);
     
     if (!planName.trim()) {
       alert('Please enter a plan name');
@@ -136,7 +136,7 @@ function App() {
     }
 
     try {
-      console.log('Making PUT request to:', `/api/update-plan/${loadedPlan.code}`); // Debug log
+      console.log('Making PUT request to:', `/api/update-plan/${loadedPlan.code}`); 
       
       const response = await axios.put(`/api/update-plan/${loadedPlan.code}`, {
         plan_name: planName,
@@ -150,17 +150,17 @@ function App() {
         }
       });
 
-      console.log('Update response:', response.data); // Debug log
+      console.log('Update response:', response.data);
       alert(`Plan updated successfully! Your plan code remains: ${loadedPlan.code}`);
       
-      // Reload the updated plan using the SAME code
+      
       const updatedPlan = await axios.get(`/api/get-plan/${loadedPlan.code}`);
       setLoadedPlan(updatedPlan.data.plan);
       setIsEditMode(false);
       setCurrentView('view-plan');
       
     } catch (error) {
-      console.error('Update error:', error); // Debug log
+      console.error('Update error:', error); 
       alert('Failed to update plan: ' + (error.response?.data?.error || 'Unknown error'));
     }
   };
@@ -175,7 +175,7 @@ function App() {
       await axios.delete(`/api/delete-plan/${loadedPlan.code}`);
       alert('Plan deleted successfully!');
       
-      // Reset state and go back to browse
+     
       setLoadedPlan(null);
       setSearchCode('');
       setSelectedCourses([]);
@@ -192,7 +192,7 @@ function App() {
 
   const startEditMode = () => {
     if (loadedPlan) {
-      // Populate form with current plan data
+      
       setPlanName(loadedPlan.plan_name);
       setSourceInstitution(loadedPlan.plan_data.source_institution_id);
       setTargetInstitution(loadedPlan.plan_data.target_institution_id);
@@ -203,7 +203,7 @@ function App() {
   };
 
   const cancelEdit = () => {
-    // Ask for confirmation if there are unsaved changes
+    
     const hasChanges = 
       planName !== loadedPlan?.plan_name ||
       sourceInstitution !== loadedPlan?.plan_data?.source_institution_id ||
@@ -217,7 +217,7 @@ function App() {
     
     setIsEditMode(false);
     setCurrentView('view-plan');
-    // Reset form data to original plan data
+    
     setPlanName('');
     setSourceInstitution('');
     setTargetInstitution('');
@@ -253,7 +253,7 @@ function App() {
     setCurrentView('browse');
   };
 
-  // Navigation
+
   const renderNavigation = () => (
     <div style={{ marginBottom: '20px', borderBottom: '1px solid #ccc', paddingBottom: '10px' }}>
       {/* Show edit mode indicator */}
@@ -481,7 +481,7 @@ function App() {
     </div>
   );
 
-  // Create Plan View
+  //Plan View
   const renderCreatePlanView = () => (
     <div>
       <h2>Create Transfer Plan</h2>
@@ -605,7 +605,7 @@ function App() {
     </div>
   );
 
-  // Edit Plan View
+  // Edit Plan
   const renderEditPlanView = () => (
     <div>
       <h2>Edit Transfer Plan</h2>
@@ -735,7 +735,7 @@ function App() {
     </div>
   );
 
-  // View Plan View
+  // View Plan
   const renderViewPlanView = () => (
     <div>
       <h2>Transfer Plan Details</h2>
