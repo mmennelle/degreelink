@@ -33,7 +33,7 @@ def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Create existing tables
+    #existing tables
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Institution (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,7 +75,7 @@ def init_db():
         )
     ''')
     
-    # Create new plan table
+    #new plan table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS TransferPlan (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -94,7 +94,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Initialize database on startup
+
 init_db()
 
 @app.route('/api/institutions')
@@ -147,21 +147,21 @@ def create_plan():
     try:
         data = request.get_json()
         
-        # Validate required fields
+    
         required_fields = ['plan_name', 'source_institution_id', 'target_institution_id', 'selected_courses']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
-        # Generate unique plan code
+        # make a unique plan code
         code = generate_plan_code()
         conn = get_db_connection()
         
-        # Ensure code is unique
+     
         while conn.execute('SELECT id FROM TransferPlan WHERE code = ?', (code,)).fetchone():
             code = generate_plan_code()
         
-        # Store the plan
+       
         conn.execute('''
             INSERT INTO TransferPlan (code, plan_name, source_institution_id, target_institution_id, selected_courses, plan_data)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -205,7 +205,7 @@ def get_plan(plan_code):
             conn.close()
             return jsonify({'error': 'Plan not found'}), 404
         
-        # Get detailed course information for selected courses
+     
         selected_courses = json.loads(plan['selected_courses'])
         detailed_courses = []
         
@@ -246,7 +246,7 @@ def update_plan(plan_code):
         
         conn = get_db_connection()
         
-        # Check if plan exists
+        # plan exists?
         plan = conn.execute('SELECT * FROM TransferPlan WHERE code = ?', (plan_code.upper(),)).fetchone()
         if not plan:
             conn.close()
@@ -272,11 +272,11 @@ def update_plan(plan_code):
             update_fields.append('selected_courses = ?')
             update_values.append(json.dumps(data['selected_courses']))
         
-        # Always update plan_data with the complete new data
+       
         update_fields.append('plan_data = ?')
         update_values.append(json.dumps(data))
         
-        # Add plan code to values for WHERE clause (code remains the same)
+      
         update_values.append(plan_code.upper())
         
         if update_fields:
@@ -288,7 +288,7 @@ def update_plan(plan_code):
         
         return jsonify({
             'success': True,
-            'plan_code': plan_code.upper(),  # Return the same code
+            'plan_code': plan_code.upper(),  
             'message': f'Plan "{data.get("plan_name", "")}" updated successfully! Your code is still: {plan_code.upper()}'
         })
         
@@ -301,13 +301,13 @@ def delete_plan(plan_code):
     try:
         conn = get_db_connection()
         
-        # Check if plan exists
+   
         plan = conn.execute('SELECT * FROM TransferPlan WHERE code = ?', (plan_code.upper(),)).fetchone()
         if not plan:
             conn.close()
             return jsonify({'error': 'Plan not found'}), 404
         
-        # Delete the plan
+      
         conn.execute('DELETE FROM TransferPlan WHERE code = ?', (plan_code.upper(),))
         conn.commit()
         conn.close()
@@ -360,7 +360,7 @@ def search_equivalents():
 @app.route('/api/import', methods=['POST'])
 def import_csv():
     try:
-        # Check if file is present
+       
         if 'file' not in request.files:
             return jsonify({'error': 'No file uploaded'}), 400
         
@@ -368,7 +368,7 @@ def import_csv():
         if file.filename == '':
             return jsonify({'error': 'No file selected'}), 400
 
-        # Read and decode the file content
+      
         content = io.StringIO(file.stream.read().decode("utf-8"))
         reader = csv.DictReader(content)
 
@@ -384,7 +384,7 @@ def import_csv():
             if row:
                 return row[0]
             
-            # Try to insert, if it fails due to UNIQUE constraint, try to find it again
+           #INSERT CONSTRAINT
             placeholders = ','.join(['?' for _ in fields])
             insert_query = f"INSERT INTO {table} ({','.join(fields)}) VALUES ({placeholders})"
             
@@ -404,14 +404,14 @@ def import_csv():
                     # Re-raise if it's a different integrity error
                     raise
 
-        # Process each row in the CSV
+       
         rows_processed = 0
         rows_skipped = 0
         errors = []
         
         for row_num, row in enumerate(reader, start=1):
             try:
-                # Validate required fields
+                
                 required_fields = [
                     'source_institution', 'target_institution',
                     'source_department', 'target_department',
@@ -425,17 +425,17 @@ def import_csv():
                     errors.append(f"Row {row_num}: Missing fields: {', '.join(missing_fields)}")
                     continue
 
-                # Create or get institutions
+                #institutions
                 s_inst_id = get_or_create("Institution", ["name"], [row["source_institution"].strip()])
                 t_inst_id = get_or_create("Institution", ["name"], [row["target_institution"].strip()])
                 
-                # Create or get departments
+                # depts
                 s_dept_id = get_or_create("Department", ["name", "institution_id"], 
                                         [row["source_department"].strip(), s_inst_id])
                 t_dept_id = get_or_create("Department", ["name", "institution_id"], 
                                         [row["target_department"].strip(), t_inst_id])
                 
-                # Create or get courses
+                #courses
                 s_course_id = get_or_create("Course", ["code", "title", "department_id", "institution_id"],
                                           [row["source_code"].strip(), row["source_title"].strip(), 
                                            s_dept_id, s_inst_id])
@@ -443,7 +443,7 @@ def import_csv():
                                           [row["target_code"].strip(), row["target_title"].strip(), 
                                            t_dept_id, t_inst_id])
                 
-                # Create equivalency relationship (using INSERT OR IGNORE to handle duplicates)
+                #equivalency relationship using INSERT OR IGNORE to handle duplicates
                 cursor.execute("""
                     INSERT OR IGNORE INTO CourseEquivalency (source_course_id, target_course_id) 
                     VALUES (?, ?)
@@ -459,7 +459,7 @@ def import_csv():
         conn.commit()
         conn.close()
 
-        # Prepare response message
+     
         message = f'Successfully processed {rows_processed} course equivalencies'
         if rows_skipped > 0:
             message += f', skipped {rows_skipped} rows'
@@ -471,9 +471,9 @@ def import_csv():
             'skipped': rows_skipped
         }
         
-        # Include errors if there were any (but still return 200 since some rows may have succeeded)
+
         if errors:
-            response_data['errors'] = errors[:10]  # Limit to first 10 errors
+            response_data['errors'] = errors[:10]  # Limit 10 errors
             if len(errors) > 10:
                 response_data['errors'].append(f"... and {len(errors) - 10} more errors")
 
