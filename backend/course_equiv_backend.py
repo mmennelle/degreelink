@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import json
 
 app = Flask(__name__)
-CORS(app)
+CORS(app) #DONT FORGET
 
 def get_db_connection():
     conn = sqlite3.connect('database.db', timeout=30)
