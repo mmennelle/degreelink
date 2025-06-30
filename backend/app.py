@@ -12,7 +12,7 @@ app = Flask(__name__)
 CORS(app)
 
 def get_db_connection():
-    conn = sqlite3.connect('database.db')
+    conn = sqlite3.connect('database.db', timeout=30)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -289,7 +289,7 @@ def update_plan(plan_code):
         return jsonify({
             'success': True,
             'plan_code': plan_code.upper(),  # Return the same code
-            'message': f'Plan "{data.get("plan_name", "")}" updated successfully! Code remains: {plan_code.upper()}'
+            'message': f'Plan "{data.get("plan_name", "")}" updated successfully! Your code is still: {plan_code.upper()}'
         })
         
     except Exception as e:
@@ -376,68 +376,108 @@ def import_csv():
         cursor = conn.cursor()
 
         def get_or_create(table, fields, values):
-            """Get existing record or create new one"""
+            """Get existing record or create new one, handling duplicates gracefully"""
             where_clause = " AND ".join([f"{field} = ?" for field in fields])
             select_query = f"SELECT id FROM {table} WHERE {where_clause}"
             
             row = cursor.execute(select_query, values).fetchone()
             if row:
-                return row['id']
+                return row[0]
             
+            # Try to insert, if it fails due to UNIQUE constraint, try to find it again
             placeholders = ','.join(['?' for _ in fields])
             insert_query = f"INSERT INTO {table} ({','.join(fields)}) VALUES ({placeholders})"
-            cursor.execute(insert_query, values)
-            return cursor.lastrowid
+            
+            try:
+                cursor.execute(insert_query, values)
+                return cursor.lastrowid
+            except sqlite3.IntegrityError as e:
+                if "UNIQUE constraint failed" in str(e):
+                    # If insert failed due to unique constraint, find the existing record
+                    row = cursor.execute(select_query, values).fetchone()
+                    if row:
+                        return row[0]
+                    else:
+                        # This shouldn't happen, but just in case
+                        raise Exception(f"Could not create or find record in {table}")
+                else:
+                    # Re-raise if it's a different integrity error
+                    raise
 
         # Process each row in the CSV
         rows_processed = 0
-        for row in reader:
-            # Validate required fields
-            required_fields = [
-                'source_institution', 'target_institution',
-                'source_department', 'target_department',
-                'source_code', 'source_title',
-                'target_code', 'target_title'
-            ]
-            
-            missing_fields = [field for field in required_fields if not row.get(field, '').strip()]
-            if missing_fields:
-                print(f"Skipping row due to missing fields: {missing_fields}")
-                continue
+        rows_skipped = 0
+        errors = []
+        
+        for row_num, row in enumerate(reader, start=1):
+            try:
+                # Validate required fields
+                required_fields = [
+                    'source_institution', 'target_institution',
+                    'source_department', 'target_department',
+                    'source_code', 'source_title',
+                    'target_code', 'target_title'
+                ]
+                
+                missing_fields = [field for field in required_fields if not row.get(field, '').strip()]
+                if missing_fields:
+                    rows_skipped += 1
+                    errors.append(f"Row {row_num}: Missing fields: {', '.join(missing_fields)}")
+                    continue
 
-            # Create or get institutions
-            s_inst_id = get_or_create("Institution", ["name"], [row["source_institution"].strip()])
-            t_inst_id = get_or_create("Institution", ["name"], [row["target_institution"].strip()])
-            
-            # Create or get departments
-            s_dept_id = get_or_create("Department", ["name", "institution_id"], 
-                                    [row["source_department"].strip(), s_inst_id])
-            t_dept_id = get_or_create("Department", ["name", "institution_id"], 
-                                    [row["target_department"].strip(), t_inst_id])
-            
-            # Create or get courses
-            s_course_id = get_or_create("Course", ["code", "title", "department_id", "institution_id"],
-                                      [row["source_code"].strip(), row["source_title"].strip(), 
-                                       s_dept_id, s_inst_id])
-            t_course_id = get_or_create("Course", ["code", "title", "department_id", "institution_id"],
-                                      [row["target_code"].strip(), row["target_title"].strip(), 
-                                       t_dept_id, t_inst_id])
-            
-            # Create equivalency relationship
-            cursor.execute("""
-                INSERT OR IGNORE INTO CourseEquivalency (source_course_id, target_course_id) 
-                VALUES (?, ?)
-            """, (s_course_id, t_course_id))
-            
-            rows_processed += 1
+                # Create or get institutions
+                s_inst_id = get_or_create("Institution", ["name"], [row["source_institution"].strip()])
+                t_inst_id = get_or_create("Institution", ["name"], [row["target_institution"].strip()])
+                
+                # Create or get departments
+                s_dept_id = get_or_create("Department", ["name", "institution_id"], 
+                                        [row["source_department"].strip(), s_inst_id])
+                t_dept_id = get_or_create("Department", ["name", "institution_id"], 
+                                        [row["target_department"].strip(), t_inst_id])
+                
+                # Create or get courses
+                s_course_id = get_or_create("Course", ["code", "title", "department_id", "institution_id"],
+                                          [row["source_code"].strip(), row["source_title"].strip(), 
+                                           s_dept_id, s_inst_id])
+                t_course_id = get_or_create("Course", ["code", "title", "department_id", "institution_id"],
+                                          [row["target_code"].strip(), row["target_title"].strip(), 
+                                           t_dept_id, t_inst_id])
+                
+                # Create equivalency relationship (using INSERT OR IGNORE to handle duplicates)
+                cursor.execute("""
+                    INSERT OR IGNORE INTO CourseEquivalency (source_course_id, target_course_id) 
+                    VALUES (?, ?)
+                """, (s_course_id, t_course_id))
+                
+                rows_processed += 1
+                
+            except Exception as e:
+                rows_skipped += 1
+                errors.append(f"Row {row_num}: {str(e)}")
+                print(f"Error processing row {row_num}: {str(e)}")
 
         conn.commit()
         conn.close()
 
-        return jsonify({
+        # Prepare response message
+        message = f'Successfully processed {rows_processed} course equivalencies'
+        if rows_skipped > 0:
+            message += f', skipped {rows_skipped} rows'
+        
+        response_data = {
             'status': 'success', 
-            'message': f'Successfully imported {rows_processed} course equivalencies'
-        }), 200
+            'message': message,
+            'processed': rows_processed,
+            'skipped': rows_skipped
+        }
+        
+        # Include errors if there were any (but still return 200 since some rows may have succeeded)
+        if errors:
+            response_data['errors'] = errors[:10]  # Limit to first 10 errors
+            if len(errors) > 10:
+                response_data['errors'].append(f"... and {len(errors) - 10} more errors")
+
+        return jsonify(response_data), 200
 
     except Exception as e:
         print(f"Import error: {str(e)}")
