@@ -31,7 +31,7 @@ const ImportSection = () => {
           type="submit"
           style={{
             padding: '8px 16px',
-            backgroundColor: '#17a2b8',
+            backgroundColor: '#c4d600',
             color: 'white',
             border: 'none',
             borderRadius: '4px',

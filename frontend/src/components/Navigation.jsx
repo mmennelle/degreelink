@@ -31,9 +31,9 @@ const Navigation = ({
         style={{ 
           marginRight: '10px', 
           padding: '8px 16px',
-          backgroundColor: currentView === 'browse' ? '#007bff' : '#f8f9fa',
+          backgroundColor: currentView === 'browse' ? '#293c7d' : '#f8f9fa',
           color: currentView === 'browse' ? 'white' : 'black',
-          border: '1px solid #007bff',
+          border: '1px solid #293c7d',
           borderRadius: '4px',
           cursor: 'pointer'
         }}
@@ -46,9 +46,9 @@ const Navigation = ({
         style={{ 
           marginRight: '10px', 
           padding: '8px 16px',
-          backgroundColor: (currentView === 'create-plan' || currentView === 'edit-plan') ? '#28a745' : '#f8f9fa',
+          backgroundColor: (currentView === 'create-plan' || currentView === 'edit-plan') ? '#293c7d' : '#f8f9fa',
           color: (currentView === 'create-plan' || currentView === 'edit-plan') ? 'white' : 'black',
-          border: '1px solid #28a745',
+          border: '1px solid #293c7d',
           borderRadius: '4px',
           cursor: 'pointer'
         }}
@@ -75,9 +75,9 @@ const Navigation = ({
             onClick={loadPlan}
             style={{ 
               padding: '8px 16px',
-              backgroundColor: '#ffc107',
+              backgroundColor: '#c4d600',
               color: 'black',
-              border: '1px solid #ffc107',
+              border: '1px solid #c4d600',
               borderRadius: '4px',
               cursor: 'pointer'
             }}
