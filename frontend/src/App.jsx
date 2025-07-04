@@ -1,411 +1,85 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import Navigation from './components/Navigation';
-import BrowseView from './components/BrowseView';
-import CreatePlanView from './components/CreatePlanView';
-import EditPlanView from './components/EditPlanView';
-import ViewPlanView from './components/ViewPlanView';
-import ImportSection from './components/ImportSection';
-import unoLogo from './assets/uno-logo.avif';
-import delgadoLogo from './assets/delgado-logo.jpg';
+// src/App.jsx
+import React, { useState } from 'react';
+import { Search, FileText, Upload, GraduationCap, Users } from 'lucide-react';
+import CourseSearch from './components/CourseSearch';
+import PlanBuilder from './components/PlanBuilder';
+import CSVUpload from './components/CSVUpload';
 
+const App = () => {
+  const [activeTab, setActiveTab] = useState('search');
 
-function App() {
-  const [institutions, setInstitutions] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [courses, setCourses] = useState([]);
-  const [equivalents, setEquivalents] = useState([]);
-  
-  const [expandedInstitution, setExpandedInstitution] = useState(null);
-  const [expandedDepartment, setExpandedDepartment] = useState(null);
-  const [selectedCourse, setSelectedCourse] = useState(null);
-  
-  const [selectedCourses, setSelectedCourses] = useState([]);
-  const [planName, setPlanName] = useState('');
-  const [sourceInstitution, setSourceInstitution] = useState('');
-  const [targetInstitution, setTargetInstitution] = useState('');
-  const [planCode, setPlanCode] = useState('');
-  const [searchCode, setSearchCode] = useState('');
-  const [loadedPlan, setLoadedPlan] = useState(null);
-  const [currentView, setCurrentView] = useState('browse');
-  const [isEditMode, setIsEditMode] = useState(false);
-
-  useEffect(() => {
-    axios.get('/api/institutions').then(res => setInstitutions(res.data));
-  }, []);
-
-  useEffect(() => {
-    if (expandedInstitution) {
-      axios.get(`/api/departments?institution_id=${expandedInstitution}`)
-        .then(res => setDepartments(res.data));
-    } else {
-      setDepartments([]);
-      setCourses([]);
-      setEquivalents([]);
-    }
-  }, [expandedInstitution]);
-
-  useEffect(() => {
-    if (expandedDepartment) {
-      axios.get(`/api/courses?department_id=${expandedDepartment}`)
-        .then(res => setCourses(res.data));
-    } else {
-      setCourses([]);
-      setEquivalents([]);
-    }
-  }, [expandedDepartment]);
-
-  useEffect(() => {
-    if (selectedCourse) {
-      axios.get(`/api/equivalents?course_id=${selectedCourse}`)
-        .then(res => setEquivalents(res.data));
-    } else {
-      setEquivalents([]);
-    }
-  }, [selectedCourse]);
-
-  const toggleCourseSelection = (course) => {
-    const isSelected = selectedCourses.some(c => c.id === course.id);
-    if (isSelected) {
-      setSelectedCourses(selectedCourses.filter(c => c.id !== course.id));
-    } else {
-      setSelectedCourses([...selectedCourses, course]);
-    }
-  };
-
-  const createPlan = async () => {
-    if (!planName.trim()) {
-      alert('Please enter a plan name');
-      return;
-    }
-    if (selectedCourses.length === 0) {
-      alert('Please select at least one course');
-      return;
-    }
-    if (!sourceInstitution || !targetInstitution) {
-      alert('Please select source and target institutions');
-      return;
-    }
-
-    try {
-      const response = await axios.post('/api/create-plan', {
-        plan_name: planName,
-        source_institution_id: sourceInstitution,
-        target_institution_id: targetInstitution,
-        selected_courses: selectedCourses.map(c => c.id),
-        additional_data: {
-          total_courses: selectedCourses.length,
-          created_by_user: true
-        }
-      });
-
-      setPlanCode(response.data.plan_code);
-      alert(`Plan created successfully! Your plan code is: ${response.data.plan_code}`);
-      
-    } catch (error) {
-      alert('Failed to create plan: ' + (error.response?.data?.error || 'Unknown error'));
-    }
-  };
-
-  const updatePlan = async () => {
-    if (!loadedPlan) {
-      alert('Error: No plan loaded for editing');
-      return;
-    }
-    
-    if (!planName.trim()) {
-      alert('Please enter a plan name');
-      return;
-    }
-    if (selectedCourses.length === 0) {
-      alert('Please select at least one course');
-      return;
-    }
-    if (!sourceInstitution || !targetInstitution) {
-      alert('Please select source and target institutions');
-      return;
-    }
-
-    try {
-      const response = await axios.put(`/api/update-plan/${loadedPlan.code}`, {
-        plan_name: planName,
-        source_institution_id: sourceInstitution,
-        target_institution_id: targetInstitution,
-        selected_courses: selectedCourses.map(c => c.id),
-        additional_data: {
-          total_courses: selectedCourses.length,
-          updated_by_user: true,
-          last_updated: new Date().toISOString()
-        }
-      });
-
-      alert(`Plan updated successfully! Your plan code remains: ${loadedPlan.code}`);
-      
-      const updatedPlan = await axios.get(`/api/get-plan/${loadedPlan.code}`);
-      setLoadedPlan(updatedPlan.data.plan);
-      setIsEditMode(false);
-      setCurrentView('view-plan');
-      
-    } catch (error) {
-      alert('Failed to update plan: ' + (error.response?.data?.error || 'Unknown error'));
-    }
-  };
-
-  const deletePlan = async () => {
-    if (!loadedPlan) return;
-    
-    const confirmDelete = window.confirm(`Are you sure you want to delete the plan "${loadedPlan.plan_name}"? This action cannot be undone.`);
-    if (!confirmDelete) return;
-
-    try {
-      await axios.delete(`/api/delete-plan/${loadedPlan.code}`);
-      alert('Plan deleted successfully!');
-      
-      setLoadedPlan(null);
-      setSearchCode('');
-      setSelectedCourses([]);
-      setPlanName('');
-      setSourceInstitution('');
-      setTargetInstitution('');
-      setIsEditMode(false);
-      setCurrentView('browse');
-      
-    } catch (error) {
-      alert('Failed to delete plan: ' + (error.response?.data?.error || 'Unknown error'));
-    }
-  };
-
-  const startEditMode = () => {
-    if (loadedPlan) {
-      setPlanName(loadedPlan.plan_name);
-      setSourceInstitution(loadedPlan.plan_data.source_institution_id);
-      setTargetInstitution(loadedPlan.plan_data.target_institution_id);
-      setSelectedCourses(loadedPlan.selected_courses);
-      setIsEditMode(true);
-      setCurrentView('edit-plan');
-    }
-  };
-
-  const cancelEdit = () => {
-    const hasChanges = 
-      planName !== loadedPlan?.plan_name ||
-      sourceInstitution !== loadedPlan?.plan_data?.source_institution_id ||
-      targetInstitution !== loadedPlan?.plan_data?.target_institution_id ||
-      selectedCourses.length !== loadedPlan?.selected_courses?.length;
-    
-    if (hasChanges) {
-      const confirmCancel = window.confirm('You have unsaved changes. Are you sure you want to cancel editing?');
-      if (!confirmCancel) return;
-    }
-    
-    setIsEditMode(false);
-    setCurrentView('view-plan');
-    setPlanName('');
-    setSourceInstitution('');
-    setTargetInstitution('');
-    setSelectedCourses([]);
-  };
-
-  const loadPlan = async () => {
-    if (!searchCode.trim()) {
-      alert('Please enter a plan code');
-      return;
-    }
-
-    try {
-      const response = await axios.get(`/api/get-plan/${searchCode.trim()}`);
-      setLoadedPlan(response.data.plan);
-      setCurrentView('view-plan');
-    } catch (error) {
-      if (error.response?.status === 404) {
-        alert('Plan not found. Please check your code and try again.');
-      } else {
-        alert('Failed to load plan: ' + (error.response?.data?.error || 'Unknown error'));
-      }
-    }
-  };
-
-  const resetPlanCreation = () => {
-    setSelectedCourses([]);
-    setPlanName('');
-    setSourceInstitution('');
-    setTargetInstitution('');
-    setPlanCode('');
-    setIsEditMode(false);
-    setCurrentView('browse');
-  };
-
-  const navigationProps = {
-    currentView,
-    setCurrentView,
-    isEditMode,
-    loadedPlan,
-    selectedCourses,
-    searchCode,
-    setSearchCode,
-    loadPlan,
-    cancelEdit
-  };
-
-  const browseProps = {
-    institutions,
-    departments,
-    courses,
-    equivalents,
-    expandedInstitution,
-    setExpandedInstitution,
-    expandedDepartment,
-    setExpandedDepartment,
-    selectedCourse,
-    setSelectedCourse,
-    selectedCourses,
-    toggleCourseSelection,
-    isEditMode,
-    loadedPlan
-  };
-
-  const createPlanProps = {
-    planName,
-    setPlanName,
-    sourceInstitution,
-    setSourceInstitution,
-    targetInstitution,
-    setTargetInstitution,
-    institutions,
-    selectedCourses,
-    toggleCourseSelection,
-    createPlan,
-    resetPlanCreation,
-    planCode
-  };
-
-  const editPlanProps = {
-    planName,
-    setPlanName,
-    sourceInstitution,
-    setSourceInstitution,
-    targetInstitution,
-    setTargetInstitution,
-    institutions,
-    selectedCourses,
-    toggleCourseSelection,
-    updatePlan,
-    cancelEdit,
-    deletePlan,
-    loadedPlan
-  };
-
-  const viewPlanProps = {
-    loadedPlan,
-    setLoadedPlan,
-    setSearchCode,
-    setCurrentView,
-    startEditMode,
-    deletePlan
-  };
+  const tabs = [
+    { id: 'search', label: 'Course Search', icon: Search },
+    { id: 'plans', label: 'Academic Plans', icon: FileText },
+    { id: 'upload', label: 'CSV Upload', icon: Upload },
+  ];
 
   return (
-    <div style={{ 
-      padding: '20px', 
-      fontFamily: 'Arial, sans-serif', 
-      maxWidth: '1200px', 
-      margin: '0 auto' 
-    }}>
-      {/* Header with Logos */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '20px',
-        padding: '10px 0'
-      }}>
-        {/* Left Logo */}
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <img 
-            src={unoLogo} 
-            alt="University of New Orleans" 
-            style={{ 
-              height: '60px', 
-              maxWidth: '200px',
-              objectFit: 'contain'
-            }}
-            onError={(e) => {
-              e.target.style.display = 'none';
-              e.target.nextElementSibling.style.display = 'block';
-            }}
-          />
-          <div 
-            style={{ 
-              display: 'none',
-              padding: '10px 20px',
-              backgroundColor: '#007bff',
-              color: 'white',
-              borderRadius: '4px',
-              fontSize: '14px',
-              fontWeight: 'bold'
-            }}
-          >
-            Delgado CC
+    <div className="min-h-screen bg-gray-100">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div className="flex items-center">
+              <GraduationCap className="text-blue-600 mr-3" size={32} />
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Course Transfer System</h1>
+                <p className="text-sm text-gray-600">Map your community college courses to 4-year programs</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center text-sm text-gray-600">
+                <Users className="mr-1" size={16} />
+                <span>Student & Advisor Portal</span>
+              </div>
+            </div>
           </div>
         </div>
+      </header>
 
-        {/* Center Title */}
-        <h1 style={{ 
-          color: '#333', 
-          margin: '0',
-          textAlign: 'center',
-          flex: 1,
-          fontSize: '24px'
-        }}>
-          Course Equivalency Finder
-        </h1>
-
-        {/* Right Logo */}
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <img 
-            src={delgadoLogo} 
-            alt="Delgado Community College" 
-            style={{ 
-              height: '60px', 
-              maxWidth: '200px',
-              objectFit: 'contain'
-            }}
-            onError={(e) => {
-              e.target.style.display = 'none';
-              e.target.nextElementSibling.style.display = 'block';
-            }}
-          />
-          <div 
-            style={{ 
-              display: 'none',
-              padding: '10px 20px',
-              backgroundColor: '#dc3545',
-              color: 'white',
-              borderRadius: '4px',
-              fontSize: '14px',
-              fontWeight: 'bold'
-            }}
-          >
-            UNO
+      {/* Navigation */}
+      <nav className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex space-x-8">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center px-3 py-4 text-sm font-medium border-b-2 ${
+                    activeTab === tab.id
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <Icon className="mr-2" size={16} />
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
         </div>
-      </div>
+      </nav>
 
-      {/* Divider Line */}
-      <div style={{ 
-        borderBottom: '10px solid #00402a', 
-        marginBottom: '20px' 
-      }}></div>
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {activeTab === 'search' && <CourseSearch />}
+        {activeTab === 'plans' && <PlanBuilder />}
+        {activeTab === 'upload' && <CSVUpload />}
+      </main>
 
-      <ImportSection />
-      <Navigation {...navigationProps} />
-
-      {currentView === 'browse' && <BrowseView {...browseProps} />}
-      {currentView === 'create-plan' && <CreatePlanView {...createPlanProps} />}
-      {currentView === 'view-plan' && <ViewPlanView {...viewPlanProps} />}
-      {currentView === 'edit-plan' && <EditPlanView {...editPlanProps} />}
+      {/* Footer */}
+      <footer className="bg-white border-t border-gray-200 mt-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center text-sm text-gray-600">
+            <p>Course Transfer Management System</p>
+            <p className="mt-1">Built with Flask, React, and SQLAlchemy</p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
-}
+};
 
 export default App;
