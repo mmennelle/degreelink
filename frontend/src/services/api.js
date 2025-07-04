@@ -23,6 +23,33 @@ class ApiService {
       
       return data;
     }
+    async getPrograms() {
+      return this.request('/programs');
+    }
+    
+    async getProgram(id) {
+      return this.request(`/programs/${id}`);
+    }
+    
+    async getProgramRequirementSuggestions(programId, requirementId) {
+      return this.request(`/programs/${programId}/requirements/${requirementId}/suggestions`);
+    }
+    
+    // Enhanced Plans
+    async getPlanProgress(id) {
+      return this.request(`/plans/${id}/progress`);
+    }
+    
+    // Requirements Upload
+    async uploadRequirements(file) {
+      const formData = new FormData();
+      formData.append('file', file);
+      return this.request('/upload/requirements', {
+        method: 'POST',
+        headers: {}, // Let browser set Content-Type for FormData
+        body: formData
+      });
+    }
   
     // Health check
     async healthCheck() {
@@ -160,3 +187,5 @@ class ApiService {
   // Create and export a singleton instance
   const api = new ApiService();
   export default api;
+
+  

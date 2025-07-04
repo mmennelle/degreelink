@@ -23,17 +23,6 @@ def get_plans():
         'plans': [plan.to_dict() for plan in plans]
     })
 
-@bp.route('/<int:plan_id>', methods=['GET'])
-def get_plan(plan_id):
-    """Get a specific plan with progress calculation"""
-    plan = Plan.query.get_or_404(plan_id)
-    
-    plan_data = plan.to_dict()
-    plan_data['progress'] = plan.calculate_progress()
-    plan_data['unmet_requirements'] = plan.get_unmet_requirements()
-    
-    return jsonify(plan_data)
-
 @bp.route('', methods=['POST'])
 def create_plan():
     """Create a new academic plan"""
@@ -137,3 +126,31 @@ def remove_course_from_plan(plan_id, plan_course_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': 'Failed to remove course'}), 500
+    
+@bp.route('/<int:plan_id>', methods=['GET'])
+def get_plan(plan_id):
+    """Get a specific plan with enhanced progress calculation"""
+    plan = Plan.query.get_or_404(plan_id)
+    
+    plan_data = plan.to_dict()
+    
+    # Use enhanced progress calculation
+    plan_data['progress'] = plan.calculate_progress()
+    plan_data['unmet_requirements'] = plan.get_unmet_requirements()
+    plan_data['course_suggestions'] = plan.suggest_courses_for_requirements()
+    
+    return jsonify(plan_data)
+
+@bp.route('/<int:plan_id>/progress', methods=['GET'])
+def get_plan_progress(plan_id):
+    """Get detailed progress analysis for a plan"""
+    plan = Plan.query.get_or_404(plan_id)
+    
+    progress = plan.calculate_progress()
+    
+    return jsonify({
+        'plan_id': plan_id,
+        'progress': progress,
+        'unmet_requirements': plan.get_unmet_requirements(),
+        'suggestions': plan.suggest_courses_for_requirements()
+    })

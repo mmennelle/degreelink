@@ -178,3 +178,141 @@ def upload_equivalencies():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'Failed to process file: {str(e)}'}), 500
+    # backend/routes/upload.py - Enhanced with Requirement CSV Upload
+
+@bp.route('/requirements', methods=['POST'])
+def upload_requirements():
+    """Upload program requirements from CSV file"""
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if not file.filename.lower().endswith('.csv'):
+        return jsonify({'error': 'File must be a CSV'}), 400
+    
+    try:
+        from models.program import Program, ProgramRequirement, RequirementGroup, GroupCourseOption
+        
+        # Read CSV
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_reader = csv.DictReader(stream)
+        
+        requirements_created = 0
+        groups_created = 0
+        options_created = 0
+        errors = []
+        
+        current_requirement = None
+        current_group = None
+        
+        for row_num, row in enumerate(csv_reader, start=2):
+            try:
+                # Expected columns: program_name, category, credits_required, requirement_type, 
+                # group_name, courses_required, credits_required_group, course_option, 
+                # institution, is_preferred, description
+                
+                program_name = row.get('program_name', '').strip()
+                category = row.get('category', '').strip()
+                
+                if not program_name or not category:
+                    errors.append(f"Row {row_num}: Missing program_name or category")
+                    continue
+                
+                # Find program
+                program = Program.query.filter_by(name=program_name).first()
+                if not program:
+                                    # Auto-create program if it doesn't exist
+                    program = Program(
+                        name=program_name,
+                        degree_type='BS',  # Default, could be extracted from CSV
+                        institution='University of New Orleans',  # Could be extracted from CSV
+                        total_credits_required=120,  # Default, could be calculated from requirements
+                        description=f'Auto-created program: {program_name}'
+                    )
+                    db.session.add(program)
+                    db.session.commit()
+                    programs_created += 1
+                    continue
+                
+                # Create or get requirement
+                requirement_credits = int(row.get('credits_required', 0))
+                requirement_type = row.get('requirement_type', 'simple').strip()
+                
+                if not current_requirement or current_requirement.category != category:
+                    current_requirement = ProgramRequirement.query.filter_by(
+                        program_id=program.id,
+                        category=category
+                    ).first()
+                    
+                    if not current_requirement:
+                        current_requirement = ProgramRequirement(
+                            program_id=program.id,
+                            category=category,
+                            credits_required=requirement_credits,
+                            requirement_type=requirement_type,
+                            description=row.get('description', '').strip()
+                        )
+                        db.session.add(current_requirement)
+                        requirements_created += 1
+                
+                # Handle grouped requirements
+                group_name = row.get('group_name', '').strip()
+                if group_name and requirement_type == 'grouped':
+                    if not current_group or current_group.group_name != group_name:
+                        current_group = RequirementGroup.query.filter_by(
+                            requirement_id=current_requirement.id,
+                            group_name=group_name
+                        ).first()
+                        
+                        if not current_group:
+                            current_group = RequirementGroup(
+                                requirement_id=current_requirement.id,
+                                group_name=group_name,
+                                courses_required=int(row.get('courses_required', 0)),
+                                credits_required=int(row.get('credits_required_group', 0)) if row.get('credits_required_group') else None,
+                                description=row.get('group_description', '').strip()
+                            )
+                            db.session.add(current_group)
+                            groups_created += 1
+                    
+                    # Add course option
+                    course_option = row.get('course_option', '').strip()
+                    if course_option:
+                        existing_option = GroupCourseOption.query.filter_by(
+                            group_id=current_group.id,
+                            course_code=course_option
+                        ).first()
+                        
+                        if not existing_option:
+                            option = GroupCourseOption(
+                                group_id=current_group.id,
+                                course_code=course_option,
+                                institution=row.get('institution', '').strip() or None,
+                                is_preferred=row.get('is_preferred', '').lower() == 'true',
+                                notes=row.get('option_notes', '').strip()
+                            )
+                            db.session.add(option)
+                            options_created += 1
+                    
+            except ValueError as e:
+                errors.append(f"Row {row_num}: Invalid data format - {str(e)}")
+            except Exception as e:
+                errors.append(f"Row {row_num}: {str(e)}")
+        
+        if requirements_created > 0 or groups_created > 0 or options_created > 0:
+            db.session.commit()
+        
+        return jsonify({
+            'message': 'Requirements upload completed',
+            'requirements_created': requirements_created,
+            'groups_created': groups_created,
+            'options_created': options_created,
+            'errors': errors
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to process file: {str(e)}'}), 500
