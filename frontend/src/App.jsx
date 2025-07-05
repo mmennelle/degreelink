@@ -1,265 +1,167 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import Navigation from './components/Navigation';
-import BrowseView from './components/BrowseView';
-import CreatePlanView from './components/CreatePlanView';
-import EditPlanView from './components/EditPlanView';
-import ViewPlanView from './components/ViewPlanView';
-import ImportSection from './components/ImportSection';
-import unoLogo from './assets/uno-logo.avif';
-import delgadoLogo from './assets/delgado-logo.jpg';
-
+// App.jsx - Refactored with MVC pattern
+import React, { useState } from 'react';
+import { useInstitutions } from './hooks/useInstitutions.js';
+import { useTransferPlan } from './hooks/useTransferPlan.js';
+import { MainLayout } from './views/layouts/MainLayout.jsx';
+import { Navigation } from './views/components/Navigation/Navigation.jsx';
+import { BrowsePage } from './views/pages/BrowsePage.jsx';
+import { CreatePlanPage } from './views/pages/CreatePlanPage.jsx';
+import { EditPlanPage } from './views/pages/EditPlanPage.jsx';
+import { ViewPlanPage } from './views/pages/ViewPlanPage.jsx';
+import { ImportSection } from './views/components/Import/ImportSection.jsx';
 
 function App() {
-  const [institutions, setInstitutions] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [courses, setCourses] = useState([]);
-  const [equivalents, setEquivalents] = useState([]);
-  
-  const [expandedInstitution, setExpandedInstitution] = useState(null);
-  const [expandedDepartment, setExpandedDepartment] = useState(null);
-  const [selectedCourse, setSelectedCourse] = useState(null);
-  
-  const [selectedCourses, setSelectedCourses] = useState([]);
-  const [planName, setPlanName] = useState('');
-  const [sourceInstitution, setSourceInstitution] = useState('');
-  const [targetInstitution, setTargetInstitution] = useState('');
-  const [planCode, setPlanCode] = useState('');
-  const [searchCode, setSearchCode] = useState('');
-  const [loadedPlan, setLoadedPlan] = useState(null);
+  // UI State Management
   const [currentView, setCurrentView] = useState('browse');
   const [isEditMode, setIsEditMode] = useState(false);
+  const [searchCode, setSearchCode] = useState('');
 
-  useEffect(() => {
-    axios.get('/api/institutions').then(res => setInstitutions(res.data));
-  }, []);
+  // Data Management through Custom Hooks
+  const { institutions } = useInstitutions();
+  const {
+    selectedCourses,
+    planName,
+    setPlanName,
+    sourceInstitution,
+    setSourceInstitution,
+    targetInstitution,
+    setTargetInstitution,
+    loadedPlan,
+    loading,
+    error,
+    toggleCourseSelection,
+    createPlan,
+    loadPlan,
+    updatePlan,
+    deletePlan,
+    resetPlan
+  } = useTransferPlan();
 
-  useEffect(() => {
-    if (expandedInstitution) {
-      axios.get(`/api/departments?institution_id=${expandedInstitution}`)
-        .then(res => setDepartments(res.data));
-    } else {
-      setDepartments([]);
-      setCourses([]);
-      setEquivalents([]);
-    }
-  }, [expandedInstitution]);
-
-  useEffect(() => {
-    if (expandedDepartment) {
-      axios.get(`/api/courses?department_id=${expandedDepartment}`)
-        .then(res => setCourses(res.data));
-    } else {
-      setCourses([]);
-      setEquivalents([]);
-    }
-  }, [expandedDepartment]);
-
-  useEffect(() => {
-    if (selectedCourse) {
-      axios.get(`/api/equivalents?course_id=${selectedCourse}`)
-        .then(res => setEquivalents(res.data));
-    } else {
-      setEquivalents([]);
-    }
-  }, [selectedCourse]);
-
-  const toggleCourseSelection = (course) => {
-    const isSelected = selectedCourses.some(c => c.id === course.id);
-    if (isSelected) {
-      setSelectedCourses(selectedCourses.filter(c => c.id !== course.id));
-    } else {
-      setSelectedCourses([...selectedCourses, course]);
-    }
+  // Navigation Controller Logic
+  const handleViewChange = (view) => {
+    setCurrentView(view);
   };
 
-  const createPlan = async () => {
-    if (!planName.trim()) {
-      alert('Please enter a plan name');
-      return;
-    }
-    if (selectedCourses.length === 0) {
-      alert('Please select at least one course');
-      return;
-    }
-    if (!sourceInstitution || !targetInstitution) {
-      alert('Please select source and target institutions');
-      return;
-    }
-
-    try {
-      const response = await axios.post('/api/create-plan', {
-        plan_name: planName,
-        source_institution_id: sourceInstitution,
-        target_institution_id: targetInstitution,
-        selected_courses: selectedCourses.map(c => c.id),
-        additional_data: {
-          total_courses: selectedCourses.length,
-          created_by_user: true
-        }
-      });
-
-      setPlanCode(response.data.plan_code);
-      alert(`Plan created successfully! Your plan code is: ${response.data.plan_code}`);
-      
-    } catch (error) {
-      alert('Failed to create plan: ' + (error.response?.data?.error || 'Unknown error'));
-    }
-  };
-
-  const updatePlan = async () => {
-    if (!loadedPlan) {
-      alert('Error: No plan loaded for editing');
-      return;
-    }
-    
-    if (!planName.trim()) {
-      alert('Please enter a plan name');
-      return;
-    }
-    if (selectedCourses.length === 0) {
-      alert('Please select at least one course');
-      return;
-    }
-    if (!sourceInstitution || !targetInstitution) {
-      alert('Please select source and target institutions');
-      return;
-    }
-
-    try {
-      const response = await axios.put(`/api/update-plan/${loadedPlan.code}`, {
-        plan_name: planName,
-        source_institution_id: sourceInstitution,
-        target_institution_id: targetInstitution,
-        selected_courses: selectedCourses.map(c => c.id),
-        additional_data: {
-          total_courses: selectedCourses.length,
-          updated_by_user: true,
-          last_updated: new Date().toISOString()
-        }
-      });
-
-      alert(`Plan updated successfully! Your plan code remains: ${loadedPlan.code}`);
-      
-      const updatedPlan = await axios.get(`/api/get-plan/${loadedPlan.code}`);
-      setLoadedPlan(updatedPlan.data.plan);
-      setIsEditMode(false);
-      setCurrentView('view-plan');
-      
-    } catch (error) {
-      alert('Failed to update plan: ' + (error.response?.data?.error || 'Unknown error'));
-    }
-  };
-
-  const deletePlan = async () => {
-    if (!loadedPlan) return;
-    
-    const confirmDelete = window.confirm(`Are you sure you want to delete the plan "${loadedPlan.plan_name}"? This action cannot be undone.`);
-    if (!confirmDelete) return;
-
-    try {
-      await axios.delete(`/api/delete-plan/${loadedPlan.code}`);
-      alert('Plan deleted successfully!');
-      
-      setLoadedPlan(null);
-      setSearchCode('');
-      setSelectedCourses([]);
-      setPlanName('');
-      setSourceInstitution('');
-      setTargetInstitution('');
-      setIsEditMode(false);
-      setCurrentView('browse');
-      
-    } catch (error) {
-      alert('Failed to delete plan: ' + (error.response?.data?.error || 'Unknown error'));
-    }
-  };
-
-  const startEditMode = () => {
-    if (loadedPlan) {
-      setPlanName(loadedPlan.plan_name);
-      setSourceInstitution(loadedPlan.plan_data.source_institution_id);
-      setTargetInstitution(loadedPlan.plan_data.target_institution_id);
-      setSelectedCourses(loadedPlan.selected_courses);
-      setIsEditMode(true);
-      setCurrentView('edit-plan');
-    }
-  };
-
-  const cancelEdit = () => {
-    const hasChanges = 
-      planName !== loadedPlan?.plan_name ||
-      sourceInstitution !== loadedPlan?.plan_data?.source_institution_id ||
-      targetInstitution !== loadedPlan?.plan_data?.target_institution_id ||
-      selectedCourses.length !== loadedPlan?.selected_courses?.length;
-    
-    if (hasChanges) {
-      const confirmCancel = window.confirm('You have unsaved changes. Are you sure you want to cancel editing?');
-      if (!confirmCancel) return;
-    }
-    
-    setIsEditMode(false);
-    setCurrentView('view-plan');
-    setPlanName('');
-    setSourceInstitution('');
-    setTargetInstitution('');
-    setSelectedCourses([]);
-  };
-
-  const loadPlan = async () => {
+  const handleLoadPlan = async () => {
     if (!searchCode.trim()) {
       alert('Please enter a plan code');
       return;
     }
 
-    try {
-      const response = await axios.get(`/api/get-plan/${searchCode.trim()}`);
-      setLoadedPlan(response.data.plan);
+    const result = await loadPlan(searchCode.trim());
+    if (result.success) {
       setCurrentView('view-plan');
-    } catch (error) {
-      if (error.response?.status === 404) {
+    } else {
+      if (result.error.includes('not found')) {
         alert('Plan not found. Please check your code and try again.');
       } else {
-        alert('Failed to load plan: ' + (error.response?.data?.error || 'Unknown error'));
+        alert(`Failed to load plan: ${result.error}`);
       }
     }
   };
 
-  const resetPlanCreation = () => {
-    setSelectedCourses([]);
-    setPlanName('');
-    setSourceInstitution('');
-    setTargetInstitution('');
-    setPlanCode('');
+  const handleStartEdit = () => {
+    setIsEditMode(true);
+    setCurrentView('edit-plan');
+  };
+
+  const handleCancelEdit = () => {
+    // Check for unsaved changes
+    if (loadedPlan) {
+      const hasChanges = 
+        planName !== loadedPlan.plan_name ||
+        sourceInstitution !== loadedPlan.source_institution_id ||
+        targetInstitution !== loadedPlan.target_institution_id ||
+        selectedCourses.length !== loadedPlan.selected_courses.length;
+      
+      if (hasChanges) {
+        const confirmCancel = window.confirm('You have unsaved changes. Are you sure you want to cancel editing?');
+        if (!confirmCancel) return;
+      }
+    }
+    
+    setIsEditMode(false);
+    setCurrentView('view-plan');
+  };
+
+  const handleCreatePlan = async () => {
+    const result = await createPlan();
+    
+    if (result.success) {
+      alert(`Plan created successfully! Your plan code is: ${result.data.plan_code}`);
+    } else {
+      if (result.errors) {
+        alert(`Validation errors: ${result.errors.join(', ')}`);
+      } else {
+        alert(`Failed to create plan: ${result.error}`);
+      }
+    }
+  };
+
+  const handleUpdatePlan = async () => {
+    if (!loadedPlan) {
+      alert('Error: No plan loaded for editing');
+      return;
+    }
+
+    const result = await updatePlan(loadedPlan.code);
+    
+    if (result.success) {
+      alert(`Plan updated successfully! Your plan code remains: ${loadedPlan.code}`);
+      setIsEditMode(false);
+      setCurrentView('view-plan');
+    } else {
+      if (result.errors) {
+        alert(`Validation errors: ${result.errors.join(', ')}`);
+      } else {
+        alert(`Failed to update plan: ${result.error}`);
+      }
+    }
+  };
+
+  const handleDeletePlan = async () => {
+    if (!loadedPlan) return;
+    
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete the plan "${loadedPlan.plan_name}"? This action cannot be undone.`
+    );
+    if (!confirmDelete) return;
+
+    const result = await deletePlan(loadedPlan.code);
+    
+    if (result.success) {
+      alert('Plan deleted successfully!');
+      setSearchCode('');
+      setIsEditMode(false);
+      setCurrentView('browse');
+    } else {
+      alert(`Failed to delete plan: ${result.error}`);
+    }
+  };
+
+  const handleResetPlan = () => {
+    resetPlan();
     setIsEditMode(false);
     setCurrentView('browse');
   };
 
+  // Navigation Props
   const navigationProps = {
     currentView,
-    setCurrentView,
+    setCurrentView: handleViewChange,
     isEditMode,
     loadedPlan,
     selectedCourses,
     searchCode,
     setSearchCode,
-    loadPlan,
-    cancelEdit
+    onLoadPlan: handleLoadPlan,
+    onCancelEdit: handleCancelEdit
   };
 
+  // Page Props
   const browseProps = {
-    institutions,
-    departments,
-    courses,
-    equivalents,
-    expandedInstitution,
-    setExpandedInstitution,
-    expandedDepartment,
-    setExpandedDepartment,
-    selectedCourse,
-    setSelectedCourse,
     selectedCourses,
-    toggleCourseSelection,
+    onCourseToggle: toggleCourseSelection,
     isEditMode,
     loadedPlan
   };
@@ -273,10 +175,10 @@ function App() {
     setTargetInstitution,
     institutions,
     selectedCourses,
-    toggleCourseSelection,
-    createPlan,
-    resetPlanCreation,
-    planCode
+    onCourseToggle: toggleCourseSelection,
+    onCreatePlan: handleCreatePlan,
+    onResetPlan: handleResetPlan,
+    loading
   };
 
   const editPlanProps = {
@@ -288,123 +190,34 @@ function App() {
     setTargetInstitution,
     institutions,
     selectedCourses,
-    toggleCourseSelection,
-    updatePlan,
-    cancelEdit,
-    deletePlan,
-    loadedPlan
+    onCourseToggle: toggleCourseSelection,
+    onUpdatePlan: handleUpdatePlan,
+    onCancelEdit: handleCancelEdit,
+    onDeletePlan: handleDeletePlan,
+    loadedPlan,
+    loading
   };
 
   const viewPlanProps = {
     loadedPlan,
-    setLoadedPlan,
-    setSearchCode,
-    setCurrentView,
-    startEditMode,
-    deletePlan
+    onBackToBrowse: () => {
+      setSearchCode('');
+      setCurrentView('browse');
+    },
+    onStartEdit: handleStartEdit,
+    onDeletePlan: handleDeletePlan
   };
 
   return (
-    <div style={{ 
-      padding: '20px', 
-      fontFamily: 'Arial, sans-serif', 
-      maxWidth: '1200px', 
-      margin: '0 auto' 
-    }}>
-      {/* Header with Logos */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '20px',
-        padding: '10px 0'
-      }}>
-        {/* Left Logo */}
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <img 
-            src={unoLogo} 
-            alt="University of New Orleans" 
-            style={{ 
-              height: '60px', 
-              maxWidth: '200px',
-              objectFit: 'contain'
-            }}
-            onError={(e) => {
-              e.target.style.display = 'none';
-              e.target.nextElementSibling.style.display = 'block';
-            }}
-          />
-          <div 
-            style={{ 
-              display: 'none',
-              padding: '10px 20px',
-              backgroundColor: '#007bff',
-              color: 'white',
-              borderRadius: '4px',
-              fontSize: '14px',
-              fontWeight: 'bold'
-            }}
-          >
-            Delgado CC
-          </div>
-        </div>
-
-        {/* Center Title */}
-        <h1 style={{ 
-          color: '#333', 
-          margin: '0',
-          textAlign: 'center',
-          flex: 1,
-          fontSize: '24px'
-        }}>
-          Course Equivalency Finder
-        </h1>
-
-        {/* Right Logo */}
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <img 
-            src={delgadoLogo} 
-            alt="Delgado Community College" 
-            style={{ 
-              height: '60px', 
-              maxWidth: '200px',
-              objectFit: 'contain'
-            }}
-            onError={(e) => {
-              e.target.style.display = 'none';
-              e.target.nextElementSibling.style.display = 'block';
-            }}
-          />
-          <div 
-            style={{ 
-              display: 'none',
-              padding: '10px 20px',
-              backgroundColor: '#dc3545',
-              color: 'white',
-              borderRadius: '4px',
-              fontSize: '14px',
-              fontWeight: 'bold'
-            }}
-          >
-            UNO
-          </div>
-        </div>
-      </div>
-
-      {/* Divider Line */}
-      <div style={{ 
-        borderBottom: '10px solid #00402a', 
-        marginBottom: '20px' 
-      }}></div>
-
+    <MainLayout>
       <ImportSection />
       <Navigation {...navigationProps} />
 
-      {currentView === 'browse' && <BrowseView {...browseProps} />}
-      {currentView === 'create-plan' && <CreatePlanView {...createPlanProps} />}
-      {currentView === 'view-plan' && <ViewPlanView {...viewPlanProps} />}
-      {currentView === 'edit-plan' && <EditPlanView {...editPlanProps} />}
-    </div>
+      {currentView === 'browse' && <BrowsePage {...browseProps} />}
+      {currentView === 'create-plan' && <CreatePlanPage {...createPlanProps} />}
+      {currentView === 'view-plan' && <ViewPlanPage {...viewPlanProps} />}
+      {currentView === 'edit-plan' && <EditPlanPage {...editPlanProps} />}
+    </MainLayout>
   );
 }
 
