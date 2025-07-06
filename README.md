@@ -17,7 +17,7 @@
   - Transfer Plans (create, retrieve)
   - CSV Import
 7. Check JSON responses for expected data structure
-8. Note any error messages for debugging
+8. YOu can also add the CSV files in docs/equic-csvs via the import endpoints for more test data
 
 ## Quick Test Sequence
 
