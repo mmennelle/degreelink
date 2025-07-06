@@ -6,17 +6,18 @@
 
 ## Steps
 
-1. Save the HTML file as `backend-tester.html`
+1. Initialize database: `python init_db.py`
 2. Start Flask backend: `python app.py`
-3. Open `backend-tester.html` in web browser
-4. Verify connection test shows green success message
-5. Test endpoints in order:
+3. Save the HTML file as `backend-tester.html`
+4. Open `backend-tester.html` in web browser
+5. Verify connection test shows green success message
+6. Test endpoints in order:
   - Basic Data (institutions, departments, courses)
   - Programs (create, analyze)
   - Transfer Plans (create, retrieve)
   - CSV Import
-6. Check JSON responses for expected data structure
-7. Note any error messages for debugging
+7. Check JSON responses for expected data structure
+8. Note any error messages for debugging
 
 ## Quick Test Sequence
 
