@@ -4,16 +4,17 @@
 
 1. Initialize database: `python init_db.py`
 2. Start Flask backend: `python app.py`
-3. Save the HTML file as `backend-tester.html`
-4. Open `backend-tester.html` in web browser
-5. Verify connection test shows green success message
-6. Test endpoints in order:
+3. Run an API tester
+   1. use postman or burpsuite ETC
+   2. Open `backend-tester.html` in web browser
+4. Verify connection test shows green success message
+5. Test endpoints in order:
   - Basic Data (institutions, departments, courses)
   - Programs (create, analyze)
   - Transfer Plans (create, retrieve)
   - CSV Import
-7. Check JSON responses for expected data structure
-8. YOu can also add the CSV files in docs/equic-csvs via the import endpoints for more test data
+6. Check JSON responses for expected data structure
+7. Some data is uploaded to db on init but you can also add the CSV files in docs/equic-csvs via the import endpoints for more test data
 
 ## Quick Test Sequence
 
