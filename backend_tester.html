@@ -109,8 +109,8 @@
 </head>
 <body>
     <div class="container">
-        <h1>Backend API Tester</h1>
-        <p>Test the Course Equivalency Finder backend API endpoints. Make sure your Flask server is running on localhost:5000</p>
+        <h1>API Tester</h1>
+        <p>localhost:5000</p>
         
         <div class="form-row">
             <div>
@@ -481,12 +481,11 @@
     const responseId = 'response-' + endpoint.split('/')[1].split('?')[0];
     let responseEl = document.getElementById(responseId);
 
-    // Handle specific course endpoint
+    
     if (endpoint.match(/^\/courses\/\d+$/)) {
         responseEl = document.getElementById('response-specific-course');
     }
 
-    // Handle specific plan endpoint
     if (endpoint.match(/^\/plans\/\d+$/)) {
         responseEl = document.getElementById('response-specific-plan');
     }
@@ -1106,7 +1105,7 @@
             });
         }
 
-        // Test connection on page load
+       
         window.onload = function() {
             testConnection();
         };
