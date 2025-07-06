@@ -1,9 +1,5 @@
 # Backend Tester Usage
 
-## Prerequisites
-- Flask backend running on localhost:5000
-- Any modern web browser
-
 ## Steps
 
 1. Initialize database: `python init_db.py`
