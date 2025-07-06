@@ -4,6 +4,7 @@ __pycache__/
 *.db
 .env
 venv
+backend/instance
 
 # Node modules
 
