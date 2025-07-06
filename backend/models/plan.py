@@ -54,7 +54,7 @@ class Plan(db.Model):
         return progress
     
     def get_unmet_requirements(self):
-        """Determine which program requirements are not yet met"""
+        """Figure which program requirements are not yet met"""
         
         
         unmet = []
@@ -72,8 +72,8 @@ class Plan(db.Model):
                 })
         return unmet
 
-    def calculate_detailed_progress(self):
-        """Calculate detailed program completion progress with requirement breakdown"""
+    def calculate_progress(self):
+        """Calculate program completion progress with requirement breakdown"""
         
         total_credits = sum(
             course.credits or course.course.credits or 0 

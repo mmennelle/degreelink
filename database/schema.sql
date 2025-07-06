@@ -1,5 +1,3 @@
--- SQL schema for reference (SQLAlchemy will create these automatically)
-
 CREATE TABLE courses (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     code VARCHAR(20) NOT NULL,

@@ -5,7 +5,7 @@ bp = Blueprint('equivalencies', __name__, url_prefix='/api/equivalencies')
 
 @bp.route('', methods=['GET'])
 def get_equivalencies():
-    """Get all equivalencies with optional filtering"""
+    
     from_institution = request.args.get('from_institution')
     to_institution = request.args.get('to_institution')
     
@@ -26,7 +26,7 @@ def get_equivalencies():
 
 @bp.route('', methods=['POST'])
 def create_equivalency():
-    """Create a new course equivalency"""
+    
     data = request.get_json()
     
     
@@ -63,7 +63,7 @@ def create_equivalency():
 
 @bp.route('/<int:equiv_id>', methods=['PUT'])
 def update_equivalency(equiv_id):
-    """Update an equivalency"""
+    
     equivalency = Equivalency.query.get_or_404(equiv_id)
     data = request.get_json()
     
@@ -80,7 +80,7 @@ def update_equivalency(equiv_id):
 
 @bp.route('/<int:equiv_id>', methods=['DELETE'])
 def delete_equivalency(equiv_id):
-    """Delete an equivalency"""
+    
     equivalency = Equivalency.query.get_or_404(equiv_id)
     
     try:

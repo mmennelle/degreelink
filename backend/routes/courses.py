@@ -6,7 +6,7 @@ bp = Blueprint('courses', __name__, url_prefix='/api/courses')
 
 @bp.route('', methods=['GET'])
 def get_courses():
-    """Search and filter courses"""
+    
     search = request.args.get('search', '')
     institution = request.args.get('institution', '')
     department = request.args.get('department', '')
@@ -49,7 +49,7 @@ def get_courses():
 
 @bp.route('/<int:course_id>', methods=['GET'])
 def get_course(course_id):
-    """Get a specific course with its equivalencies"""
+    
     course = Course.query.get_or_404(course_id)
     
     
@@ -75,7 +75,7 @@ def get_course(course_id):
 
 @bp.route('', methods=['POST'])
 def create_course():
-    """Create a new course"""
+    
     data = request.get_json()
     
     course = Course(
@@ -103,7 +103,7 @@ def create_course():
 
 @bp.route('/<int:course_id>', methods=['PUT'])
 def update_course(course_id):
-    """Update an existing course"""
+    
     course = Course.query.get_or_404(course_id)
     data = request.get_json()
     
@@ -130,7 +130,7 @@ def update_course(course_id):
 
 @bp.route('/<int:course_id>', methods=['DELETE'])
 def delete_course(course_id):
-    """Delete a course"""
+    
     course = Course.query.get_or_404(course_id)
     
     try:

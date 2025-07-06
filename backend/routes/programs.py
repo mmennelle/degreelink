@@ -6,7 +6,7 @@ bp = Blueprint('programs', __name__, url_prefix='/api/programs')
 
 @bp.route('', methods=['GET'])
 def get_programs():
-    """Get all programs with their requirements"""
+    
     programs = Program.query.all()
     
     return jsonify({
@@ -15,7 +15,7 @@ def get_programs():
 
 @bp.route('/<int:program_id>', methods=['GET'])
 def get_program(program_id):
-    """Get a specific program with detailed requirements"""
+    
     program = Program.query.get_or_404(program_id)
     
     program_data = program.to_dict()
@@ -47,7 +47,7 @@ def get_program(program_id):
 
 @bp.route('/<int:program_id>/requirements/<int:requirement_id>/suggestions', methods=['GET'])
 def get_requirement_suggestions(program_id, requirement_id):
-    """Get course suggestions for a specific requirement"""
+    
     requirement = ProgramRequirement.query.filter_by(
         id=requirement_id, 
         program_id=program_id

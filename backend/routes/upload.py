@@ -8,13 +8,13 @@ bp = Blueprint('upload', __name__, url_prefix='/api/upload')
 
 @bp.route('/courses', methods=['POST'])
 def upload_courses():
-    """Upload courses from CSV file"""
+    
     if 'file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
+        return jsonify({'error': 'File not Given'}), 400
     
     file = request.files['file']
     if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
+        return jsonify({'error': 'file not selected'}), 400
     
     if not file.filename.lower().endswith('.csv'):
         return jsonify({'error': 'File must be a CSV'}), 400
@@ -93,7 +93,7 @@ def upload_courses():
 
 @bp.route('/equivalencies', methods=['POST'])
 def upload_equivalencies():
-    """Upload course equivalencies from CSV file"""
+    
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
     
@@ -182,7 +182,7 @@ def upload_equivalencies():
 
 @bp.route('/requirements', methods=['POST'])
 def upload_requirements():
-    """Upload program requirements from CSV file"""
+    
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
     

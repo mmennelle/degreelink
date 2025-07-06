@@ -5,7 +5,7 @@ bp = Blueprint('plans', __name__, url_prefix='/api/plans')
 
 @bp.route('', methods=['GET'])
 def get_plans():
-    """Get all plans with optional filtering"""
+    
     student_email = request.args.get('student_email')
     program_id = request.args.get('program_id', type=int)
     
@@ -25,7 +25,7 @@ def get_plans():
 
 @bp.route('', methods=['POST'])
 def create_plan():
-    """Create a new academic plan"""
+    
     data = request.get_json()
     
     
@@ -51,7 +51,7 @@ def create_plan():
 
 @bp.route('/<int:plan_id>/courses', methods=['POST'])
 def add_course_to_plan(plan_id):
-    """Add a course to a plan"""
+    
     plan = Plan.query.get_or_404(plan_id)
     data = request.get_json()
     
@@ -89,7 +89,7 @@ def add_course_to_plan(plan_id):
 
 @bp.route('/<int:plan_id>/courses/<int:plan_course_id>', methods=['PUT'])
 def update_plan_course(plan_id, plan_course_id):
-    """Update a course in a plan"""
+    
     plan_course = PlanCourse.query.filter_by(
         id=plan_course_id,
         plan_id=plan_id
@@ -113,7 +113,7 @@ def update_plan_course(plan_id, plan_course_id):
 
 @bp.route('/<int:plan_id>/courses/<int:plan_course_id>', methods=['DELETE'])
 def remove_course_from_plan(plan_id, plan_course_id):
-    """Remove a course from a plan"""
+    
     plan_course = PlanCourse.query.filter_by(
         id=plan_course_id,
         plan_id=plan_id
@@ -129,7 +129,7 @@ def remove_course_from_plan(plan_id, plan_course_id):
     
 @bp.route('/<int:plan_id>', methods=['GET'])
 def get_plan(plan_id):
-    """Get a specific plan with enhanced progress calculation"""
+    
     plan = Plan.query.get_or_404(plan_id)
     
     plan_data = plan.to_dict()
@@ -143,7 +143,7 @@ def get_plan(plan_id):
 
 @bp.route('/<int:plan_id>/progress', methods=['GET'])
 def get_plan_progress(plan_id):
-    """Get detailed progress analysis for a plan"""
+    
     plan = Plan.query.get_or_404(plan_id)
     
     progress = plan.calculate_progress()

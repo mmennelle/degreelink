@@ -7,16 +7,9 @@ migrate = Migrate()
 def init_app(app):
     db.init_app(app)
     migrate.init_app(app, db)
-    
-   
-    from .course import Course
-    from .program import Program, ProgramRequirement
-    from .equivalency import Equivalency
-    from .plan import Plan, PlanCourse
-    
     return db
 
-
+# Keep imports here because of circular import issue.
 from .course import Course
 from .program import Program, ProgramRequirement
 from .equivalency import Equivalency
