@@ -64,7 +64,7 @@ class ProgramRequirement(db.Model):
         }
     
     def evaluate_completion(self, student_courses):
-        """Evaluate if this requirement is satisfied by student's courses"""
+        
         if self.requirement_type == 'simple':
             return self._evaluate_simple_requirement(student_courses)
         elif self.requirement_type == 'grouped':
@@ -75,7 +75,7 @@ class ProgramRequirement(db.Model):
             return {'satisfied': False, 'error': 'Unknown requirement type'}
     
     def _evaluate_simple_requirement(self, student_courses):
-        """Simple credit requirement - just count credits in category"""
+        
         matching_courses = [
             course for course in student_courses 
             if course.requirement_category == self.category and course.status == 'completed'
@@ -92,7 +92,7 @@ class ProgramRequirement(db.Model):
         }
     
     def _evaluate_grouped_requirement(self, student_courses):
-        """Complex grouped requirement - check each group's rules"""
+        
         group_results = []
         total_satisfied_credits = 0
         all_groups_satisfied = True
@@ -115,7 +115,7 @@ class ProgramRequirement(db.Model):
         }
     
     def _evaluate_conditional_requirement(self, student_courses):
-        """Conditional requirement - complex logic based on other requirements"""
+        
         
         
         return self._evaluate_simple_requirement(student_courses)
@@ -151,7 +151,7 @@ class RequirementGroup(db.Model):
         }
     
     def evaluate_completion(self, student_courses):
-        """Evaluate if this group requirement is satisfied"""
+        
         
         option_codes = [opt.course_code for opt in self.course_options]
         
@@ -202,7 +202,7 @@ class RequirementGroup(db.Model):
         return {'satisfied': False, 'error': 'No completion criteria defined'}
     
     def _meets_credit_requirements(self, course):
-        """Check if course meets credit hour requirements for this group"""
+        
         course_credits = course.credits or course.course.credits
         
         if self.min_credits_per_course and course_credits < self.min_credits_per_course:

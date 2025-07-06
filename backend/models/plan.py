@@ -1,6 +1,7 @@
 
 from . import db
 from datetime import datetime
+from sqlalchemy.sql import func
 import json
 
 class Plan(db.Model):
@@ -12,10 +13,9 @@ class Plan(db.Model):
     program_id = db.Column(db.Integer, db.ForeignKey('programs.id'), nullable=False)
     plan_name = db.Column(db.String(200), nullable=False)
     status = db.Column(db.String(50), default='draft')  
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, server_default=func.now())
+    updated_at = db.Column(db.DateTime, server_default=func.now(), onupdate=func.now())
     
- 
     courses = db.relationship('PlanCourse', backref='plan', cascade='all, delete-orphan')
     
     def __repr__(self):
@@ -35,7 +35,7 @@ class Plan(db.Model):
         }
     
     def calculate_progress(self):
-        """Calculate program completion progress"""
+        
         
         total_credits = sum(
             course.credits or course.course.credits or 0 
@@ -54,7 +54,7 @@ class Plan(db.Model):
         return progress
     
     def get_unmet_requirements(self):
-        """Figure which program requirements are not yet met"""
+        
         
         
         unmet = []
@@ -73,7 +73,7 @@ class Plan(db.Model):
         return unmet
 
     def calculate_progress(self):
-        """Calculate program completion progress with requirement breakdown"""
+        
         
         total_credits = sum(
             course.credits or course.course.credits or 0 
@@ -159,7 +159,7 @@ class Plan(db.Model):
         }
 
     def suggest_courses_for_requirements(self):
-        """Suggest courses that would fulfill unmet program requirements"""
+        
         from .course import Course
         from .equivalency import Equivalency
         
@@ -214,7 +214,7 @@ class Plan(db.Model):
         return suggestions
 
     def _get_grouped_requirement_suggestions(self, requirement, completed_course_ids):
-        """Get course suggestions for grouped requirements"""
+        
         from .course import Course
         
         suggestions = []
@@ -244,7 +244,7 @@ class Plan(db.Model):
         return suggestions
 
     def _get_simple_requirement_suggestions(self, category, completed_course_ids, credits_needed):
-        """Get course suggestions for simple requirements"""
+        
         from .course import Course
         
         
@@ -285,7 +285,7 @@ class Plan(db.Model):
         return suggestions
 
     def _get_transfer_suggestions(self, course_options):
-        """Get transfer course equivalencies for suggested courses"""
+        
         from .equivalency import Equivalency
         
         transfer_options = []
@@ -318,7 +318,7 @@ class Plan(db.Model):
         return transfer_options
 
     def _analyze_transfer_equivalencies(self, completed_courses):
-        """Analyze transfer equivalencies for completed courses"""
+        
         from .equivalency import Equivalency
         
         transfer_courses = []
@@ -349,7 +349,7 @@ class Plan(db.Model):
         }
 
     def _calculate_gpa(self, completed_courses):
-        """Calculate GPA from completed courses with grades"""
+        
         grade_points = {
             'A': 4.0, 'A-': 3.7,
             'B+': 3.3, 'B': 3.0, 'B-': 2.7,
@@ -380,7 +380,7 @@ class Plan(db.Model):
         }
 
     def get_semester_plan(self):
-        """Get courses organized by semester"""
+        
         semester_plan = {}
         
         for course in self.courses:
@@ -401,7 +401,7 @@ class Plan(db.Model):
         return semester_plan
 
     def validate_prerequisites(self):
-        """Check if all prerequisite requirements are met"""
+        
         violations = []
         completed_courses = {course.course.code for course in self.courses if course.status == 'completed'}
         
