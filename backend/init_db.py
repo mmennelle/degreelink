@@ -45,6 +45,16 @@ def init_database():
         db.session.add(test_course)
         db.session.commit()
         
+        test_course2 = Course(
+            code='TEST2',
+            title='Test Course 2',
+            description='Test Description 2',
+            credits=3,
+            institution='Test Institution 2',
+            department='Test Department 2'
+        )
+        db.session.add(test_course2)
+        db.session.commit()
         
         test_program = Program(
             name='Test Program 1',

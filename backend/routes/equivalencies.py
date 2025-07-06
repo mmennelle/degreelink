@@ -1,11 +1,11 @@
 from flask import Blueprint, request, jsonify
 from models import db, Equivalency, Course
+from sqlalchemy.orm import aliased
 
 bp = Blueprint('equivalencies', __name__, url_prefix='/api/equivalencies')
 
 @bp.route('', methods=['GET'])
 def get_equivalencies():
-    
     from_institution = request.args.get('from_institution')
     to_institution = request.args.get('to_institution')
     
@@ -15,8 +15,10 @@ def get_equivalencies():
         query = query.filter(Course.institution.ilike(f'%{from_institution}%'))
     
     if to_institution:
-        query = query.join(Course, Equivalency.to_course_id == Course.id, aliased=True)
-        query = query.filter(Course.institution.ilike(f'%{to_institution}%'))
+        
+        ToCourse = aliased(Course)
+        query = query.join(ToCourse, Equivalency.to_course_id == ToCourse.id)
+        query = query.filter(ToCourse.institution.ilike(f'%{to_institution}%'))
     
     equivalencies = query.all()
     

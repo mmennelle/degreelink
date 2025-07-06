@@ -1,3 +1,5 @@
+# includes full test data that will be input during db init
+
 import os
 import sys
 
@@ -27,7 +29,7 @@ except ImportError as e:
 from datetime import datetime
 
 def init_database():
-    """Initialize database with tables and sample data"""
+
     app = create_app()
     
     with app.app_context():
