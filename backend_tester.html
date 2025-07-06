@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backend API Tester</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .endpoint {
+            margin-bottom: 30px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+        }
+        .endpoint h3 {
+            margin-top: 0;
+            color: #007bff;
+        }
+        .method {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            color: white;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .get { background-color: #28a745; }
+        .post { background-color: #007bff; }
+        .put { background-color: #ffc107; color: #000; }
+        .delete { background-color: #dc3545; }
+        
+        input, textarea, select {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .response {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        .success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .form-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .form-row > div {
+            flex: 1;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Backend API Tester</h1>
+        <p>Test the Course Equivalency Finder backend API endpoints. Make sure your Flask server is running on localhost:5000</p>
+        
+        <div class="form-row">
+            <div>
+                <label>Base URL:</label>
+                <input type="text" id="baseUrl" value="http://localhost:5000/api" />
+            </div>
+            <div>
+                <button onclick="testConnection()">Test Connection</button>
+            </div>
+        </div>
+        <div id="connectionResult" class="response" style="display: none;"></div>
+    </div>
+
+    <!-- Basic Data Endpoints -->
+    <div class="container">
+        <h2>Basic Data Endpoints</h2>
+        
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /institutions</h3>
+            <p>Get all institutions</p>
+            <button onclick="makeRequest('GET', '/institutions')">Test Endpoint</button>
+            <div id="response-institutions" class="response" style="display: none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /departments</h3>
+            <p>Get departments for an institution</p>
+            <label>Institution ID:</label>
+            <input type="number" id="dept-institution-id" placeholder="Enter institution ID" />
+            <button onclick="makeRequest('GET', '/departments?institution_id=' + document.getElementById('dept-institution-id').value)">Test Endpoint</button>
+            <div id="response-departments" class="response" style="display: none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /courses</h3>
+            <p>Get courses for a department</p>
+            <label>Department ID:</label>
+            <input type="number" id="course-department-id" placeholder="Enter department ID" />
+            <button onclick="makeRequest('GET', '/courses?department_id=' + document.getElementById('course-department-id').value)">Test Endpoint</button>
+            <div id="response-courses" class="response" style="display: none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /equivalents</h3>
+            <p>Get equivalent courses for a course</p>
+            <label>Course ID:</label>
+            <input type="number" id="equiv-course-id" placeholder="Enter course ID" />
+            <button onclick="makeRequest('GET', '/equivalents?course_id=' + document.getElementById('equiv-course-id').value)">Test Endpoint</button>
+            <div id="response-equivalents" class="response" style="display: none;"></div>
+        </div>
+    </div>
+
+    <!-- Program Endpoints -->
+    <div class="container">
+        <h2>Program Endpoints</h2>
+        
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /programs</h3>
+            <p>Get programs for a department</p>
+            <label>Department ID:</label>
+            <input type="number" id="prog-department-id" placeholder="Enter department ID" />
+            <button onclick="makeRequest('GET', '/programs?department_id=' + document.getElementById('prog-department-id').value)">Test Endpoint</button>
+            <div id="response-programs" class="response" style="display: none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /programs/{id}/requirements</h3>
+            <p>Get program with requirements</p>
+            <label>Program ID:</label>
+            <input type="number" id="prog-req-id" placeholder="Enter program ID" />
+            <button onclick="makeRequest('GET', '/programs/' + document.getElementById('prog-req-id').value + '/requirements')">Test Endpoint</button>
+            <div id="response-program-requirements" class="response" style="display: none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method post">POST</span> /programs/{id}/analyze</h3>
+            <p>Analyze program completion</p>
+            <label>Program ID:</label>
+            <input type="number" id="analyze-prog-id" placeholder="Enter program ID" />
+            <label>Selected Course IDs (comma-separated):</label>
+            <input type="text" id="analyze-courses" placeholder="1,2,3" />
+            <button onclick="analyzeProgram()">Test Endpoint</button>
+            <div id="response-analyze" class="response" style="display: none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method post">POST</span> /programs</h3>
+            <p>Create a new program</p>
+            <div class="form-row">
+                <div>
+                    <label>Program Name:</label>
+                    <input type="text" id="create-prog-name" placeholder="Biology Transfer" />
+                </div>
+                <div>
+                    <label>Degree Type:</label>
+                    <input type="text" id="create-prog-degree" placeholder="AS" />
+                </div>
+            </div>
+            <div class="form-row">
+                <div>
+                    <label>Department ID:</label>
+                    <input type="number" id="create-prog-dept" placeholder="1" />
+                </div>
+                <div>
+                    <label>Institution ID:</label>
+                    <input type="number" id="create-prog-inst" placeholder="1" />
+                </div>
+            </div>
+            <label>Description:</label>
+            <textarea id="create-prog-desc" placeholder="Program description"></textarea>
+            <label>Total Credits:</label>
+            <input type="number" id="create-prog-credits" placeholder="60" />
+            <button onclick="createProgram()">Test Endpoint</button>
+            <div id="response-create-program" class="response" style="display: none;"></div>
+        </div>
+    </div>
+
+    <!-- Transfer Plan Endpoints -->
+    <div class="container">
+        <h2>Transfer Plan Endpoints</h2>
+        
+        <div class="endpoint">
+            <h3><span class="method post">POST</span> /create-plan</h3>
+            <p>Create a transfer plan</p>
+            <div class="form-row">
+                <div>
+                    <label>Plan Name:</label>
+                    <input type="text" id="plan-name" placeholder="My Transfer Plan" />
+                </div>
+            </div>
+            <div class="form-row">
+                <div>
+                    <label>Source Institution ID:</label>
+                    <input type="number" id="plan-source" placeholder="1" />
+                </div>
+                <div>
+                    <label>Target Institution ID:</label>
+                    <input type="number" id="plan-target" placeholder="2" />
+                </div>
+            </div>
+            <label>Selected Course IDs (comma-separated):</label>
+            <input type="text" id="plan-courses" placeholder="1,2,3" />
+            <button onclick="createPlan()">Test Endpoint</button>
+            <div id="response-create-plan" class="response" style="display: none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /get-plan/{code}</h3>
+            <p>Get a transfer plan by code</p>
+            <label>Plan Code:</label>
+            <input type="text" id="get-plan-code" placeholder="ABC12345" />
+            <button onclick="makeRequest('GET', '/get-plan/' + document.getElementById('get-plan-code').value)">Test Endpoint</button>
+            <div id="response-get-plan" class="response" style="display: none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method delete">DELETE</span> /delete-plan/{code}</h3>
+            <p>Delete a transfer plan</p>
+            <label>Plan Code:</label>
+            <input type="text" id="delete-plan-code" placeholder="ABC12345" />
+            <button onclick="makeRequest('DELETE', '/delete-plan/' + document.getElementById('delete-plan-code').value)">Test Endpoint</button>
+            <div id="response-delete-plan" class="response" style="display: none;"></div>
+        </div>
+    </div>
+
+    <!-- Import Endpoint -->
+    <div class="container">
+        <h2>Import Endpoint</h2>
+        
+        <div class="endpoint">
+            <h3><span class="method post">POST</span> /import</h3>
+            <p>Import course data from CSV</p>
+            <label>CSV File:</label>
+            <input type="file" id="import-file" accept=".csv" />
+            <button onclick="importCSV()">Test Endpoint</button>
+            <div id="response-import" class="response" style="display: none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method post">POST</span> /programs/import</h3>
+            <p>Import program data from CSV</p>
+            <label>Program CSV File:</label>
+            <input type="file" id="import-program-file" accept=".csv" />
+            <button onclick="importProgramCSV()">Test Endpoint</button>
+            <div id="response-import-program" class="response" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        function getBaseUrl() {
+            return document.getElementById('baseUrl').value;
+        }
+
+        function testConnection() {
+            fetch(getBaseUrl() + '/institutions')
+                .then(response => {
+                    const result = document.getElementById('connectionResult');
+                    result.style.display = 'block';
+                    if (response.ok) {
+                        result.className = 'response success';
+                        result.textContent = 'Connection successful! Backend is running.';
+                    } else {
+                        result.className = 'response error';
+                        result.textContent = 'Connection failed. Status: ' + response.status;
+                    }
+                })
+                .catch(error => {
+                    const result = document.getElementById('connectionResult');
+                    result.style.display = 'block';
+                    result.className = 'response error';
+                    result.textContent = 'Connection error: ' + error.message + '\nMake sure Flask server is running on the specified URL.';
+                });
+        }
+
+        function makeRequest(method, endpoint, body = null) {
+            const responseId = 'response-' + endpoint.split('/')[1].split('?')[0];
+            const responseEl = document.getElementById(responseId);
+            
+            if (!responseEl) {
+                console.error('Response element not found for:', responseId);
+                return;
+            }
+
+            const options = {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            if (body) {
+                options.body = JSON.stringify(body);
+            }
+
+            responseEl.style.display = 'block';
+            responseEl.className = 'response';
+            responseEl.textContent = 'Loading...';
+
+            fetch(getBaseUrl() + endpoint, options)
+                .then(response => response.text())
+                .then(text => {
+                    try {
+                        const data = JSON.parse(text);
+                        responseEl.className = 'response success';
+                        responseEl.textContent = JSON.stringify(data, null, 2);
+                    } catch (e) {
+                        responseEl.className = 'response';
+                        responseEl.textContent = text;
+                    }
+                })
+                .catch(error => {
+                    responseEl.className = 'response error';
+                    responseEl.textContent = 'Error: ' + error.message;
+                });
+        }
+
+        function analyzeProgram() {
+            const programId = document.getElementById('analyze-prog-id').value;
+            const coursesInput = document.getElementById('analyze-courses').value;
+            const courses = coursesInput.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+            
+            const body = {
+                selected_courses: courses
+            };
+
+            const responseEl = document.getElementById('response-analyze');
+            responseEl.style.display = 'block';
+            responseEl.className = 'response';
+            responseEl.textContent = 'Loading...';
+
+            fetch(getBaseUrl() + '/programs/' + programId + '/analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            })
+            .then(response => response.text())
+            .then(text => {
+                try {
+                    const data = JSON.parse(text);
+                    responseEl.className = 'response success';
+                    responseEl.textContent = JSON.stringify(data, null, 2);
+                } catch (e) {
+                    responseEl.className = 'response';
+                    responseEl.textContent = text;
+                }
+            })
+            .catch(error => {
+                responseEl.className = 'response error';
+                responseEl.textContent = 'Error: ' + error.message;
+            });
+        }
+
+        function createProgram() {
+            const body = {
+                name: document.getElementById('create-prog-name').value,
+                degree_type: document.getElementById('create-prog-degree').value,
+                department_id: parseInt(document.getElementById('create-prog-dept').value),
+                institution_id: parseInt(document.getElementById('create-prog-inst').value),
+                description: document.getElementById('create-prog-desc').value,
+                total_credits: parseInt(document.getElementById('create-prog-credits').value)
+            };
+
+            const responseEl = document.getElementById('response-create-program');
+            responseEl.style.display = 'block';
+            responseEl.className = 'response';
+            responseEl.textContent = 'Loading...';
+
+            fetch(getBaseUrl() + '/programs', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            })
+            .then(response => response.text())
+            .then(text => {
+                try {
+                    const data = JSON.parse(text);
+                    responseEl.className = 'response success';
+                    responseEl.textContent = JSON.stringify(data, null, 2);
+                } catch (e) {
+                    responseEl.className = 'response';
+                    responseEl.textContent = text;
+                }
+            })
+            .catch(error => {
+                responseEl.className = 'response error';
+                responseEl.textContent = 'Error: ' + error.message;
+            });
+        }
+
+        function createPlan() {
+            const coursesInput = document.getElementById('plan-courses').value;
+            const courses = coursesInput.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+            
+            const body = {
+                plan_name: document.getElementById('plan-name').value,
+                source_institution_id: parseInt(document.getElementById('plan-source').value),
+                target_institution_id: parseInt(document.getElementById('plan-target').value),
+                selected_courses: courses,
+                additional_data: {
+                    total_courses: courses.length,
+                    created_by_user: true
+                }
+            };
+
+            const responseEl = document.getElementById('response-create-plan');
+            responseEl.style.display = 'block';
+            responseEl.className = 'response';
+            responseEl.textContent = 'Loading...';
+
+            fetch(getBaseUrl() + '/create-plan', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            })
+            .then(response => response.text())
+            .then(text => {
+                try {
+                    const data = JSON.parse(text);
+                    responseEl.className = 'response success';
+                    responseEl.textContent = JSON.stringify(data, null, 2);
+                } catch (e) {
+                    responseEl.className = 'response';
+                    responseEl.textContent = text;
+                }
+            })
+            .catch(error => {
+                responseEl.className = 'response error';
+                responseEl.textContent = 'Error: ' + error.message;
+            });
+        }
+
+        function importCSV() {
+            const fileInput = document.getElementById('import-file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a file');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const responseEl = document.getElementById('response-import');
+            responseEl.style.display = 'block';
+            responseEl.className = 'response';
+            responseEl.textContent = 'Uploading...';
+
+            fetch(getBaseUrl() + '/import', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(text => {
+                try {
+                    const data = JSON.parse(text);
+                    responseEl.className = 'response success';
+                    responseEl.textContent = JSON.stringify(data, null, 2);
+                } catch (e) {
+                    responseEl.className = 'response';
+                    responseEl.textContent = text;
+                }
+            })
+            .catch(error => {
+                responseEl.className = 'response error';
+                responseEl.textContent = 'Error: ' + error.message;
+            });
+        }
+
+        function importProgramCSV() {
+            const fileInput = document.getElementById('import-program-file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a file');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const responseEl = document.getElementById('response-import-program');
+            responseEl.style.display = 'block';
+            responseEl.className = 'response';
+            responseEl.textContent = 'Uploading...';
+
+            fetch(getBaseUrl() + '/programs/import', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(text => {
+                try {
+                    const data = JSON.parse(text);
+                    responseEl.className = 'response success';
+                    responseEl.textContent = JSON.stringify(data, null, 2);
+                } catch (e) {
+                    responseEl.className = 'response';
+                    responseEl.textContent = text;
+                }
+            })
+            .catch(error => {
+                responseEl.className = 'response error';
+                responseEl.textContent = 'Error: ' + error.message;
+            });
+        }
+
+        // Test connection on page load
+        window.onload = function() {
+            testConnection();
+        };
+    </script>
+</body>
+</html>
