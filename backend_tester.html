@@ -124,42 +124,134 @@
         <div id="connectionResult" class="response" style="display: none;"></div>
     </div>
 
-    <!-- Basic Data Endpoints -->
+    <!-- Course Endpoints -->
     <div class="container">
-        <h2>Basic Data Endpoints</h2>
+        <h2>Course Endpoints</h2>
         
         <div class="endpoint">
-            <h3><span class="method get">GET</span> /institutions</h3>
-            <p>Get all institutions</p>
-            <button onclick="makeRequest('GET', '/institutions')">Test Endpoint</button>
-            <div id="response-institutions" class="response" style="display: none;"></div>
-        </div>
-
-        <div class="endpoint">
-            <h3><span class="method get">GET</span> /departments</h3>
-            <p>Get departments for an institution</p>
-            <label>Institution ID:</label>
-            <input type="number" id="dept-institution-id" placeholder="Enter institution ID" />
-            <button onclick="makeRequest('GET', '/departments?institution_id=' + document.getElementById('dept-institution-id').value)">Test Endpoint</button>
-            <div id="response-departments" class="response" style="display: none;"></div>
-        </div>
-
-        <div class="endpoint">
             <h3><span class="method get">GET</span> /courses</h3>
-            <p>Get courses for a department</p>
-            <label>Department ID:</label>
-            <input type="number" id="course-department-id" placeholder="Enter department ID" />
-            <button onclick="makeRequest('GET', '/courses?department_id=' + document.getElementById('course-department-id').value)">Test Endpoint</button>
+            <p>Get courses with search filters</p>
+            <div class="form-row">
+                <div>
+                    <label>Search:</label>
+                    <input type="text" id="course-search" placeholder="Search courses" />
+                </div>
+                <div>
+                    <label>Institution:</label>
+                    <input type="text" id="course-institution" placeholder="Institution name" />
+                </div>
+            </div>
+            <div class="form-row">
+                <div>
+                    <label>Department:</label>
+                    <input type="text" id="course-department" placeholder="Department name" />
+                </div>
+                <div>
+                    <label>Page:</label>
+                    <input type="number" id="course-page" placeholder="1" value="1" />
+                </div>
+            </div>
+            <button onclick="searchCourses()">Test Endpoint</button>
             <div id="response-courses" class="response" style="display: none;"></div>
         </div>
 
         <div class="endpoint">
-            <h3><span class="method get">GET</span> /equivalents</h3>
-            <p>Get equivalent courses for a course</p>
+            <h3><span class="method get">GET</span> /courses/{id}</h3>
+            <p>Get a specific course with equivalencies</p>
             <label>Course ID:</label>
-            <input type="number" id="equiv-course-id" placeholder="Enter course ID" />
-            <button onclick="makeRequest('GET', '/equivalents?course_id=' + document.getElementById('equiv-course-id').value)">Test Endpoint</button>
-            <div id="response-equivalents" class="response" style="display: none;"></div>
+            <input type="number" id="specific-course-id" placeholder="Enter course ID" />
+            <button onclick="makeRequest('GET', '/courses/' + document.getElementById('specific-course-id').value)">Test Endpoint</button>
+            <div id="response-specific-course" class="response" style="display: none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method post">POST</span> /courses</h3>
+            <p>Create a new course</p>
+            <div class="form-row">
+                <div>
+                    <label>Course Code:</label>
+                    <input type="text" id="create-course-code" placeholder="BIOL 101" />
+                </div>
+                <div>
+                    <label>Course Title:</label>
+                    <input type="text" id="create-course-title" placeholder="Introduction to Biology" />
+                </div>
+            </div>
+            <div class="form-row">
+                <div>
+                    <label>Credits:</label>
+                    <input type="number" id="create-course-credits" placeholder="3" />
+                </div>
+                <div>
+                    <label>Institution:</label>
+                    <input type="text" id="create-course-institution" placeholder="Test University" />
+                </div>
+            </div>
+            <div class="form-row">
+                <div>
+                    <label>Department:</label>
+                    <input type="text" id="create-course-dept" placeholder="Biology" />
+                </div>
+            </div>
+            <label>Description:</label>
+            <textarea id="create-course-desc" placeholder="Course description"></textarea>
+            <button onclick="createCourse()">Test Endpoint</button>
+            <div id="response-create-course" class="response" style="display: none;"></div>
+        </div>
+    </div>
+
+    <!-- Equivalency Endpoints -->
+    <div class="container">
+        <h2>Equivalency Endpoints</h2>
+        
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /equivalencies</h3>
+            <p>Get course equivalencies with filters</p>
+            <div class="form-row">
+                <div>
+                    <label>From Institution:</label>
+                    <input type="text" id="equiv-from-inst" placeholder="Institution name" />
+                </div>
+                <div>
+                    <label>To Institution:</label>
+                    <input type="text" id="equiv-to-inst" placeholder="Institution name" />
+                </div>
+            </div>
+            <button onclick="searchEquivalencies()">Test Endpoint</button>
+            <div id="response-equivalencies" class="response" style="display: none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method post">POST</span> /equivalencies</h3>
+            <p>Create a new equivalency</p>
+            <div class="form-row">
+                <div>
+                    <label>From Course ID:</label>
+                    <input type="number" id="create-equiv-from" placeholder="1" />
+                </div>
+                <div>
+                    <label>To Course ID:</label>
+                    <input type="number" id="create-equiv-to" placeholder="2" />
+                </div>
+            </div>
+            <div class="form-row">
+                <div>
+                    <label>Equivalency Type:</label>
+                    <select id="create-equiv-type">
+                        <option value="direct">Direct</option>
+                        <option value="partial">Partial</option>
+                        <option value="conditional">Conditional</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Approved By:</label>
+                    <input type="text" id="create-equiv-approver" placeholder="Dr. Smith" />
+                </div>
+            </div>
+            <label>Notes:</label>
+            <textarea id="create-equiv-notes" placeholder="Equivalency notes"></textarea>
+            <button onclick="createEquivalency()">Test Endpoint</button>
+            <div id="response-create-equivalency" class="response" style="display: none;"></div>
         </div>
     </div>
 
@@ -211,12 +303,12 @@
             </div>
             <div class="form-row">
                 <div>
-                    <label>Department ID:</label>
-                    <input type="number" id="create-prog-dept" placeholder="1" />
+                    <label>Institution:</label>
+                    <input type="text" id="create-prog-inst-name" placeholder="Test University" />
                 </div>
                 <div>
-                    <label>Institution ID:</label>
-                    <input type="number" id="create-prog-inst" placeholder="1" />
+                    <label>Total Credits:</label>
+                    <input type="number" id="create-prog-credits" placeholder="60" />
                 </div>
             </div>
             <label>Description:</label>
@@ -228,74 +320,134 @@
         </div>
     </div>
 
-    <!-- Transfer Plan Endpoints -->
+    <!-- Plan Endpoints -->
     <div class="container">
-        <h2>Transfer Plan Endpoints</h2>
+        <h2>Plan Endpoints</h2>
         
         <div class="endpoint">
-            <h3><span class="method post">POST</span> /create-plan</h3>
-            <p>Create a transfer plan</p>
+            <h3><span class="method get">GET</span> /plans</h3>
+            <p>Get plans with optional filters</p>
             <div class="form-row">
+                <div>
+                    <label>Student Email:</label>
+                    <input type="email" id="plan-student-email" placeholder="student@example.com" />
+                </div>
+                <div>
+                    <label>Program ID:</label>
+                    <input type="number" id="plan-program-id" placeholder="Program ID" />
+                </div>
+            </div>
+            <button onclick="searchPlans()">Test Endpoint</button>
+            <div id="response-plans" class="response" style="display: none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method post">POST</span> /plans</h3>
+            <p>Create a new plan</p>
+            <div class="form-row">
+                <div>
+                    <label>Student Name:</label>
+                    <input type="text" id="create-plan-name" placeholder="John Doe" />
+                </div>
+                <div>
+                    <label>Student Email:</label>
+                    <input type="email" id="create-plan-email" placeholder="john@example.com" />
+                </div>
+            </div>
+            <div class="form-row">
+                <div>
+                    <label>Program ID:</label>
+                    <input type="number" id="create-plan-program" placeholder="1" />
+                </div>
                 <div>
                     <label>Plan Name:</label>
-                    <input type="text" id="plan-name" placeholder="My Transfer Plan" />
+                    <input type="text" id="create-plan-title" placeholder="My Academic Plan" />
+                </div>
+            </div>
+            <button onclick="createStudentPlan()">Test Endpoint</button>
+            <div id="response-create-student-plan" class="response" style="display: none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /plans/{id}</h3>
+            <p>Get a specific plan with progress analysis</p>
+            <label>Plan ID:</label>
+            <input type="number" id="specific-plan-id" placeholder="Enter plan ID" />
+            <button onclick="makeRequest('GET', '/plans/' + document.getElementById('specific-plan-id').value)">Test Endpoint</button>
+            <div id="response-specific-plan" class="response" style="display: none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method post">POST</span> /plans/{id}/courses</h3>
+            <p>Add a course to a plan</p>
+            <div class="form-row">
+                <div>
+                    <label>Plan ID:</label>
+                    <input type="number" id="add-course-plan-id" placeholder="1" />
+                </div>
+                <div>
+                    <label>Course ID:</label>
+                    <input type="number" id="add-course-course-id" placeholder="1" />
                 </div>
             </div>
             <div class="form-row">
                 <div>
-                    <label>Source Institution ID:</label>
-                    <input type="number" id="plan-source" placeholder="1" />
+                    <label>Semester:</label>
+                    <input type="text" id="add-course-semester" placeholder="Fall" />
                 </div>
                 <div>
-                    <label>Target Institution ID:</label>
-                    <input type="number" id="plan-target" placeholder="2" />
+                    <label>Year:</label>
+                    <input type="number" id="add-course-year" placeholder="2024" />
                 </div>
             </div>
-            <label>Selected Course IDs (comma-separated):</label>
-            <input type="text" id="plan-courses" placeholder="1,2,3" />
-            <button onclick="createPlan()">Test Endpoint</button>
-            <div id="response-create-plan" class="response" style="display: none;"></div>
-        </div>
-
-        <div class="endpoint">
-            <h3><span class="method get">GET</span> /get-plan/{code}</h3>
-            <p>Get a transfer plan by code</p>
-            <label>Plan Code:</label>
-            <input type="text" id="get-plan-code" placeholder="ABC12345" />
-            <button onclick="makeRequest('GET', '/get-plan/' + document.getElementById('get-plan-code').value)">Test Endpoint</button>
-            <div id="response-get-plan" class="response" style="display: none;"></div>
-        </div>
-
-        <div class="endpoint">
-            <h3><span class="method delete">DELETE</span> /delete-plan/{code}</h3>
-            <p>Delete a transfer plan</p>
-            <label>Plan Code:</label>
-            <input type="text" id="delete-plan-code" placeholder="ABC12345" />
-            <button onclick="makeRequest('DELETE', '/delete-plan/' + document.getElementById('delete-plan-code').value)">Test Endpoint</button>
-            <div id="response-delete-plan" class="response" style="display: none;"></div>
+            <div class="form-row">
+                <div>
+                    <label>Status:</label>
+                    <select id="add-course-status">
+                        <option value="planned">Planned</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Requirement Category:</label>
+                    <input type="text" id="add-course-category" placeholder="Core Biology" />
+                </div>
+            </div>
+            <button onclick="addCourseToPlan()">Test Endpoint</button>
+            <div id="response-add-course-plan" class="response" style="display: none;"></div>
         </div>
     </div>
 
-    <!-- Import Endpoint -->
+    <!-- Upload Endpoints -->
     <div class="container">
-        <h2>Import Endpoint</h2>
+        <h2>Upload Endpoints</h2>
         
         <div class="endpoint">
-            <h3><span class="method post">POST</span> /import</h3>
-            <p>Import course data from CSV</p>
+            <h3><span class="method post">POST</span> /upload/courses</h3>
+            <p>Upload courses from CSV</p>
             <label>CSV File:</label>
-            <input type="file" id="import-file" accept=".csv" />
-            <button onclick="importCSV()">Test Endpoint</button>
-            <div id="response-import" class="response" style="display: none;"></div>
+            <input type="file" id="upload-courses-file" accept=".csv" />
+            <button onclick="uploadCoursesCSV()">Test Endpoint</button>
+            <div id="response-upload-courses" class="response" style="display: none;"></div>
         </div>
 
         <div class="endpoint">
-            <h3><span class="method post">POST</span> /programs/import</h3>
-            <p>Import program data from CSV</p>
-            <label>Program CSV File:</label>
-            <input type="file" id="import-program-file" accept=".csv" />
-            <button onclick="importProgramCSV()">Test Endpoint</button>
-            <div id="response-import-program" class="response" style="display: none;"></div>
+            <h3><span class="method post">POST</span> /upload/equivalencies</h3>
+            <p>Upload equivalencies from CSV</p>
+            <label>CSV File:</label>
+            <input type="file" id="upload-equiv-file" accept=".csv" />
+            <button onclick="uploadEquivalenciesCSV()">Test Endpoint</button>
+            <div id="response-upload-equiv" class="response" style="display: none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method post">POST</span> /upload/requirements</h3>
+            <p>Upload program requirements from CSV</p>
+            <label>CSV File:</label>
+            <input type="file" id="upload-requirements-file" accept=".csv" />
+            <button onclick="uploadRequirementsCSV()">Test Endpoint</button>
+            <div id="response-upload-requirements" class="response" style="display: none;"></div>
         </div>
     </div>
 
@@ -305,7 +457,7 @@
         }
 
         function testConnection() {
-            fetch(getBaseUrl() + '/institutions')
+            fetch(getBaseUrl() + '/courses')
                 .then(response => {
                     const result = document.getElementById('connectionResult');
                     result.style.display = 'block';
@@ -327,7 +479,17 @@
 
         function makeRequest(method, endpoint, body = null) {
             const responseId = 'response-' + endpoint.split('/')[1].split('?')[0];
-            const responseEl = document.getElementById(responseId);
+            let responseEl = document.getElementById(responseId);
+            
+            // Handle specific course endpoint
+            if (endpoint.includes('/courses/') && !responseEl) {
+                responseEl = document.getElementById('response-specific-course');
+            }
+            
+            // Handle specific plan endpoint  
+            if (endpoint.includes('/plans/') && !responseEl) {
+                responseEl = document.getElementById('response-specific-plan');
+            }
             
             if (!responseEl) {
                 console.error('Response element not found for:', responseId);
@@ -367,6 +529,312 @@
                 });
         }
 
+        function searchCourses() {
+            const search = document.getElementById('course-search').value;
+            const institution = document.getElementById('course-institution').value;
+            const department = document.getElementById('course-department').value;
+            const page = document.getElementById('course-page').value;
+            
+            const params = new URLSearchParams();
+            if (search) params.append('search', search);
+            if (institution) params.append('institution', institution);
+            if (department) params.append('department', department);
+            if (page) params.append('page', page);
+            
+            makeRequest('GET', '/courses?' + params.toString());
+        }
+
+        function searchEquivalencies() {
+            const fromInst = document.getElementById('equiv-from-inst').value;
+            const toInst = document.getElementById('equiv-to-inst').value;
+            
+            const params = new URLSearchParams();
+            if (fromInst) params.append('from_institution', fromInst);
+            if (toInst) params.append('to_institution', toInst);
+            
+            const responseEl = document.getElementById('response-equivalencies');
+            responseEl.style.display = 'block';
+            responseEl.className = 'response';
+            responseEl.textContent = 'Loading...';
+
+            fetch(getBaseUrl() + '/equivalencies?' + params.toString())
+                .then(response => response.text())
+                .then(text => {
+                    try {
+                        const data = JSON.parse(text);
+                        responseEl.className = 'response success';
+                        responseEl.textContent = JSON.stringify(data, null, 2);
+                    } catch (e) {
+                        responseEl.className = 'response';
+                        responseEl.textContent = text;
+                    }
+                })
+                .catch(error => {
+                    responseEl.className = 'response error';
+                    responseEl.textContent = 'Error: ' + error.message;
+                });
+        }
+
+        function createCourse() {
+            const body = {
+                code: document.getElementById('create-course-code').value,
+                title: document.getElementById('create-course-title').value,
+                credits: parseInt(document.getElementById('create-course-credits').value),
+                institution: document.getElementById('create-course-institution').value,
+                department: document.getElementById('create-course-dept').value,
+                description: document.getElementById('create-course-desc').value
+            };
+
+            const responseEl = document.getElementById('response-create-course');
+            responseEl.style.display = 'block';
+            responseEl.className = 'response';
+            responseEl.textContent = 'Loading...';
+
+            fetch(getBaseUrl() + '/courses', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            })
+            .then(response => response.text())
+            .then(text => {
+                try {
+                    const data = JSON.parse(text);
+                    responseEl.className = 'response success';
+                    responseEl.textContent = JSON.stringify(data, null, 2);
+                } catch (e) {
+                    responseEl.className = 'response';
+                    responseEl.textContent = text;
+                }
+            })
+            .catch(error => {
+                responseEl.className = 'response error';
+                responseEl.textContent = 'Error: ' + error.message;
+            });
+        }
+
+        function searchPlans() {
+            const email = document.getElementById('plan-student-email').value;
+            const programId = document.getElementById('plan-program-id').value;
+            
+            const params = new URLSearchParams();
+            if (email) params.append('student_email', email);
+            if (programId) params.append('program_id', programId);
+            
+            const responseEl = document.getElementById('response-plans');
+            responseEl.style.display = 'block';
+            responseEl.className = 'response';
+            responseEl.textContent = 'Loading...';
+
+            fetch(getBaseUrl() + '/plans?' + params.toString())
+                .then(response => response.text())
+                .then(text => {
+                    try {
+                        const data = JSON.parse(text);
+                        responseEl.className = 'response success';
+                        responseEl.textContent = JSON.stringify(data, null, 2);
+                    } catch (e) {
+                        responseEl.className = 'response';
+                        responseEl.textContent = text;
+                    }
+                })
+                .catch(error => {
+                    responseEl.className = 'response error';
+                    responseEl.textContent = 'Error: ' + error.message;
+                });
+        }
+
+        function createStudentPlan() {
+            const body = {
+                student_name: document.getElementById('create-plan-name').value,
+                student_email: document.getElementById('create-plan-email').value,
+                program_id: parseInt(document.getElementById('create-plan-program').value),
+                plan_name: document.getElementById('create-plan-title').value
+            };
+
+            const responseEl = document.getElementById('response-create-student-plan');
+            responseEl.style.display = 'block';
+            responseEl.className = 'response';
+            responseEl.textContent = 'Loading...';
+
+            fetch(getBaseUrl() + '/plans', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            })
+            .then(response => response.text())
+            .then(text => {
+                try {
+                    const data = JSON.parse(text);
+                    responseEl.className = 'response success';
+                    responseEl.textContent = JSON.stringify(data, null, 2);
+                } catch (e) {
+                    responseEl.className = 'response';
+                    responseEl.textContent = text;
+                }
+            })
+            .catch(error => {
+                responseEl.className = 'response error';
+                responseEl.textContent = 'Error: ' + error.message;
+            });
+        }
+
+        function addCourseToPlan() {
+            const planId = document.getElementById('add-course-plan-id').value;
+            const body = {
+                course_id: parseInt(document.getElementById('add-course-course-id').value),
+                semester: document.getElementById('add-course-semester').value,
+                year: parseInt(document.getElementById('add-course-year').value),
+                status: document.getElementById('add-course-status').value,
+                requirement_category: document.getElementById('add-course-category').value
+            };
+
+            const responseEl = document.getElementById('response-add-course-plan');
+            responseEl.style.display = 'block';
+            responseEl.className = 'response';
+            responseEl.textContent = 'Loading...';
+
+            fetch(getBaseUrl() + `/plans/${planId}/courses`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            })
+            .then(response => response.text())
+            .then(text => {
+                try {
+                    const data = JSON.parse(text);
+                    responseEl.className = 'response success';
+                    responseEl.textContent = JSON.stringify(data, null, 2);
+                } catch (e) {
+                    responseEl.className = 'response';
+                    responseEl.textContent = text;
+                }
+            })
+            .catch(error => {
+                responseEl.className = 'response error';
+                responseEl.textContent = 'Error: ' + error.message;
+            });
+        }
+
+        function uploadCoursesCSV() {
+            const fileInput = document.getElementById('upload-courses-file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a file');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const responseEl = document.getElementById('response-upload-courses');
+            responseEl.style.display = 'block';
+            responseEl.className = 'response';
+            responseEl.textContent = 'Uploading...';
+
+            fetch(getBaseUrl() + '/upload/courses', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(text => {
+                try {
+                    const data = JSON.parse(text);
+                    responseEl.className = 'response success';
+                    responseEl.textContent = JSON.stringify(data, null, 2);
+                } catch (e) {
+                    responseEl.className = 'response';
+                    responseEl.textContent = text;
+                }
+            })
+            .catch(error => {
+                responseEl.className = 'response error';
+                responseEl.textContent = 'Error: ' + error.message;
+            });
+        }
+
+        function uploadEquivalenciesCSV() {
+            const fileInput = document.getElementById('upload-equiv-file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a file');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const responseEl = document.getElementById('response-upload-equiv');
+            responseEl.style.display = 'block';
+            responseEl.className = 'response';
+            responseEl.textContent = 'Uploading...';
+
+            fetch(getBaseUrl() + '/upload/equivalencies', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(text => {
+                try {
+                    const data = JSON.parse(text);
+                    responseEl.className = 'response success';
+                    responseEl.textContent = JSON.stringify(data, null, 2);
+                } catch (e) {
+                    responseEl.className = 'response';
+                    responseEl.textContent = text;
+                }
+            })
+            .catch(error => {
+                responseEl.className = 'response error';
+                responseEl.textContent = 'Error: ' + error.message;
+            });
+        }
+
+        function uploadRequirementsCSV() {
+            const fileInput = document.getElementById('upload-requirements-file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a file');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const responseEl = document.getElementById('response-upload-requirements');
+            responseEl.style.display = 'block';
+            responseEl.className = 'response';
+            responseEl.textContent = 'Uploading...';
+
+            fetch(getBaseUrl() + '/upload/requirements', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(text => {
+                try {
+                    const data = JSON.parse(text);
+                    responseEl.className = 'response success';
+                    responseEl.textContent = JSON.stringify(data, null, 2);
+                } catch (e) {
+                    responseEl.className = 'response';
+                    responseEl.textContent = text;
+                }
+            })
+            .catch(error => {
+                responseEl.className = 'response error';
+                responseEl.textContent = 'Error: ' + error.message;
+            });
+        }
+
         function analyzeProgram() {
             const programId = document.getElementById('analyze-prog-id').value;
             const coursesInput = document.getElementById('analyze-courses').value;
@@ -382,6 +850,80 @@
             responseEl.textContent = 'Loading...';
 
             fetch(getBaseUrl() + '/programs/' + programId + '/analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            })
+            .then(response => response.text())
+            .then(text => {
+                try {
+                    const data = JSON.parse(text);
+                    responseEl.className = 'response success';
+                    responseEl.textContent = JSON.stringify(data, null, 2);
+                } catch (e) {
+                    responseEl.className = 'response';
+                    responseEl.textContent = text;
+                }
+            })
+            .catch(error => {
+                responseEl.className = 'response error';
+                responseEl.textContent = 'Error: ' + error.message;
+            });
+        }
+
+        function createProgram() {
+            const body = {
+                name: document.getElementById('create-prog-name').value,
+                degree_type: document.getElementById('create-prog-degree').value,
+                institution: document.getElementById('create-prog-inst-name').value,
+                total_credits_required: parseInt(document.getElementById('create-prog-credits').value),
+                description: document.getElementById('create-prog-desc').value
+            };
+
+            const responseEl = document.getElementById('response-create-program');
+            responseEl.style.display = 'block';
+            responseEl.className = 'response';
+            responseEl.textContent = 'Loading...';
+
+            fetch(getBaseUrl() + '/programs', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            })
+            .then(response => response.text())
+            .then(text => {
+                try {
+                    const data = JSON.parse(text);
+                    responseEl.className = 'response success';
+                    responseEl.textContent = JSON.stringify(data, null, 2);
+                } catch (e) {
+                    responseEl.className = 'response';
+                    responseEl.textContent = text;
+                }
+            })
+            .catch(error => {
+                responseEl.className = 'response error';
+                responseEl.textContent = 'Error: ' + error.message;
+            });
+        function createEquivalency() {
+            const body = {
+                from_course_id: parseInt(document.getElementById('create-equiv-from').value),
+                to_course_id: parseInt(document.getElementById('create-equiv-to').value),
+                equivalency_type: document.getElementById('create-equiv-type').value,
+                approved_by: document.getElementById('create-equiv-approver').value,
+                notes: document.getElementById('create-equiv-notes').value
+            };
+
+            const responseEl = document.getElementById('response-create-equivalency');
+            responseEl.style.display = 'block';
+            responseEl.className = 'response';
+            responseEl.textContent = 'Loading...';
+
+            fetch(getBaseUrl() + '/equivalencies', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -568,6 +1110,7 @@
         window.onload = function() {
             testConnection();
         };
+    }
     </script>
 </body>
 </html>
