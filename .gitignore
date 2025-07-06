@@ -6,7 +6,7 @@ __pycache__/
 venv
 
 # Node modules
-docs
+
 node_modules/
 frontend/node_modules/
 backend/__pycache__/
