@@ -20,7 +20,7 @@ def upload_courses():
         return jsonify({'error': 'File must be a CSV'}), 400
     
     try:
-        # Read CSV
+        
         stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
         csv_reader = csv.DictReader(stream)
         
@@ -30,7 +30,7 @@ def upload_courses():
         
         for row_num, row in enumerate(csv_reader, start=2):
             try:
-                # Expected columns: code, title, description, credits, institution, department, prerequisites
+                
                 code = row.get('code', '').strip()
                 title = row.get('title', '').strip()
                 
@@ -38,14 +38,14 @@ def upload_courses():
                     errors.append(f"Row {row_num}: Missing required code or title")
                     continue
                 
-                # Check if course exists
+                
                 existing_course = Course.query.filter_by(
                     code=code,
                     institution=row.get('institution', '').strip()
                 ).first()
                 
                 if existing_course:
-                    # Update existing course
+                    
                     existing_course.title = title
                     existing_course.description = row.get('description', '').strip()
                     existing_course.credits = int(row.get('credits', 0))
@@ -53,7 +53,7 @@ def upload_courses():
                     existing_course.prerequisites = row.get('prerequisites', '').strip()
                     courses_updated += 1
                 else:
-                    # Create new course
+                    
                     course = Course(
                         code=code,
                         title=title,
@@ -105,7 +105,7 @@ def upload_equivalencies():
         return jsonify({'error': 'File must be a CSV'}), 400
     
     try:
-        # Read CSV
+        
         stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
         csv_reader = csv.DictReader(stream)
         
@@ -115,7 +115,7 @@ def upload_equivalencies():
         
         for row_num, row in enumerate(csv_reader, start=2):
             try:
-                # Expected columns: from_course_code, from_institution, to_course_code, to_institution, equivalency_type, notes, approved_by
+                
                 from_code = row.get('from_course_code', '').strip()
                 from_institution = row.get('from_institution', '').strip()
                 to_code = row.get('to_course_code', '').strip()
@@ -125,7 +125,7 @@ def upload_equivalencies():
                     errors.append(f"Row {row_num}: Missing required course information")
                     continue
                 
-                # Find courses
+                
                 from_course = Course.query.filter_by(code=from_code, institution=from_institution).first()
                 to_course = Course.query.filter_by(code=to_code, institution=to_institution).first()
                 
@@ -137,20 +137,20 @@ def upload_equivalencies():
                     errors.append(f"Row {row_num}: To course {to_code} at {to_institution} not found")
                     continue
                 
-                # Check if equivalency exists
+                
                 existing_equiv = Equivalency.query.filter_by(
                     from_course_id=from_course.id,
                     to_course_id=to_course.id
                 ).first()
                 
                 if existing_equiv:
-                    # Update existing equivalency
+                    
                     existing_equiv.equivalency_type = row.get('equivalency_type', 'direct').strip()
                     existing_equiv.notes = row.get('notes', '').strip()
                     existing_equiv.approved_by = row.get('approved_by', '').strip()
                     equivalencies_updated += 1
                 else:
-                    # Create new equivalency
+                    
                     equivalency = Equivalency(
                         from_course_id=from_course.id,
                         to_course_id=to_course.id,
@@ -178,7 +178,7 @@ def upload_equivalencies():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'Failed to process file: {str(e)}'}), 500
-    # backend/routes/upload.py - Enhanced with Requirement CSV Upload
+    
 
 @bp.route('/requirements', methods=['POST'])
 def upload_requirements():
@@ -196,7 +196,7 @@ def upload_requirements():
     try:
         from models.program import Program, ProgramRequirement, RequirementGroup, GroupCourseOption
         
-        # Read CSV
+        
         stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
         csv_reader = csv.DictReader(stream)
         
@@ -210,9 +210,9 @@ def upload_requirements():
         
         for row_num, row in enumerate(csv_reader, start=2):
             try:
-                # Expected columns: program_name, category, credits_required, requirement_type, 
-                # group_name, courses_required, credits_required_group, course_option, 
-                # institution, is_preferred, description
+                
+                
+                
                 
                 program_name = row.get('program_name', '').strip()
                 category = row.get('category', '').strip()
@@ -221,15 +221,15 @@ def upload_requirements():
                     errors.append(f"Row {row_num}: Missing program_name or category")
                     continue
                 
-                # Find program
+                
                 program = Program.query.filter_by(name=program_name).first()
                 if not program:
-                                    # Auto-create program if it doesn't exist
+                                    
                     program = Program(
                         name=program_name,
-                        degree_type='BS',  # Default, could be extracted from CSV
-                        institution='University of New Orleans',  # Could be extracted from CSV
-                        total_credits_required=120,  # Default, could be calculated from requirements
+                        degree_type='BS',  
+                        institution='University of New Orleans',  
+                        total_credits_required=120,  
                         description=f'Auto-created program: {program_name}'
                     )
                     db.session.add(program)
@@ -237,7 +237,7 @@ def upload_requirements():
                     programs_created += 1
                     continue
                 
-                # Create or get requirement
+                
                 requirement_credits = int(row.get('credits_required', 0))
                 requirement_type = row.get('requirement_type', 'simple').strip()
                 
@@ -258,7 +258,7 @@ def upload_requirements():
                         db.session.add(current_requirement)
                         requirements_created += 1
                 
-                # Handle grouped requirements
+                
                 group_name = row.get('group_name', '').strip()
                 if group_name and requirement_type == 'grouped':
                     if not current_group or current_group.group_name != group_name:
@@ -278,7 +278,7 @@ def upload_requirements():
                             db.session.add(current_group)
                             groups_created += 1
                     
-                    # Add course option
+                    
                     course_option = row.get('course_option', '').strip()
                     if course_option:
                         existing_option = GroupCourseOption.query.filter_by(

@@ -20,12 +20,12 @@ def get_program(program_id):
     
     program_data = program.to_dict()
     
-    # Add detailed requirement analysis
+    
     requirements_analysis = []
     for requirement in program.requirements:
         req_data = requirement.to_dict()
         
-        # Add statistics about course options
+        
         if requirement.requirement_type == 'grouped':
             total_options = sum(len(group.course_options) for group in requirement.groups)
             preferred_options = sum(
@@ -59,7 +59,7 @@ def get_requirement_suggestions(program_id, requirement_id):
         for group in requirement.groups:
             group_suggestions = []
             for option in group.course_options:
-                # Find actual course
+                
                 from models.course import Course
                 course = Course.query.filter_by(code=option.course_code).first()
                 if course:

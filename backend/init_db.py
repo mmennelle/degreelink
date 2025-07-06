@@ -1,7 +1,7 @@
 import os
 import sys
 
-# Add the current directory to Python path so we can import our modules
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
@@ -11,7 +11,7 @@ try:
     from models.program import Program, ProgramRequirement
     from models.equivalency import Equivalency
     
-    # Try to import PlanCourse, create simple version if it doesn't exist
+    
     try:
         from models.plan import Plan, PlanCourse
     except ImportError:
@@ -33,11 +33,11 @@ def init_database():
     with app.app_context():
         print("🏗️  Creating database tables...")
         
-        # Create all tables
+        
         db.create_all()
         print("✅ Database tables created successfully")
         
-        # Check if data already exists
+        
         existing_courses = Course.query.count()
         if existing_courses > 0:
             print(f"⚠️  Database already contains {existing_courses} courses")
@@ -46,9 +46,9 @@ def init_database():
         
         print("📚 Adding sample courses...")
         
-        # Add sample institutions and courses
+        
         sample_courses = [
-            # Community College Courses
+            
             {
                 'code': 'BIOL 101',
                 'title': 'Introduction to Biology',
@@ -98,7 +98,7 @@ def init_database():
                 'department': 'Physics'
             },
             
-            # University Courses
+            
             {
                 'code': 'BIO 1010',
                 'title': 'Principles of Biology',
@@ -149,12 +149,12 @@ def init_database():
             }
         ]
         
-        # Create courses and store references
+        
         course_refs = {}
         for course_data in sample_courses:
             course = Course(**course_data)
             db.session.add(course)
-            # Store reference for later use in equivalencies
+            
             key = f"{course_data['code']}_{course_data['institution']}"
             course_refs[key] = course
         
@@ -163,7 +163,7 @@ def init_database():
         
         print("🎓 Creating sample program...")
         
-        # Create sample program
+        
         biology_program = Program(
             name='Biology Major',
             degree_type='BS',
@@ -174,7 +174,7 @@ def init_database():
         db.session.add(biology_program)
         db.session.commit()
         
-        # Add program requirements
+        
         requirements = [
             {
                 'program_id': biology_program.id,
@@ -223,7 +223,7 @@ def init_database():
         
         print("🔗 Creating course equivalencies...")
         
-        # Create sample equivalencies using the course references
+        
         equivalencies_data = [
             ('BIOL 101_City Community College', 'BIO 1010_State University', 'direct', 'Direct transfer equivalency', 'Dr. Smith'),
             ('MATH 151_City Community College', 'MATH 1210_State University', 'direct', 'Same content and credit hours', 'Dr. Johnson'),
@@ -249,7 +249,7 @@ def init_database():
         db.session.commit()
         print(f"✅ Created {len(equivalencies_data)} course equivalencies")
         
-        # Print summary
+        
         print("\n🎉 Database initialization complete!")
         print("\n📊 Summary:")
         print(f"   • {Course.query.count()} courses")
@@ -260,7 +260,7 @@ def init_database():
         print("\n🚀 You can now start the Flask server with:")
         print("   python app.py")
         
-        # Show sample courses
+        
         print("\n📚 Sample courses created:")
         cc_courses = Course.query.filter_by(institution='City Community College').limit(3).all()
         for course in cc_courses:
@@ -303,11 +303,11 @@ def init_database():
     with app.app_context():
         print("🏗️  Creating database tables...")
         
-        # Create all tables
+        
         db.create_all()
         print("✅ Database tables created successfully")
         
-        # Check if data already exists
+        
         existing_courses = Course.query.count()
         if existing_courses > 0:
             print(f"⚠️  Database already contains {existing_courses} courses")
@@ -316,9 +316,9 @@ def init_database():
         
         print("📚 Adding sample courses...")
         
-        # Add sample institutions and courses
+        
         sample_courses = [
-            # Community College Courses
+            
             {
                 'code': 'BIOL 101',
                 'title': 'Introduction to Biology',
@@ -368,7 +368,7 @@ def init_database():
                 'department': 'Physics'
             },
             
-            # University Courses
+            
             {
                 'code': 'BIO 1010',
                 'title': 'Principles of Biology',
@@ -419,12 +419,12 @@ def init_database():
             }
         ]
         
-        # Create courses and store references
+        
         course_refs = {}
         for course_data in sample_courses:
             course = Course(**course_data)
             db.session.add(course)
-            # Store reference for later use in equivalencies
+            
             key = f"{course_data['code']}_{course_data['institution']}"
             course_refs[key] = course
         
@@ -433,7 +433,7 @@ def init_database():
         
         print("🎓 Creating sample program...")
         
-        # Create sample program
+        
         biology_program = Program(
             name='Biology Major',
             degree_type='BS',
@@ -444,7 +444,7 @@ def init_database():
         db.session.add(biology_program)
         db.session.commit()
         
-        # Add program requirements
+        
         requirements = [
             {
                 'program_id': biology_program.id,
@@ -493,7 +493,7 @@ def init_database():
         
         print("🔗 Creating course equivalencies...")
         
-        # Create sample equivalencies using the course references
+        
         equivalencies_data = [
             ('BIOL 101_City Community College', 'BIO 1010_State University', 'direct', 'Direct transfer equivalency', 'Dr. Smith'),
             ('MATH 151_City Community College', 'MATH 1210_State University', 'direct', 'Same content and credit hours', 'Dr. Johnson'),
@@ -519,7 +519,7 @@ def init_database():
         db.session.commit()
         print(f"✅ Created {len(equivalencies_data)} course equivalencies")
         
-        # Print summary
+        
         print("\n🎉 Database initialization complete!")
         print("\n📊 Summary:")
         print(f"   • {Course.query.count()} courses")
@@ -530,7 +530,7 @@ def init_database():
         print("\n🚀 You can now start the Flask server with:")
         print("   python app.py")
         
-        # Show sample courses
+        
         print("\n📚 Sample courses created:")
         cc_courses = Course.query.filter_by(institution='City Community College').limit(3).all()
         for course in cc_courses:

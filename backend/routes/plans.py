@@ -28,7 +28,7 @@ def create_plan():
     """Create a new academic plan"""
     data = request.get_json()
     
-    # Validate program exists
+    
     program = Program.query.get(data.get('program_id'))
     if not program:
         return jsonify({'error': 'Program not found'}), 404
@@ -55,12 +55,12 @@ def add_course_to_plan(plan_id):
     plan = Plan.query.get_or_404(plan_id)
     data = request.get_json()
     
-    # Validate course exists
+    
     course = Course.query.get(data.get('course_id'))
     if not course:
         return jsonify({'error': 'Course not found'}), 404
     
-    # Check if course is already in plan
+    
     existing = PlanCourse.query.filter_by(
         plan_id=plan_id,
         course_id=data.get('course_id')
@@ -134,7 +134,7 @@ def get_plan(plan_id):
     
     plan_data = plan.to_dict()
     
-    # Use enhanced progress calculation
+    
     plan_data['progress'] = plan.calculate_progress()
     plan_data['unmet_requirements'] = plan.get_unmet_requirements()
     plan_data['course_suggestions'] = plan.suggest_courses_for_requirements()

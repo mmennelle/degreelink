@@ -11,7 +11,7 @@ const CSVUpload = () => {
   const handleFileUpload = async (file) => {
     if (!file) return;
 
-    // Validate file type
+    
     if (!file.name.toLowerCase().endsWith('.csv')) {
       setUploadResult({ 
         error: 'Please upload a CSV file (.csv extension required)' 
@@ -19,7 +19,7 @@ const CSVUpload = () => {
       return;
     }
 
-    // Validate file size (max 10MB)
+    
     if (file.size > 10 * 1024 * 1024) {
       setUploadResult({ 
         error: 'File size too large. Please upload files smaller than 10MB.' 
@@ -60,7 +60,7 @@ const CSVUpload = () => {
     if (file) {
       handleFileUpload(file);
     }
-    // Reset input to allow re-uploading same file
+    
     event.target.value = '';
   };
 
@@ -243,7 +243,7 @@ const CSVUpload = () => {
             value={uploadType}
             onChange={(e) => {
               setUploadType(e.target.value);
-              setUploadResult(null); // Clear previous results
+              setUploadResult(null); 
             }}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >

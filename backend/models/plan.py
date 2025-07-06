@@ -1,4 +1,4 @@
-# backend/models/plan.py - COMPLETE FIXED VERSION
+
 from . import db
 from datetime import datetime
 import json
@@ -11,11 +11,11 @@ class Plan(db.Model):
     student_email = db.Column(db.String(200))
     program_id = db.Column(db.Integer, db.ForeignKey('programs.id'), nullable=False)
     plan_name = db.Column(db.String(200), nullable=False)
-    status = db.Column(db.String(50), default='draft')  # draft, active, completed
+    status = db.Column(db.String(50), default='draft')  
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # Relationships
+ 
     courses = db.relationship('PlanCourse', backref='plan', cascade='all, delete-orphan')
     
     def __repr__(self):
@@ -36,7 +36,7 @@ class Plan(db.Model):
     
     def calculate_progress(self):
         """Calculate program completion progress"""
-        # Handle None credits properly
+        
         total_credits = sum(
             course.credits or course.course.credits or 0 
             for course in self.courses 
@@ -55,8 +55,8 @@ class Plan(db.Model):
     
     def get_unmet_requirements(self):
         """Determine which program requirements are not yet met"""
-        # This is a simplified version - in practice, you'd need more complex logic
-        # to match courses to specific requirements
+        
+        
         unmet = []
         for requirement in self.program.requirements:
             completed_credits = sum(
@@ -74,7 +74,7 @@ class Plan(db.Model):
 
     def calculate_detailed_progress(self):
         """Calculate detailed program completion progress with requirement breakdown"""
-        # Get basic progress - handle None credits properly
+        
         total_credits = sum(
             course.credits or course.course.credits or 0 
             for course in self.courses 
@@ -82,12 +82,12 @@ class Plan(db.Model):
         )
         required_credits = self.program.total_credits_required
         
-        # Get completed courses
+        
         completed_courses = [course for course in self.courses if course.status == 'completed']
         planned_courses = [course for course in self.courses if course.status == 'planned']
         in_progress_courses = [course for course in self.courses if course.status == 'in_progress']
         
-        # Group completed courses by requirement category
+        
         category_breakdown = {}
         for course in completed_courses:
             category = course.requirement_category or 'Uncategorized'
@@ -108,7 +108,7 @@ class Plan(db.Model):
             category_breakdown[category]['total_credits'] += course_credits
             category_breakdown[category]['course_count'] += 1
         
-        # Calculate progress for each program requirement
+        
         requirement_progress = []
         total_requirements_met = 0
         
@@ -135,10 +135,10 @@ class Plan(db.Model):
                 'requirement_type': requirement.requirement_type
             })
         
-        # Get transfer equivalencies for completed DCC courses
+        
         transfer_analysis = self._analyze_transfer_equivalencies(completed_courses)
         
-        # Calculate GPA if grades are available
+        
         gpa_info = self._calculate_gpa(completed_courses)
         
         return {
@@ -165,17 +165,17 @@ class Plan(db.Model):
         
         suggestions = []
         
-        # Get completed course IDs to avoid suggesting already taken courses
+        
         completed_course_ids = [course.course_id for course in self.courses if course.status == 'completed']
         
-        # Get unmet requirements
+        
         unmet_requirements = self.get_unmet_requirements()
         
         for unmet_req in unmet_requirements:
             category = unmet_req['category']
             credits_needed = unmet_req['credits_needed']
             
-            # Find program requirement details
+            
             program_requirement = next(
                 (req for req in self.program.requirements if req.category == category), 
                 None
@@ -191,19 +191,19 @@ class Plan(db.Model):
                 'course_options': []
             }
             
-            # Get course suggestions based on requirement type
+            
             if program_requirement.requirement_type == 'grouped':
-                # For grouped requirements, suggest from specific course options
+                
                 category_suggestions['course_options'] = self._get_grouped_requirement_suggestions(
                     program_requirement, completed_course_ids
                 )
             else:
-                # For simple requirements, suggest courses by institution and department
+                
                 category_suggestions['course_options'] = self._get_simple_requirement_suggestions(
                     category, completed_course_ids, credits_needed
                 )
             
-            # Add transfer equivalencies for DCC students
+            
             if any(course.course.institution == 'Delgado Community College' for course in self.courses):
                 category_suggestions['transfer_options'] = self._get_transfer_suggestions(
                     category_suggestions['course_options']
@@ -221,7 +221,7 @@ class Plan(db.Model):
         
         for group in requirement.groups:
             for course_option in group.course_options:
-                # Find the actual course
+                
                 course = Course.query.filter_by(
                     code=course_option.course_code,
                     institution=course_option.institution or self.program.institution
@@ -247,7 +247,7 @@ class Plan(db.Model):
         """Get course suggestions for simple requirements"""
         from .course import Course
         
-        # Map categories to likely departments/course prefixes
+        
         category_mappings = {
             'Core Biology': ['Biology', 'Biological Sciences'],
             'Chemistry': ['Chemistry'],
@@ -262,7 +262,7 @@ class Plan(db.Model):
         departments = category_mappings.get(category, [category])
         suggestions = []
         
-        # Find courses from target institution
+        
         courses = Course.query.filter(
             Course.institution == self.program.institution,
             Course.department.in_(departments),
@@ -291,7 +291,7 @@ class Plan(db.Model):
         transfer_options = []
         
         for course_option in course_options:
-            # Find equivalencies where this course is the target (to_course)
+            
             equivalencies = Equivalency.query.filter_by(to_course_id=course_option['id']).all()
             
             for equiv in equivalencies:
@@ -325,7 +325,7 @@ class Plan(db.Model):
         total_transfer_credits = 0
         
         for course in completed_courses:
-            # Check if this course has transfer equivalencies
+            
             equivalencies = Equivalency.query.filter_by(from_course_id=course.course_id).all()
             
             if equivalencies:
@@ -409,7 +409,7 @@ class Plan(db.Model):
             if plan_course.status in ['planned', 'in_progress']:
                 prerequisites = plan_course.course.prerequisites
                 if prerequisites:
-                    # Simple prerequisite check (assumes comma-separated course codes)
+                    
                     required_courses = [prereq.strip() for prereq in prerequisites.split(',')]
                     missing_prereqs = [req for req in required_courses if req and req not in completed_courses]
                     
@@ -431,15 +431,15 @@ class PlanCourse(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     plan_id = db.Column(db.Integer, db.ForeignKey('plans.id'), nullable=False)
     course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False)
-    semester = db.Column(db.String(50))  # Fall 2024, Spring 2025, etc.
+    semester = db.Column(db.String(50))  
     year = db.Column(db.Integer)
-    status = db.Column(db.String(50), default='planned')  # planned, in_progress, completed
+    status = db.Column(db.String(50), default='planned')  
     grade = db.Column(db.String(10))
-    credits = db.Column(db.Integer)  # Override course credits if needed
-    requirement_category = db.Column(db.String(100))  # Which requirement this fulfills
+    credits = db.Column(db.Integer)  
+    requirement_category = db.Column(db.String(100))  
     notes = db.Column(db.Text)
     
-    # Relationships
+    
     course = db.relationship('Course', backref='plan_courses')
     
     def to_dict(self):

@@ -1,4 +1,4 @@
-// src/components/CourseSearch.jsx
+
 import React, { useState } from 'react';
 import { Search } from 'lucide-react';
 import api from '../services/api';

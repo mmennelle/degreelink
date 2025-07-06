@@ -15,7 +15,7 @@ def get_courses():
     
     query = Course.query
     
-    # Apply filters
+    
     if search:
         query = query.filter(
             or_(
@@ -31,7 +31,7 @@ def get_courses():
     if department:
         query = query.filter(Course.department.ilike(f'%{department}%'))
     
-    # Paginate
+    
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     courses = pagination.items
     
@@ -52,7 +52,7 @@ def get_course(course_id):
     """Get a specific course with its equivalencies"""
     course = Course.query.get_or_404(course_id)
     
-    # Get equivalencies
+    
     equivalencies = []
     for equiv in course.equivalent_from:
         equivalencies.append({
@@ -88,7 +88,7 @@ def create_course():
         prerequisites=data.get('prerequisites', '')
     )
     
-    # Validate
+    
     errors = course.validate()
     if errors:
         return jsonify({'errors': errors}), 400
@@ -107,7 +107,7 @@ def update_course(course_id):
     course = Course.query.get_or_404(course_id)
     data = request.get_json()
     
-    # Update fields
+    
     course.code = data.get('code', course.code)
     course.title = data.get('title', course.title)
     course.description = data.get('description', course.description)
@@ -116,7 +116,7 @@ def update_course(course_id):
     course.department = data.get('department', course.department)
     course.prerequisites = data.get('prerequisites', course.prerequisites)
     
-    # Validate
+    
     errors = course.validate()
     if errors:
         return jsonify({'errors': errors}), 400

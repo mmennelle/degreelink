@@ -58,23 +58,23 @@ const PlanBuilder = () => {
     }
   };
 
-  // Enhanced course selection with requirement mapping
+  
   const handleCourseSelect = async (course) => {
     if (!selectedPlan) return;
 
-    // Get the program to understand requirements
+    
     const program = programs.find(p => p.id === selectedPlan.program_id);
     if (!program) {
       alert('Program information not found');
       return;
     }
 
-    // Show requirement selection modal
+    
     showRequirementSelectionModal(course, program.requirements || []);
   };
 
   const showRequirementSelectionModal = (course, requirements) => {
-    // Create a modal to let user select which requirement this course satisfies
+    
     const modal = document.createElement('div');
     modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50';
     
@@ -138,7 +138,7 @@ const PlanBuilder = () => {
 
     document.body.appendChild(modal);
 
-    // Handle modal interactions
+    
     const requirementSelect = modal.querySelector('#requirement-select');
     const semesterSelect = modal.querySelector('#semester-select');
     const yearInput = modal.querySelector('#year-input');
@@ -171,7 +171,7 @@ const PlanBuilder = () => {
           requirement_category: requirementCategory
         });
         
-        // Reload plan details to show the new course and updated progress
+        
         await loadPlanDetails(selectedPlan.id);
         document.body.removeChild(modal);
         setShowCourseSearch(false);
@@ -184,7 +184,7 @@ const PlanBuilder = () => {
 
   const handlePlanCreated = () => {
     setShowCreatePlan(false);
-    loadPlans(); // Refresh the plans list
+    loadPlans(); 
   };
 
   const updateCourseStatus = async (planCourseId, newStatus) => {
@@ -195,7 +195,7 @@ const PlanBuilder = () => {
         status: newStatus
       });
       
-      // Reload plan to reflect changes in progress
+      
       await loadPlanDetails(selectedPlan.id);
     } catch (error) {
       console.error('Failed to update course status:', error);
@@ -211,7 +211,7 @@ const PlanBuilder = () => {
         requirement_category: newRequirement
       });
       
-      // Reload plan to reflect changes in progress
+      
       await loadPlanDetails(selectedPlan.id);
     } catch (error) {
       console.error('Failed to update course requirement:', error);
@@ -250,7 +250,7 @@ const PlanBuilder = () => {
     ).join(' ');
   };
 
-  // Group courses by requirement category
+  
   const groupCoursesByRequirement = (courses) => {
     const grouped = {};
     courses.forEach(course => {

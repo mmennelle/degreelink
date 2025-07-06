@@ -22,7 +22,7 @@ const ProgressTracker = ({ plan }) => {
   const completionPercentage = Math.min(progress.completion_percentage || 0, 100);
   const isCompleted = completionPercentage >= 100;
 
-  // Group courses by requirement category
+  
   const groupCoursesByRequirement = (courses) => {
     const grouped = {};
     courses.forEach(course => {
@@ -37,7 +37,7 @@ const ProgressTracker = ({ plan }) => {
 
   const coursesByRequirement = groupCoursesByRequirement(plan.courses || []);
 
-  // Calculate credits for each requirement category
+  
   const getRequirementProgress = (category) => {
     const courses = coursesByRequirement[category] || [];
     const completedCourses = courses.filter(c => c.status === 'completed');
@@ -299,7 +299,7 @@ const ProgressTracker = ({ plan }) => {
 
         {/* Show completed requirements */}
         {Object.entries(coursesByRequirement).map(([category, courses]) => {
-          // Only show categories that are NOT in unmet requirements (i.e., completed)
+          
           const isUnmet = unmetRequirements.some(req => req.category === category);
           if (isUnmet) return null;
 

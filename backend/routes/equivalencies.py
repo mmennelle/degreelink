@@ -29,14 +29,14 @@ def create_equivalency():
     """Create a new course equivalency"""
     data = request.get_json()
     
-    # Check if courses exist
+    
     from_course = Course.query.get(data.get('from_course_id'))
     to_course = Course.query.get(data.get('to_course_id'))
     
     if not from_course or not to_course:
         return jsonify({'error': 'One or both courses not found'}), 404
     
-    # Check if equivalency already exists
+    
     existing = Equivalency.query.filter_by(
         from_course_id=data.get('from_course_id'),
         to_course_id=data.get('to_course_id')

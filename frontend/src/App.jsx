@@ -1,4 +1,3 @@
-// src/App.jsx
 import React, { useState } from 'react';
 import { Search, FileText, Upload, GraduationCap, Users } from 'lucide-react';
 import CourseSearch from './components/CourseSearch';

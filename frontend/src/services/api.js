@@ -1,4 +1,4 @@
-// src/services/api.js
+
 class ApiService {
     constructor() {
       this.baseURL = '/api';
@@ -35,28 +35,28 @@ class ApiService {
       return this.request(`/programs/${programId}/requirements/${requirementId}/suggestions`);
     }
     
-    // Enhanced Plans
+    
     async getPlanProgress(id) {
       return this.request(`/plans/${id}/progress`);
     }
     
-    // Requirements Upload
+    
     async uploadRequirements(file) {
       const formData = new FormData();
       formData.append('file', file);
       return this.request('/upload/requirements', {
         method: 'POST',
-        headers: {}, // Let browser set Content-Type for FormData
+        headers: {}, 
         body: formData
       });
     }
   
-    // Health check
+    
     async healthCheck() {
       return this.request('/health');
     }
   
-    // Courses
+    
     async searchCourses(params = {}) {
       const queryString = new URLSearchParams(params).toString();
       return this.request(`/courses${queryString ? `?${queryString}` : ''}`);
@@ -86,7 +86,7 @@ class ApiService {
       });
     }
   
-    // Plans
+    
     async getPlans(params = {}) {
       const queryString = new URLSearchParams(params).toString();
       return this.request(`/plans${queryString ? `?${queryString}` : ''}`);
@@ -136,7 +136,7 @@ class ApiService {
       });
     }
   
-    // Equivalencies
+    
     async getEquivalencies(params = {}) {
       const queryString = new URLSearchParams(params).toString();
       return this.request(`/equivalencies${queryString ? `?${queryString}` : ''}`);
@@ -162,13 +162,13 @@ class ApiService {
       });
     }
   
-    // File Upload
+    
     async uploadCourses(file) {
       const formData = new FormData();
       formData.append('file', file);
       return this.request('/upload/courses', {
         method: 'POST',
-        headers: {}, // Let browser set Content-Type for FormData
+        headers: {}, 
         body: formData
       });
     }
@@ -178,13 +178,13 @@ class ApiService {
       formData.append('file', file);
       return this.request('/upload/equivalencies', {
         method: 'POST',
-        headers: {}, // Let browser set Content-Type for FormData
+        headers: {}, 
         body: formData
       });
     }
   }
   
-  // Create and export a singleton instance
+  
   const api = new ApiService();
   export default api;
 

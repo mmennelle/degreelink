@@ -1,4 +1,4 @@
-// src/components/CreatePlanModal.jsx
+
 import React, { useState } from 'react';
 import { User, Mail, BookOpen, X } from 'lucide-react';
 import api from '../services/api';
@@ -8,7 +8,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated }) => {
     student_name: '',
     student_email: '',
     plan_name: '',
-    program_id: 1, // Default program - in real app, this would be selectable
+    program_id: 1, 
   });
   const [creating, setCreating] = useState(false);
   const [errors, setErrors] = useState({});
@@ -50,7 +50,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated }) => {
     try {
       await api.createPlan(formData);
       
-      // Reset form
+      
       setFormData({
         student_name: '',
         student_email: '',
@@ -73,7 +73,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated }) => {
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     
-    // Clear error for this field when user starts typing
+    
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }

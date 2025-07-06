@@ -7,20 +7,20 @@ import os
 def create_app(config_name='default'):
     app = Flask(__name__)
     
-    # Configuration
+    
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///course_transfer.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  
     
-    # Initialize extensions
+    
     CORS(app)
     db = init_app(app)
     
-    # Register routes
+    
     register_routes(app)
     
-    # Error handlers
+    
     @app.errorhandler(404)
     def not_found(error):
         return jsonify({'error': 'Resource not found'}), 404
@@ -33,12 +33,12 @@ def create_app(config_name='default'):
     def too_large(error):
         return jsonify({'error': 'File too large'}), 413
     
-    # Health check endpoint
+    
     @app.route('/api/health')
     def health_check():
         return jsonify({'status': 'healthy', 'message': 'Course Transfer API is running'})
     
-    # Create tables if they don't exist
+    
     with app.app_context():
         db.create_all()
     

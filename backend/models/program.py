@@ -8,14 +8,14 @@ class Program(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
-    degree_type = db.Column(db.String(50), nullable=False)  # BA, BS, AA, etc.
+    degree_type = db.Column(db.String(50), nullable=False)  
     institution = db.Column(db.String(100), nullable=False)
     total_credits_required = db.Column(db.Integer, nullable=False)
     description = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # Relationships
+    
     requirements = db.relationship('ProgramRequirement', backref='program', cascade='all, delete-orphan')
     plans = db.relationship('Plan', backref='program')
     
@@ -40,14 +40,14 @@ class ProgramRequirement(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     program_id = db.Column(db.Integer, db.ForeignKey('programs.id'), nullable=False)
-    category = db.Column(db.String(100), nullable=False)  # Core, Elective, Gen Ed, etc.
+    category = db.Column(db.String(100), nullable=False)  
     credits_required = db.Column(db.Integer, nullable=False)
     description = db.Column(db.Text)
-    requirement_type = db.Column(db.String(50), default='simple')  # simple, grouped, conditional
-    is_flexible = db.Column(db.Boolean, default=False)  # Can be satisfied by multiple paths
-    priority_order = db.Column(db.Integer, default=0)  # Display/evaluation order
+    requirement_type = db.Column(db.String(50), default='simple')  
+    is_flexible = db.Column(db.Boolean, default=False)  
+    priority_order = db.Column(db.Integer, default=0)  
     
-    # Relationships
+    
     groups = db.relationship('RequirementGroup', backref='requirement', cascade='all, delete-orphan')
     
     def to_dict(self):
@@ -116,8 +116,8 @@ class ProgramRequirement(db.Model):
     
     def _evaluate_conditional_requirement(self, student_courses):
         """Conditional requirement - complex logic based on other requirements"""
-        # Implementation depends on specific conditional rules
-        # For now, treat as simple requirement
+        
+        
         return self._evaluate_simple_requirement(student_courses)
 
 class RequirementGroup(db.Model):
@@ -126,14 +126,14 @@ class RequirementGroup(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     requirement_id = db.Column(db.Integer, db.ForeignKey('program_requirements.id'), nullable=False)
     group_name = db.Column(db.String(100), nullable=False)
-    courses_required = db.Column(db.Integer, nullable=False)  # Number of courses to choose
-    credits_required = db.Column(db.Integer)  # Alternative: require specific credits
-    min_credits_per_course = db.Column(db.Integer, default=0)  # Minimum credits per course
-    max_credits_per_course = db.Column(db.Integer)  # Maximum credits per course
+    courses_required = db.Column(db.Integer, nullable=False)  
+    credits_required = db.Column(db.Integer)  
+    min_credits_per_course = db.Column(db.Integer, default=0)  
+    max_credits_per_course = db.Column(db.Integer)  
     description = db.Column(db.Text)
-    is_required = db.Column(db.Boolean, default=True)  # False for optional groups
+    is_required = db.Column(db.Boolean, default=True)  
     
-    # Relationships
+    
     course_options = db.relationship('GroupCourseOption', backref='group', cascade='all, delete-orphan')
     
     def to_dict(self):
@@ -152,7 +152,7 @@ class RequirementGroup(db.Model):
     
     def evaluate_completion(self, student_courses):
         """Evaluate if this group requirement is satisfied"""
-        # Get courses that match this group's options
+        
         option_codes = [opt.course_code for opt in self.course_options]
         
         matching_courses = []
@@ -162,11 +162,11 @@ class RequirementGroup(db.Model):
                 self._meets_credit_requirements(course)):
                 matching_courses.append(course)
         
-        # Sort by credits (descending) to maximize credit efficiency
+        
         matching_courses.sort(key=lambda c: c.credits or c.course.credits, reverse=True)
         
         if self.courses_required:
-            # Count-based requirement
+            
             courses_taken = len(matching_courses)
             credits_earned = sum(c.credits or c.course.credits for c in matching_courses[:self.courses_required])
             
@@ -180,7 +180,7 @@ class RequirementGroup(db.Model):
             }
         
         elif self.credits_required:
-            # Credit-based requirement
+            
             total_credits = 0
             courses_used = []
             
@@ -218,10 +218,10 @@ class GroupCourseOption(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     group_id = db.Column(db.Integer, db.ForeignKey('requirement_groups.id'), nullable=False)
-    course_code = db.Column(db.String(20), nullable=False)  # e.g., "ENG 101"
-    institution = db.Column(db.String(100))  # Optional: restrict to specific institution
-    is_preferred = db.Column(db.Boolean, default=False)  # Highlight preferred options
-    notes = db.Column(db.Text)  # Additional notes about this option
+    course_code = db.Column(db.String(20), nullable=False)  
+    institution = db.Column(db.String(100))  
+    is_preferred = db.Column(db.Boolean, default=False)  
+    notes = db.Column(db.Text)  
     
     def to_dict(self):
         return {

@@ -7,13 +7,13 @@ class Equivalency(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     from_course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False)
     to_course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False)
-    equivalency_type = db.Column(db.String(50), default='direct')  # direct, partial, conditional
+    equivalency_type = db.Column(db.String(50), default='direct') 
     notes = db.Column(db.Text)
     approved_by = db.Column(db.String(100))
     approved_date = db.Column(db.DateTime, default=datetime.utcnow)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    # Ensure no duplicate equivalencies
+    
     __table_args__ = (db.UniqueConstraint('from_course_id', 'to_course_id', name='unique_equivalency'),)
     
     def __repr__(self):
