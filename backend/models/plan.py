@@ -34,25 +34,6 @@ class Plan(db.Model):
             'courses': [course.to_dict() for course in self.courses]
         }
     
-    def calculate_progress(self):
-        
-        
-        total_credits = sum(
-            course.credits or course.course.credits or 0 
-            for course in self.courses 
-            if course.status == 'completed'
-        )
-        required_credits = self.program.total_credits_required
-        
-        progress = {
-            'total_credits_earned': total_credits,
-            'total_credits_required': required_credits,
-            'completion_percentage': (total_credits / required_credits * 100) if required_credits > 0 else 0,
-            'remaining_credits': max(0, required_credits - total_credits)
-        }
-        
-        return progress
-    
     def get_unmet_requirements(self):
         
         
