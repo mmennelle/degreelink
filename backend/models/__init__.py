@@ -9,7 +9,7 @@ def init_app(app):
     migrate.init_app(app, db)
     return db
 
-# Keep imports here because of circular import issue.
+# circular import issue!!!
 from .course import Course
 from .program import Program, ProgramRequirement
 from .equivalency import Equivalency
