@@ -31,7 +31,7 @@
 
 ## What This App will do
 
-This application addresses a fundamental challenge in higher education: determining how courses from one institution transfer to another and how they fulfill specific degree requirements. Students transferring between colleges need to understand not only which of their completed courses will count toward their degree at the new school, but also how those courses satisfy specific program requirements with complex constraints.
+This application addresses a fundamental challenge in higher education: determining how courses from one institution transfer to another and how they fulfill specific degree requirements. Students transferring between colleges need to understand not only which of their completed courses will count toward their degree at the new school, but also how those courses satisfy specific program requirements with constraints.
 
 The Course Equivalency Finder serves as a comprehensive system that maps relationships between courses at different institutions and integrates them with detailed program requirements. Students can browse course catalogs, identify transfer equivalencies, track degree completion progress with real-time constraint validation, and create personalized transfer plans that demonstrate exactly how their coursework fulfills degree requirements.
 
@@ -78,7 +78,7 @@ class Course(db.Model):
 
 **Program Structure Tables:**
 
-The system introduces sophisticated program modeling that captures complex degree requirements:
+The system introduces  program modeling that captures degree requirements:
 
 ```python
 class Program(db.Model):
@@ -247,7 +247,7 @@ class PlanCourse(db.Model):
 
 ## Backend Implementation
 
-The Flask backend provides comprehensive API endpoints with sophisticated business logic for program analysis and transfer planning.
+The Flask backend provides comprehensive API endpoints with business logic for program analysis and transfer planning.
 
 ### Course Management with Advanced Search
 
