@@ -1,7 +1,6 @@
 # Backend Tester Usage
 
 ## Steps
-
 1. Initialize database: `python init_db.py`
 2. Start Flask backend: `python app.py`
 3. Run an API tester
@@ -544,3 +543,7 @@ def upload_courses():
         return jsonify({'error': f'Failed to process file: {str(e)}'}), 500
 ```
 
+<<<<<<< HEAD
+=======
+The Course Equivalency Finder demonstrates modern web development practices with emphasis on maintainable code, user experience, and scalable architecture. The program-based enhancement transforms simple course mapping into comprehensive degree planning with real-time progress tracking and constraint validation.
+>>>>>>> 385b480 (quick reminder update)
