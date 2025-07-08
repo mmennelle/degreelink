@@ -72,8 +72,8 @@ const App = () => {
       <footer className="bg-white border-t border-gray-200 mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center text-sm text-gray-600">
-            <p>Course Transfer Management System</p>
-            <p className="mt-1">Built with Flask, React, and SQLAlchemy</p>
+            <p>It's a Footer!</p>
+            <p className="mt-1"></p>
           </div>
         </div>
       </footer>
