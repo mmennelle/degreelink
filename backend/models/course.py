@@ -42,8 +42,8 @@ class Course(db.Model):
             errors.append("Course code is required")
         if not self.title or len(self.title.strip()) == 0:
             errors.append("Course title is required")
-        if not self.credits or self.credits <= 0:
-            errors.append("Credits must be greater than 0")
+        if not self.credits or self.credits <= -1:
+            errors.append("Credits must be a positive number")
         if not self.institution or len(self.institution.strip()) == 0:
             errors.append("Institution is required")
         return errors
