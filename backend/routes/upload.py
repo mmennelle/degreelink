@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 import csv
 import io
 from models import db, Course, Equivalency
+from routes.equivalencies import get_no_equivalent_course
 from werkzeug.utils import secure_filename
 
 bp = Blueprint('upload', __name__, url_prefix='/api/upload')
@@ -133,6 +134,12 @@ def upload_equivalencies():
                     errors.append(f"Row {row_num}: From course {from_code} at {from_institution} not found")
                     continue
                 
+                if to_code == '1000NE':
+                    # Handle special "no equivalent" case
+                    to_course = get_no_equivalent_course()
+                else:
+                    to_course = Course.query.filter_by(code=to_code, institution=to_institution).first()
+                    
                 if not to_course:
                     errors.append(f"Row {row_num}: To course {to_code} at {to_institution} not found")
                     continue

@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, Course
+from models import db, Course, Equivalency
 from sqlalchemy import or_
 
 bp = Blueprint('courses', __name__, url_prefix='/api/courses')
@@ -46,6 +46,62 @@ def get_courses():
             'has_prev': pagination.has_prev
         }
     })
+
+@bp.route('/<int:course_id>', methods=['GET'])
+def get_course(course_id):
+    course = Course.query.get_or_404(course_id)
+    
+    # Get all equivalency records for this course
+    all_equivalencies = Equivalency.query.filter_by(from_course_id=course_id).all()
+    
+    if not all_equivalencies:
+        return jsonify({
+            'course': course.to_dict(),
+            'equivalency_status': 'not_evaluated',
+            'message': 'No equivalency information available for this course',
+            'equivalencies': []
+        })
+    
+    # Check for "no equivalent" records (target course code is 1000NE)
+    no_equiv_records = []
+    transfer_equivalencies = []
+    
+    for equiv in all_equivalencies:
+        if equiv.to_course and equiv.to_course.code == '1000NE':
+            no_equiv_records.append({
+                'type': 'no_equivalent',
+                'equivalency': equiv.to_dict(),
+                'message': 'This course does not transfer'
+            })
+        elif equiv.to_course:
+            transfer_equivalencies.append({
+                'type': 'equivalent_to',
+                'course': equiv.to_course.to_dict(),
+                'equivalency': equiv.to_dict()
+            })
+    
+    # Determine status and response
+    if no_equiv_records and not transfer_equivalencies:
+        return jsonify({
+            'course': course.to_dict(),
+            'equivalency_status': 'no_transfer',
+            'message': 'Course has been evaluated and does not transfer',
+            'equivalencies': no_equiv_records
+        })
+    elif transfer_equivalencies:
+        return jsonify({
+            'course': course.to_dict(),
+            'equivalency_status': 'has_equivalents',
+            'message': f'Course has {len(transfer_equivalencies)} equivalent(s)',
+            'equivalencies': transfer_equivalencies + no_equiv_records
+        })
+    else:
+        return jsonify({
+            'course': course.to_dict(),
+            'equivalency_status': 'unknown',
+            'message': 'Equivalency records exist but are unclear',
+            'equivalencies': []
+        })
 
 @bp.route('/<int:course_id>', methods=['GET'])
 def get_course(course_id):

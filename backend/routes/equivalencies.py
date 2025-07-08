@@ -4,6 +4,22 @@ from sqlalchemy.orm import aliased
 
 bp = Blueprint('equivalencies', __name__, url_prefix='/api/equivalencies')
 
+def get_no_equivalent_course():
+    
+    no_equiv_course = Course.query.filter_by(code='1000NE').first()
+    if not no_equiv_course:
+        no_equiv_course = Course(
+            code='1000NE',
+            title='No Equivalent',
+            description='This course does not have an equivalent at the target institution',
+            credits=0,
+            institution='System',
+            department='System'
+        )
+        db.session.add(no_equiv_course)
+        db.session.commit()
+    return no_equiv_course
+
 @bp.route('', methods=['GET'])
 def get_equivalencies():
     from_institution = request.args.get('from_institution')
@@ -62,6 +78,45 @@ def create_equivalency():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': 'Failed to create equivalency'}), 500
+    
+
+@bp.route('/no-equivalent', methods=['POST'])
+def create_no_equivalent():
+    """Create an explicit 'no equivalent' record"""
+    data = request.get_json()
+    
+    # Validate the source course exists
+    from_course = Course.query.get(data.get('from_course_id'))
+    if not from_course:
+        return jsonify({'error': 'Source course not found'}), 404
+    
+    # Get the special "no equivalent" course
+    no_equiv_course = get_no_equivalent_course()
+    
+    # Check if equivalency already exists
+    existing = Equivalency.query.filter_by(
+        from_course_id=data.get('from_course_id'),
+        to_course_id=no_equiv_course.id
+    ).first()
+    
+    if existing:
+        return jsonify({'error': 'No equivalent record already exists'}), 400
+    
+    equivalency = Equivalency(
+        from_course_id=data.get('from_course_id'),
+        to_course_id=no_equiv_course.id,
+        equivalency_type='no_equiv',
+        notes=data.get('notes', 'Course has been evaluated and does not transfer'),
+        approved_by=data.get('approved_by', '')
+    )
+    
+    try:
+        db.session.add(equivalency)
+        db.session.commit()
+        return jsonify(equivalency.to_dict()), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Failed to create no equivalent record'}), 500
 
 @bp.route('/<int:equiv_id>', methods=['PUT'])
 def update_equivalency(equiv_id):
