@@ -68,14 +68,14 @@ const CourseSearch = ({ onCourseSelect = null }) => {
       </h2>
       
       {/* Search Form */}
-      <div className="flex gap-4 mb-4">
+      <div className="">  {/*im not sure if this is needed or not*/}
         <div className="flex-1">
           <input
             type="text"
             placeholder="Search courses (code, title, description)"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onKeyDown={handleKeyPress}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
@@ -85,7 +85,7 @@ const CourseSearch = ({ onCourseSelect = null }) => {
             placeholder="Institution (optional)"
             value={institution}
             onChange={(e) => setInstitution(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onKeyDown={handleKeyPress}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
