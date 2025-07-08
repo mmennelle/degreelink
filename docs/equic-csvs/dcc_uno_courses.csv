@@ -1,4 +1,5 @@
 code,title,description,credits,institution,department,prerequisites
+ASLS 101,American Sign Language I,First in the sign language sequence,3,Delgado Community College,English
 ENGL 101,English Composition I,Introduction to academic writing and critical thinking,3,Delgado Community College,English,
 ENGL 102,English Composition II,Advanced composition and research methods,3,Delgado Community College,English,ENGL 101
 ENGL 110,Business and Technical Writing,Professional writing for business and technical contexts,3,Delgado Community College,English,
@@ -41,6 +42,7 @@ MUSC 108,World Music,Survey of world music traditions,3,Delgado Community Colleg
 MUSC 137,Jazz History,History and development of jazz music,3,Delgado Community College,Music,
 THEA 101,Introduction to Theatre,Survey of theatre arts and dramatic literature,3,Delgado Community College,Theatre,
 THEA 207,Acting Techniques,Basic acting methods and scene study,3,Delgado Community College,Theatre,THEA 101
+EDSP 1001,Basic Sign Language I, The first in a sequence of courses delveloping sign language skills,3, University of New Orleans,Special Education And Habilitative Services  
 ENGL 1157,English Composition I,University writing and critical thinking,3,University of New Orleans,English,
 ENGL 1158,English Composition II,Advanced university writing and research,3,University of New Orleans,English,ENGL 1157
 ENGL 207,Technical Writing,Professional and technical communication,3,University of New Orleans,English,ENGL 1158
