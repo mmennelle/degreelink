@@ -299,13 +299,6 @@ const PlanBuilder = ({ onCreatePlan, userMode = 'student' }) => {
             <BookOpen className="mr-2" size={20} />
             Academic Plans
           </h2>
-          <button
-            onClick={handleCreatePlan}
-            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center transition-colors"
-          >
-            <Plus className="mr-1" size={16} />
-            New Plan
-          </button>
         </div>
 
         {error && (
