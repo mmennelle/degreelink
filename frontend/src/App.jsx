@@ -45,7 +45,7 @@ const App = () => {
                   onClick={() => setUserMode(userMode === 'student' ? 'advisor' : 'student')}
                   className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
                 >
-                  Switch to {userMode === 'student' ? 'Advisor' : 'Student'}
+                  {userMode === 'student' ? 'Advisor' : 'Student'}
                 </button>
               </div>
             </div>
