@@ -1,0 +1,80 @@
+from_course_code,from_institution,to_course_code,to_institution,equivalency_type,notes,approved_by
+ASLS 101,Delgado Community College,EDSP 1001,University of New Orleans,direct,,Transfer Office
+ENGL 101,Delgado Community College,ENGL 1157,University of New Orleans,direct,,Transfer Office
+ENGL 102,Delgado Community College,ENGL 1158,University of New Orleans,direct,,Transfer Office
+ENGL 110,Delgado Community College,ENGL 1157,University of New Orleans,direct,,Transfer Office
+ENGL 112,Delgado Community College,ENGL 2152,University of New Orleans,direct,,Transfer Office
+ENGL 205,Delgado Community College,ENGL 2238,University of New Orleans,direct,,Transfer Office
+ENGL 206,Delgado Community College,ENGL 2208,University of New Orleans,direct,,Transfer Office
+ENGL 211,Delgado Community College,ENGL 2031,University of New Orleans,direct,,Transfer Office
+ENGL 212,Delgado Community College,ENGL 2032,University of New Orleans,direct,,Transfer Office
+ENGL 221,Delgado Community College,ENGL 2341,University of New Orleans,direct,,Transfer Office
+ENGL 222,Delgado Community College,ENGL 2342,University of New Orleans,direct,,Transfer Office
+ENGL 231,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+ENGL 232,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+ENGL 240,Delgado Community College,ENGL 2398,University of New Orleans,direct,,Transfer Office
+ENGL 241,Delgado Community College,ENGL 2398,University of New Orleans,direct,,Transfer Office
+ENGL 243,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+ENGL 244,Delgado Community College,ENGL 2071,University of New Orleans,direct,,Transfer Office
+ENGL 251,Delgado Community College,ENGL 2160,University of New Orleans,direct,,Transfer Office
+ENGL 253,Delgado Community College,ENGL 2377,University of New Orleans,direct,,Transfer Office
+CMST 130,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+CMST 230,Delgado Community College,FTA 2650,University of New Orleans,direct,,Transfer Office
+FNAR 120,Delgado Community College,FA 1010,University of New Orleans,direct,,Transfer Office
+FNAR 125,Delgado Community College,FA 2201,University of New Orleans,direct,,Transfer Office
+FNAR 126,Delgado Community College,FA 2202,University of New Orleans,direct,,Transfer Office
+FNAR 127,Delgado Community College,FA 2264,University of New Orleans,direct,,Transfer Office
+FNAR 158,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+MUSC 105,Delgado Community College,MUS 1000,University of New Orleans,direct,,Transfer Office
+MUSC 137,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+THEA 101,Delgado Community College,FTCA 1005,University of New Orleans,direct,,Transfer Office
+THEA 207,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+ARCH 180,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+FREN 101,Delgado Community College,FREN 1001,University of New Orleans,direct,,Transfer Office
+FREN 102,Delgado Community College,FREN 1002,University of New Orleans,direct,,Transfer Office
+FREN 125,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+FREN 201,Delgado Community College,FREN 2001,University of New Orleans,direct,,Transfer Office
+FREN 202,Delgado Community College,FREN 2002,University of New Orleans,direct,,Transfer Office
+FREN 225,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+HIST 101,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+HIST 102,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+HIST 103,Delgado Community College,HIST 1001,University of New Orleans,direct,,Transfer Office
+HIST 105,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+HIST 141,Delgado Community College,HIST 1010,University of New Orleans,direct,,Transfer Office
+HIST 205,Delgado Community College,HIST 2501,University of New Orleans,direct,,Transfer Office
+HIST 206,Delgado Community College,HIST 2502,University of New Orleans,direct,,Transfer Office
+HIST 240,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+HIST 241,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+HIST 260,Delgado Community College,HIST 2601,University of New Orleans,direct,,Transfer Office
+HUMA 105,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+HUMA 150,Delgado Community College,HUMS 1119,University of New Orleans,direct,,Transfer Office
+HUMA 220,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+HUMA 260,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+PHIL 101,Delgado Community College,PHIL 1000,University of New Orleans,direct,,Transfer Office
+PHIL 175,Delgado Community College,PHIL 1200,University of New Orleans,direct,,Transfer Office
+SPAN 101,Delgado Community College,SPAN 1001,University of New Orleans,direct,,Transfer Office
+SPAN 102,Delgado Community College,SPAN 1002,University of New Orleans,direct,,Transfer Office
+SPAN 201,Delgado Community College,SPAN 2001,University of New Orleans,direct,,Transfer Office
+SPAN 202,Delgado Community College,SPAN 2002,University of New Orleans,direct,,Transfer Office
+SPAN 204,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+ANTH 160,Delgado Community College,ANTH 2052,University of New Orleans,direct,,Transfer Office
+ANTH 165,Delgado Community College,ANTH 2051,University of New Orleans,direct,,Transfer Office
+ANTH 181,Delgado Community College,GEOG 1001,University of New Orleans,direct,,Transfer Office
+ANTH 200,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+ANTH 205,Delgado Community College,GEOG 2151,University of New Orleans,direct,,Transfer Office
+ECON 201,Delgado Community College,ECON 1204,University of New Orleans,direct,,Transfer Office
+ECON 202,Delgado Community College,ECON 1203,University of New Orleans,direct,,Transfer Office
+POLI 180,Delgado Community College,POLI 2151,University of New Orleans,direct,,Transfer Office
+PSYC 112,Delgado Community College,PSYC 1520,University of New Orleans,direct,,Transfer Office
+PSYC 127,Delgado Community College,PSYC 1000,University of New Orleans,direct,,Transfer Office
+PSYC 217,Delgado Community College,PSYC 1500,University of New Orleans,direct,,Transfer Office
+PSYC 225,Delgado Community College,PSYC 2110,University of New Orleans,direct,,Transfer Office
+PSYC 226,Delgado Community College,PSYC 2100,University of New Orleans,direct,,Transfer Office
+PSYC 235,Delgado Community College,PSYC 2200,University of New Orleans,direct,,Transfer Office
+PSYC 240,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+PSYC 245,Delgado Community College,PSYC 2400,University of New Orleans,direct,,Transfer Office
+SOCI 151,Delgado Community College,SOC 1051,University of New Orleans,direct,,Transfer Office
+SOCI 153,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+SOCI 250,Delgado Community College,SOC 2994,University of New Orleans,direct,,Transfer Office
+SOCI 255,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+SOCI 257,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
