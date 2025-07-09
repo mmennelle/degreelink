@@ -140,9 +140,9 @@ const CSVUpload = () => {
         columns: [
           { name: 'code', description: 'Course code (e.g., "BIOL 101")', required: true },
           { name: 'title', description: 'Course title', required: true },
-          { name: 'description', description: 'Course description', required: false },
           { name: 'credits', description: 'Number of credits (integer)', required: true },
           { name: 'institution', description: 'Institution name', required: true },
+          { name: 'description', description: 'Course description', required: false },
           { name: 'department', description: 'Department name', required: false },
           { name: 'prerequisites', description: 'Prerequisites (if any)', required: false }
         ]

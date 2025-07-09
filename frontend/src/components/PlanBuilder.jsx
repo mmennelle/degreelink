@@ -5,7 +5,7 @@ import CourseSearch from './CourseSearch';
 import ProgressTracker from './ProgressTracker';
 import CreatePlanModal from './CreatePlanModal';
 
-const PlanBuilder = () => {
+const PlanBuilder = ({ onCreatePlan, userMode = 'student' }) => {
   const [plans, setPlans] = useState([]);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [showCreatePlan, setShowCreatePlan] = useState(false);
@@ -187,6 +187,17 @@ const PlanBuilder = () => {
     loadPlans(); 
   };
 
+  // Handle both internal and external plan creation triggers
+  const handleCreatePlan = () => {
+    if (onCreatePlan) {
+      // Use the external modal from App.jsx
+      onCreatePlan();
+    } else {
+      // Use the internal modal
+      setShowCreatePlan(true);
+    }
+  };
+
   const updateCourseStatus = async (planCourseId, newStatus) => {
     if (!selectedPlan) return;
     
@@ -289,7 +300,7 @@ const PlanBuilder = () => {
             Academic Plans
           </h2>
           <button
-            onClick={() => setShowCreatePlan(true)}
+            onClick={handleCreatePlan}
             className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center transition-colors"
           >
             <Plus className="mr-1" size={16} />
@@ -312,7 +323,7 @@ const PlanBuilder = () => {
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No Plans Found</h3>
                 <p className="text-gray-500 mb-4">Create your first academic plan to get started!</p>
                 <button
-                  onClick={() => setShowCreatePlan(true)}
+                  onClick={handleCreatePlan}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center mx-auto"
                 >
                   <Plus className="mr-1" size={16} />
@@ -494,12 +505,15 @@ const PlanBuilder = () => {
         </div>
       )}
 
-      {/* Create Plan Modal */}
-      <CreatePlanModal
-        isOpen={showCreatePlan}
-        onClose={() => setShowCreatePlan(false)}
-        onPlanCreated={handlePlanCreated}
-      />
+      {/* Internal Create Plan Modal - only show if external modal not provided */}
+      {!onCreatePlan && (
+        <CreatePlanModal
+          isOpen={showCreatePlan}
+          onClose={() => setShowCreatePlan(false)}
+          onPlanCreated={handlePlanCreated}
+          userMode={userMode}
+        />
+      )}
     </div>
   );
 };
