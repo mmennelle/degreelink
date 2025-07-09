@@ -1,15 +1,19 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Mail, BookOpen, X } from 'lucide-react';
 import api from '../services/api';
 
-const CreatePlanModal = ({ isOpen, onClose, onPlanCreated }) => {
+const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' }) => {
   const [formData, setFormData] = useState({
     student_name: '',
     student_email: '',
     plan_name: '',
     program_id: 1, 
   });
+
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, student_name: '', plan_name: '' }));
+  }, [userMode]);
+
   const [creating, setCreating] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -50,7 +54,6 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated }) => {
     try {
       await api.createPlan(formData);
       
-      
       setFormData({
         student_name: '',
         student_email: '',
@@ -72,7 +75,6 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated }) => {
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    
     
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
@@ -113,7 +115,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated }) => {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               <User className="inline mr-1" size={16} />
-              Student Name *
+              {userMode === 'advisor' ? "Student Name *" : "Your Name *"}
             </label>
             <input
               type="text"
@@ -125,7 +127,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated }) => {
                   generatePlanName();
                 }
               }}
-              placeholder="Enter student's full name"
+              placeholder={userMode === 'advisor' ? "Enter Student's Full Name" : "Enter Your Name"}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                 errors.student_name ? 'border-red-300' : 'border-gray-300'
               }`}
@@ -139,13 +141,13 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated }) => {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               <Mail className="inline mr-1" size={16} />
-              Student Email
+              {userMode === 'advisor' ? "Student Email" : "Your Email"}
             </label>
             <input
               type="email"
               value={formData.student_email}
               onChange={(e) => handleInputChange('student_email', e.target.value)}
-              placeholder="student@example.com (optional)"
+              placeholder={userMode === 'advisor' ? "student@example.com (optional)" : "your@example.com (optional)"}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                 errors.student_email ? 'border-red-300' : 'border-gray-300'
               }`}
@@ -200,8 +202,8 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated }) => {
               onChange={(e) => handleInputChange('program_id', parseInt(e.target.value))}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
-              <option value={1}>Biology Major (BS) - State University</option>
-              {/* In a real app, this would be populated from an API call */}
+              <option value={1}>Biology Major (BS) - UNO</option>
+              {/* This will need to be populated by the api */}
             </select>
             <p className="mt-1 text-xs text-gray-500">
               The degree program this plan is designed for
