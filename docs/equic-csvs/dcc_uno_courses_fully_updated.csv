@@ -78,6 +78,7 @@ HIST 260,LOUISIANA HISTORY,,3,Delgado Community College,HIST,
 HIST 2601,HISTORY OF LOUISIANA,,3,University of New Orleans,HIST,
 HUMA 105,HUMANITIES THROUGH THE ARTS,,3,Delgado Community College,HUMA,
 HUMA 150,STRUCTURE OF WESTERN THOUGHT: ANCIENT GREECE,,3,Delgado Community College,HUMA,
+HUMS 1119,Not sure just some humanities class,,3,University Of New Orleans,HUMANITIES,
 HUMA 220,MODERNISM IN THE ARTS,,3,Delgado Community College,HUMA,
 HUMA 260,ACTIVISM AND CHANGE,,3,Delgado Community College,HUMA,
 PHIL 101,INTRODUCTION TO PHILOSOPHY,,3,Delgado Community College,PHIL,
@@ -131,3 +132,50 @@ SOCI 250,STUDIES IN CULTURAL DIVERSITY,,3,Delgado Community College,SOCI,
 SOC 2994,MULTICULTURALISM AND DIVERSITY IN U.S. SOCIETY,,3,University of New Orleans,SOC,
 SOCI 255,MARRIAGE AND THE FAMILY,,3,Delgado Community College,SOCI,
 SOCI 257,SOCIAL GERONTOLOGY: AGING AND THE LIFE CYCLE,,3,Delgado Community College,SOCI,
+BIOS 1071,General Biology I Lab,Laboratory for introductory biology,1,University of New Orleans,Biological Sciences,
+BIOS 1073,General Biology I,Introduction to biological sciences,3,University of New Orleans,Biological Sciences,
+BIOS 1081,General Biology II Lab,Laboratory for general biology II,1,University of New Orleans,Biological Sciences,BIOS 1071
+BIOS 1083,General Biology II,Continuation of biological sciences,3,University of New Orleans,Biological Sciences,BIOS 1073
+BIOS 1303,Environmental Biology,Environmental science and ecology,3,University of New Orleans,Biological Sciences,
+BIOS 1313,Human Biology,Human biological systems,3,University of New Orleans,Biological Sciences,
+BIOS 2114,Genetics,Principles of heredity and molecular genetics,4,University of New Orleans,Biological Sciences,BIOS 1083
+BIOS 2313,Plant Biology,Study of plant form and function,3,University of New Orleans,Biological Sciences,BIOS 1083
+BIOS 2741,Human Anatomy and Physiology I,Human body systems and functions,4,University of New Orleans,Biological Sciences,BIOS 1083
+BIOS 2743,Human Anatomy and Physiology II,Continuation of human anatomy and physiology,4,University of New Orleans,Biological Sciences,BIOS 2741
+BIOL 141,General Biology I,Introduction to biological principles with lab,4,Delgado Community College,Biology,
+BIOL 142,General Biology II,Continuation of biological principles with lab,4,Delgado Community College,Biology,BIOL 141
+BIOL 143,General Biology I Lab,Laboratory component for General Biology I,1,Delgado Community College,Biology,
+BIOL 144,General Biology II Lab,Laboratory component for General Biology II,1,Delgado Community College,Biology,BIOL 143
+BIOL 114,Environmental Biology,Environmental science and ecological principles,3,Delgado Community College,Biology,
+BIOL 210,Anatomy and Physiology I,Human anatomy and physiology with lab,4,Delgado Community College,Biology,BIOL 141
+BIOL 211,Anatomy and Physiology II,Continuation of human anatomy and physiology,4,Delgado Community College,Biology,BIOL 210
+BIOL 252,Microbiology,Principles of microbiology with lab,4,Delgado Community College,Biology,BIOL 142
+BIOL 265,Genetics,Principles of heredity and genetic analysis,3,Delgado Community College,Biology,BIOL 142
+BIOL 266,Genetics Lab,Laboratory component for genetics,1,Delgado Community College,Biology,
+MATH 130,College Algebra,Fundamental algebraic concepts and applications,3,Delgado Community College,Mathematics,
+MATH 131,Trigonometry,Trigonometric functions and applications,3,Delgado Community College,Mathematics,MATH 130
+MATH 203,Calculus I,"Limits, derivatives, and applications",4,Delgado Community College,Mathematics,MATH 131
+MATH 221,Calculus II,Integration techniques and applications,4,Delgado Community College,Mathematics,MATH 203
+MATH 1125,College Algebra,Algebraic functions and applications,3,University of New Orleans,Mathematics,
+MATH 1126,Trigonometry,Trigonometric functions and identities,3,University of New Orleans,Mathematics,MATH 1125
+MATH 2114,Calculus II,Integration and infinite series,4,University of New Orleans,Mathematics,MATH 2113
+MATH 2314,Calculus III,Multivariable calculus,4,University of New Orleans,Mathematics,MATH 2114
+MATH 2785,Differential Equations,Ordinary differential equations,3,University of New Orleans,Mathematics,MATH 2114
+CHEM 141,General Chemistry I,Introduction to chemical principles with lab,4,Delgado Community College,Chemistry,MATH 130
+CHEM 142,General Chemistry II,Continuation of chemical principles with lab,4,Delgado Community College,Chemistry,CHEM 141
+CHEM 144,General Chemistry II Lab,Laboratory component for General Chemistry II,1,Delgado Community College,Chemistry,
+CHEM 221,Organic Chemistry I,Introduction to organic chemistry with lab,4,Delgado Community College,Chemistry,CHEM 142
+CHEM 223,Organic Chemistry II,Continuation of organic chemistry with lab,4,Delgado Community College,Chemistry,CHEM 221
+PHYS 141,General Physics I,Introduction to physics with lab,4,Delgado Community College,Physics,MATH 203
+PHYS 142,General Physics II,Continuation of physics with lab,4,Delgado Community College,Physics,PHYS 141
+PHYS 221,Physics for Scientists I,Calculus-based physics with lab,4,Delgado Community College,Physics,MATH 203
+PHYS 222,Physics for Scientists II,Continuation of calculus-based physics,4,Delgado Community College,Physics,PHYS 221
+CHEM 1008,General Chemistry II Lab,Laboratory for general chemistry II,1,University of New Orleans,Chemistry,
+CHEM 1017,General Chemistry I,Introduction to chemical principles,4,University of New Orleans,Chemistry,
+CHEM 1018,General Chemistry II,Continuation of chemical principles,4,University of New Orleans,Chemistry,CHEM 1017
+CHEM 2017,Organic Chemistry I,Introduction to organic chemistry,4,University of New Orleans,Chemistry,CHEM 1018
+CHEM 2217,Organic Chemistry II,Continuation of organic chemistry,4,University of New Orleans,Chemistry,CHEM 2017
+PHYS 1031,General Physics I,Introduction to physics,4,University of New Orleans,Physics,MATH 1126
+PHYS 1032,General Physics II,Continuation of general physics,4,University of New Orleans,Physics,PHYS 1031
+PHYS 1061,Physics for Scientists I,Calculus-based physics,4,University of New Orleans,Physics,MATH 2113
+PHYS 1062,Physics for Scientists II,Continuation of calculus-based physics,4,University of New Orleans,Physics,PHYS 1061

@@ -482,7 +482,7 @@ const PlanBuilder = ({ onCreatePlan, userMode = 'student' }) => {
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[80vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4">
               <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold">Add Course to Plan</h3>
+                <h3 className="text-lg font-semibold">Add Course(s) to Plan</h3>
                 <button
                   onClick={() => setShowCourseSearch(false)}
                   className="text-gray-500 hover:text-gray-700 text-xl font-bold"
@@ -492,7 +492,48 @@ const PlanBuilder = ({ onCreatePlan, userMode = 'student' }) => {
               </div>
             </div>
             <div className="p-6">
-              <CourseSearch onCourseSelect={handleCourseSelect} />
+              <CourseSearch 
+                onCourseSelect={handleCourseSelect}
+                onMultiSelect={async (selectedCourses) => {
+                  // Prompt for semester/year
+                  let semester = 'Fall';
+                  let year = new Date().getFullYear();
+                  const semesterYear = window.prompt('Enter semester and year (e.g. Fall 2025):', `Fall ${year}`);
+                  if (semesterYear) {
+                    const parts = semesterYear.split(' ');
+                    if (parts.length === 2) {
+                      semester = parts[0];
+                      year = parseInt(parts[1]) || year;
+                    }
+                  } else {
+                    return; // user cancelled
+                  }
+                  // Add all selected courses
+                  for (const course of selectedCourses) {
+                    const requirementCategory = course.requirement_category || course.category || 'Elective';
+                    const status = course.status || 'planned';
+                    try {
+                      await api.addCourseToPlan(selectedPlan.id, {
+                        course_id: course.id,
+                        semester,
+                        year,
+                        status,
+                        requirement_category: requirementCategory
+                      });
+                    } catch (error) {
+                      console.error('Failed to add course to plan:', error);
+                      alert(`Failed to add course ${course.code}: ${error.message}`);
+                    }
+                  }
+                  await loadPlanDetails(selectedPlan.id);
+                  setShowCourseSearch(false);
+                }}
+                planId={selectedPlan?.id}
+                onAddToPlan={async (course) => {
+                  // Use the same modal as handleCourseSelect for requirement/semester/status
+                  handleCourseSelect(course);
+                }}
+              />
             </div>
           </div>
         </div>

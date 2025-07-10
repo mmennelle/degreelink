@@ -78,3 +78,27 @@ SOCI 153,Delgado Community College,1000NE,University of New Orleans,direct,,Tran
 SOCI 250,Delgado Community College,SOC 2994,University of New Orleans,direct,,Transfer Office
 SOCI 255,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
 SOCI 257,Delgado Community College,1000NE,University of New Orleans,direct,,Transfer Office
+MATH 130,Delgado Community College,MATH 1125,University of New Orleans,direct,College Algebra equivalent,Transfer Office
+MATH 131,Delgado Community College,MATH 1126,University of New Orleans,direct,Trigonometry equivalent,Transfer Office
+MATH 203,Delgado Community College,MATH 2314,University of New Orleans,direct,Calculus I equivalent,Transfer Office
+MATH 221,Delgado Community College,MATH 2114,University of New Orleans,direct,Calculus II equivalent,Transfer Office
+BIOL 141,Delgado Community College,BIOS 1083,University of New Orleans,direct,General Biology I equivalent,Transfer Office
+BIOL 142,Delgado Community College,BIOS 1073,University of New Orleans,direct,General Biology II equivalent,Transfer Office
+BIOL 143,Delgado Community College,BIOS 1081,University of New Orleans,direct,Biology Lab I equivalent,Transfer Office
+BIOL 144,Delgado Community College,BIOS 1071,University of New Orleans,direct,Biology Lab II equivalent,Transfer Office
+BIOL 114,Delgado Community College,BIOS 2313,University of New Orleans,direct,Environmental Biology equivalent,Transfer Office
+BIOL 210,Delgado Community College,BIOS 2743,University of New Orleans,direct,Anatomy and Physiology I equivalent,Transfer Office
+BIOL 211,Delgado Community College,BIOS 2743,University of New Orleans,direct,Anatomy and Physiology II equivalent,Transfer Office
+BIOL 252,Delgado Community College,BIOS 1313,University of New Orleans,direct,Microbiology equivalent,Transfer Office
+BIOL 265,Delgado Community College,BIOS 2114,University of New Orleans,direct,Genetics equivalent,Transfer Office
+BIOL 266,Delgado Community College,BIOS 2114,University of New Orleans,direct,Genetics Lab equivalent,Transfer Office
+BIOL 211,Delgado Community College,BIOS 2741,University of New Orleans,direct,Marine Biology equivalent,Transfer Office
+BIOL 252,Delgado Community College,BIOS 1303,University of New Orleans,direct,Botany equivalent,Transfer Office
+CHEM 141,Delgado Community College,CHEM 1017,University of New Orleans,direct,General Chemistry I equivalent,Transfer Office
+CHEM 142,Delgado Community College,CHEM 1018,University of New Orleans,direct,General Chemistry II equivalent,Transfer Office
+CHEM 144,Delgado Community College,CHEM 1008,University of New Orleans,direct,Chemistry Lab equivalent,Transfer Office
+CHEM 221,Delgado Community College,CHEM 2217,University of New Orleans,direct,Organic Chemistry I equivalent,Transfer Office
+CHEM 223,Delgado Community College,CHEM 2017,University of New Orleans,direct,Organic Chemistry II equivalent,Transfer Office
+PHYS 141,Delgado Community College,PHYS 1031,University of New Orleans,direct,General Physics I equivalent,Transfer Office
+PHYS 142,Delgado Community College,PHYS 1032,University of New Orleans,direct,General Physics II equivalent,Transfer Office
+PHYS 221,Delgado Community College,PHYS 1061,University of New Orleans,direct,Physics for Scientists I equivalent,Transfer Office

@@ -70,7 +70,7 @@ const ProgressTracker = ({ plan }) => {
     if (percentage >= 75) return 'You\'re almost there! Keep up the great work!';
     if (percentage >= 50) return 'Great progress! You\'re halfway there!';
     if (percentage >= 25) return 'Good start! Continue building your plan!';
-    return 'Just getting started! Add more courses to see progress!';
+    return 'This is the beginning of an incredible journey!';
   };
 
   const getStatusColor = (status) => {
@@ -84,6 +84,13 @@ const ProgressTracker = ({ plan }) => {
       default:
         return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  // Helper: get credits_required for a category from backend progress
+  const getCreditsRequired = (category) => {
+    if (!progress.requirement_progress) return 0;
+    const req = progress.requirement_progress.find(r => r.category === category);
+    return req ? req.credits_required : 0;
   };
 
   return (
@@ -175,9 +182,11 @@ const ProgressTracker = ({ plan }) => {
 
         {/* Show each requirement category */}
         {unmetRequirements.map((req, index) => {
-          const categoryProgress = getRequirementProgress(req.category);
-          const isComplete = categoryProgress.completed >= req.credits_required;
-          const progressPercentage = Math.min((categoryProgress.completed / req.credits_required) * 100, 100);
+          const category = req.category;
+          const creditsRequired = getCreditsRequired(category);
+          const categoryProgress = getRequirementProgress(category);
+          const isComplete = categoryProgress.completed >= creditsRequired;
+          const progressPercentage = creditsRequired > 0 ? Math.min((categoryProgress.completed / creditsRequired) * 100, 100) : 0;
 
           return (
             <div key={index} className={`border rounded-lg p-4 ${
@@ -187,7 +196,7 @@ const ProgressTracker = ({ plan }) => {
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
                     <h5 className={`font-medium ${isComplete ? 'text-green-800' : 'text-yellow-800'}`}>
-                      {req.category}
+                      {category}
                     </h5>
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                       isComplete ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
@@ -205,18 +214,16 @@ const ProgressTracker = ({ plan }) => {
                       )}
                     </span>
                   </div>
-                  
                   {req.description && (
                     <p className={`text-sm mt-1 ${isComplete ? 'text-green-700' : 'text-yellow-700'}`}>
                       {req.description}
                     </p>
                   )}
-
                   {/* Progress bar for this requirement */}
                   <div className="mt-3">
                     <div className="flex justify-between text-sm mb-1">
                       <span className={isComplete ? 'text-green-700' : 'text-yellow-700'}>
-                        {categoryProgress.completed} / {req.credits_required} credits
+                        {categoryProgress.completed} / {creditsRequired} credits
                       </span>
                       <span className={isComplete ? 'text-green-700' : 'text-yellow-700'}>
                         {progressPercentage.toFixed(0)}%
@@ -299,12 +306,13 @@ const ProgressTracker = ({ plan }) => {
 
         {/* Show completed requirements */}
         {Object.entries(coursesByRequirement).map(([category, courses]) => {
-          
           const isUnmet = unmetRequirements.some(req => req.category === category);
           if (isUnmet) return null;
 
+          const creditsRequired = getCreditsRequired(category);
           const categoryProgress = getRequirementProgress(category);
-          
+          const progressPercentage = creditsRequired > 0 ? Math.min((categoryProgress.completed / creditsRequired) * 100, 100) : 0;
+
           return (
             <div key={category} className="border border-green-200 bg-green-50 rounded-lg p-4">
               <div className="flex justify-between items-start mb-3">
@@ -317,11 +325,27 @@ const ProgressTracker = ({ plan }) => {
                     </span>
                   </div>
                   <p className="text-sm text-green-700 mt-1">
-                    {categoryProgress.completed} credits completed
+                    {categoryProgress.completed} / {creditsRequired} credits completed
                   </p>
+                  {/* Progress bar for this requirement */}
+                  <div className="mt-3">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-green-700">
+                        {categoryProgress.completed} / {creditsRequired} credits
+                      </span>
+                      <span className="text-green-700">
+                        {progressPercentage.toFixed(0)}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="h-2 rounded-full transition-all duration-300 bg-green-500"
+                        style={{ width: `${Math.min(progressPercentage, 100)}%` }}
+                      ></div>
+                    </div>
+                  </div>
                 </div>
               </div>
-
               {/* Show courses that satisfy this requirement */}
               <div className="mt-4">
                 <h6 className="text-sm font-medium mb-2 text-green-800">

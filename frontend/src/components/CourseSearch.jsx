@@ -3,12 +3,28 @@ import React, { useState } from 'react';
 import { Search } from 'lucide-react';
 import api from '../services/api';
 
-const CourseSearch = ({ onCourseSelect = null }) => {
+const CourseSearch = ({ onCourseSelect = null, onMultiSelect = null, planId = null, onAddToPlan = null }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [institution, setInstitution] = useState('');
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState(null);
+  const [selectedCourses, setSelectedCourses] = useState([]);
+  const toggleCourseSelection = (course) => {
+    const isSelected = selectedCourses.some((c) => c.id === course.id);
+    if (isSelected) {
+      setSelectedCourses(selectedCourses.filter((c) => c.id !== course.id));
+    } else {
+      setSelectedCourses([...selectedCourses, course]);
+    }
+  };
+
+  const handleAddSelected = () => {
+    if (onMultiSelect && selectedCourses.length > 0) {
+      onMultiSelect(selectedCourses);
+      setSelectedCourses([]);
+    }
+  };
   const [error, setError] = useState(null);
 
   const searchCourses = async () => {
@@ -118,48 +134,80 @@ const CourseSearch = ({ onCourseSelect = null }) => {
           <h3 className="font-medium text-gray-700">
             Search Results ({courses.length})
           </h3>
-          {courses.map((course) => (
-            <div 
-              key={course.id} 
-              className="border border-gray-200 rounded-md p-4 hover:bg-gray-50 transition-colors"
+          {onMultiSelect && (
+            <button
+              onClick={handleAddSelected}
+              disabled={selectedCourses.length === 0}
+              className="mb-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
             >
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <h4 className="font-medium text-blue-600">
-                    {course.code}: {course.title}
-                  </h4>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {course.institution} • {course.credits} credit{course.credits !== 1 ? 's' : ''}
-                    {course.department && ` • ${course.department}`}
-                  </p>
-                  {course.description && (
-                    <p className="text-sm text-gray-500 mt-2 line-clamp-2">
-                      {course.description.length > 150 
-                        ? `${course.description.substring(0, 150)}...` 
-                        : course.description
-                      }
+              Add Selected Courses ({selectedCourses.length})
+            </button>
+          )}
+          {courses.map((course) => {
+            const isSelected = selectedCourses.some((c) => c.id === course.id);
+            return (
+              <div
+                key={course.id}
+                className={`border border-gray-200 rounded-md p-4 hover:bg-gray-50 transition-colors ${isSelected ? 'ring-2 ring-blue-400 bg-blue-50' : ''}`}
+                onClick={onMultiSelect ? () => toggleCourseSelection(course) : undefined}
+                style={{ cursor: onMultiSelect ? 'pointer' : 'default' }}
+              >
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <h4 className="font-medium text-blue-600">
+                      {course.code}: {course.title}
+                    </h4>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {course.institution} • {course.credits} credit{course.credits !== 1 ? 's' : ''}
+                      {course.department && ` • ${course.department}`}
                     </p>
-                  )}
-                </div>
-                <div className="flex gap-2 ml-4 flex-shrink-0">
-                  <button
-                    onClick={() => viewCourseDetails(course.id)}
-                    className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
-                  >
-                    Details
-                  </button>
-                  {onCourseSelect && (
+                    {course.description && (
+                      <p className="text-sm text-gray-500 mt-2 line-clamp-2">
+                        {course.description.length > 150
+                          ? `${course.description.substring(0, 150)}...`
+                          : course.description}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-2 ml-4 flex-shrink-0">
                     <button
-                      onClick={() => onCourseSelect(course)}
-                      className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+                      onClick={(e) => { e.stopPropagation(); viewCourseDetails(course.id); }}
+                      className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
                     >
-                      Select
+                      Details
                     </button>
-                  )}
+                    {onCourseSelect && !onMultiSelect && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onCourseSelect(course); }}
+                        className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+                      >
+                        Select
+                      </button>
+                    )}
+                    {onMultiSelect && (
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleCourseSelection(course)}
+                        onClick={e => e.stopPropagation()}
+                        className="form-checkbox h-5 w-5 text-blue-600"
+                        aria-label="Select course"
+                      />
+                    )}
+                    {/* Add to Plan button if planId and onAddToPlan are provided */}
+                    {planId && onAddToPlan && (
+                      <button
+                        onClick={e => { e.stopPropagation(); onAddToPlan(course); }}
+                        className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
+                      >
+                        Add to Plan
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -237,13 +285,22 @@ const CourseSearch = ({ onCourseSelect = null }) => {
                             {equiv.equivalency.equivalency_type}
                           </span>
                         </div>
-                        <div className="text-sm text-gray-600">
+                        <div className="text-sm text-gray-600 flex flex-col gap-2">
                           <p>🏫 {equiv.course.institution} • {equiv.course.credits} credits</p>
                           {equiv.equivalency.notes && (
                             <p className="mt-1">📝 {equiv.equivalency.notes}</p>
                           )}
                           {equiv.equivalency.approved_by && (
                             <p className="mt-1">✅ Approved by {equiv.equivalency.approved_by}</p>
+                          )}
+                          {/* Add to Plan button for this equivalency's course */}
+                          {planId && onAddToPlan && equiv.course && equiv.course.id && (
+                            <button
+                              onClick={() => onAddToPlan(equiv.course)}
+                              className="mt-1 px-3 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors self-start"
+                            >
+                              Add to Plan
+                            </button>
                           )}
                         </div>
                       </div>

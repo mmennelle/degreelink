@@ -103,31 +103,6 @@ def get_course(course_id):
             'equivalencies': []
         })
 
-@bp.route('/<int:course_id>', methods=['GET'])
-def get_course(course_id):
-    
-    course = Course.query.get_or_404(course_id)
-    
-    
-    equivalencies = []
-    for equiv in course.equivalent_from:
-        equivalencies.append({
-            'type': 'equivalent_to',
-            'course': equiv.to_course.to_dict(),
-            'equivalency': equiv.to_dict()
-        })
-    
-    for equiv in course.equivalent_to:
-        equivalencies.append({
-            'type': 'equivalent_from',
-            'course': equiv.from_course.to_dict(),
-            'equivalency': equiv.to_dict()
-        })
-    
-    return jsonify({
-        'course': course.to_dict(),
-        'equivalencies': equivalencies
-    })
 
 @bp.route('', methods=['POST'])
 def create_course():

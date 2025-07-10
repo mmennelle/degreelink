@@ -54,21 +54,21 @@ class Plan(db.Model):
         return unmet
 
     def calculate_progress(self):
-        
-        
+        # Defensive: ensure program and requirements exist
+        program = getattr(self, 'program', None)
+        requirements = getattr(program, 'requirements', []) if program else []
+        required_credits = getattr(program, 'total_credits_required', 0) or 0
+
         total_credits = sum(
-            course.credits or course.course.credits or 0 
-            for course in self.courses 
+            (course.credits or (course.course.credits if course.course else 0) or 0)
+            for course in self.courses
             if course.status == 'completed'
         )
-        required_credits = self.program.total_credits_required
-        
-        
+
         completed_courses = [course for course in self.courses if course.status == 'completed']
         planned_courses = [course for course in self.courses if course.status == 'planned']
         in_progress_courses = [course for course in self.courses if course.status == 'in_progress']
-        
-        
+
         category_breakdown = {}
         for course in completed_courses:
             category = course.requirement_category or 'Uncategorized'
@@ -78,60 +78,59 @@ class Plan(db.Model):
                     'total_credits': 0,
                     'course_count': 0
                 }
-            
-            course_credits = course.credits or course.course.credits or 0
+            course_credits = course.credits or (course.course.credits if course.course else 0) or 0
             category_breakdown[category]['courses'].append({
-                'code': course.course.code,
-                'title': course.course.title,
+                'code': course.course.code if course.course else '',
+                'title': course.course.title if course.course else '',
                 'credits': course_credits,
                 'grade': course.grade
             })
             category_breakdown[category]['total_credits'] += course_credits
             category_breakdown[category]['course_count'] += 1
-        
-        
+
         requirement_progress = []
         total_requirements_met = 0
-        
-        for requirement in self.program.requirements:
+        for requirement in requirements:
+            req_credits_required = getattr(requirement, 'credits_required', 0) or 0
             completed_credits = sum(
-                course.credits or course.course.credits or 0
-                for course in completed_courses 
+                (course.credits or (course.course.credits if course.course else 0) or 0)
+                for course in completed_courses
                 if course.requirement_category == requirement.category
             )
-            
-            is_complete = completed_credits >= requirement.credits_required
+            is_complete = completed_credits >= req_credits_required
             if is_complete:
                 total_requirements_met += 1
-            
+            percent = (completed_credits / req_credits_required * 100) if req_credits_required > 0 else 0
             requirement_progress.append({
-                'id': requirement.id,
-                'category': requirement.category,
-                'credits_required': requirement.credits_required,
+                'id': getattr(requirement, 'id', None),
+                'category': getattr(requirement, 'category', ''),
+                'credits_required': req_credits_required,
                 'credits_completed': completed_credits,
-                'credits_remaining': max(0, requirement.credits_required - completed_credits),
-                'completion_percentage': (completed_credits / requirement.credits_required * 100) if requirement.credits_required > 0 else 0,
+                'credits_remaining': max(0, req_credits_required - completed_credits),
+                'completion_percentage': percent,
                 'is_complete': is_complete,
-                'description': requirement.description,
-                'requirement_type': requirement.requirement_type
+                'description': getattr(requirement, 'description', ''),
+                'requirement_type': getattr(requirement, 'requirement_type', '')
             })
-        
-        
+
         transfer_analysis = self._analyze_transfer_equivalencies(completed_courses)
-        
-        
         gpa_info = self._calculate_gpa(completed_courses)
-        
+
+        # Defensive: avoid division by zero and NaN
+        completion_percentage = (total_credits / required_credits * 100) if required_credits > 0 else 0
+        requirements_count = len(requirements)
+        requirements_completion_percentage = (total_requirements_met / requirements_count * 100) if requirements_count > 0 else 0
+
         return {
             'total_credits_earned': total_credits,
             'total_credits_required': required_credits,
-            'completion_percentage': (total_credits / required_credits * 100) if required_credits > 0 else 0,
+            'completion_percentage': completion_percentage,
             'remaining_credits': max(0, required_credits - total_credits),
             'category_breakdown': category_breakdown,
             'requirement_progress': requirement_progress,
             'requirements_met': total_requirements_met,
-            'total_requirements': len(self.program.requirements),
-            'requirements_completion_percentage': (total_requirements_met / len(self.program.requirements) * 100) if self.program.requirements else 0,
+            'total_requirements': requirements_count,
+            'requirements_completion_percentage': requirements_completion_percentage,
             'completed_courses_count': len(completed_courses),
             'planned_courses_count': len(planned_courses),
             'in_progress_courses_count': len(in_progress_courses),
