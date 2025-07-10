@@ -4,25 +4,68 @@ import api from '../services/api';
 import CourseSearch from './CourseSearch';
 import ProgressTracker from './ProgressTracker';
 import CreatePlanModal from './CreatePlanModal';
+import AddCourseToPlanModal from './AddCourseToPlanModal';
 
-const PlanBuilder = ({ onCreatePlan, userMode = 'student' }) => {
-  const [plans, setPlans] = useState([]);
+const PlanBuilder = ({ 
+  onCreatePlan, 
+  userMode = 'student',
+  onAddToPlan,
+  programs = [],
+  plans: externalPlans,
+  selectedPlanId: externalSelectedPlanId,
+  setSelectedPlanId: externalSetSelectedPlanId
+}) => {
+  // Use external state if provided, otherwise use internal state
+  const [internalPlans, setInternalPlans] = useState([]);
+  const [internalSelectedPlanId, setInternalSelectedPlanId] = useState(null);
+  
+  const plans = externalPlans || internalPlans;
+  const selectedPlanId = externalSelectedPlanId !== undefined ? externalSelectedPlanId : internalSelectedPlanId;
+  const setSelectedPlanId = externalSetSelectedPlanId || setInternalSelectedPlanId;
+  
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [showCreatePlan, setShowCreatePlan] = useState(false);
   const [showCourseSearch, setShowCourseSearch] = useState(false);
-  const [programs, setPrograms] = useState([]);
+  const [internalPrograms, setInternalPrograms] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  
+  // Add course modal state
+  const [addCourseModal, setAddCourseModal] = useState({
+    isOpen: false,
+    courses: [],
+    plan: null,
+    program: null
+  });
+
+  // Use external programs if provided, otherwise use internal
+  const programsList = programs.length > 0 ? programs : internalPrograms;
 
   useEffect(() => {
-    loadPlans();
-    loadPrograms();
+    if (!externalPlans) {
+      loadPlans();
+    }
+    if (programs.length === 0) {
+      loadPrograms();
+    }
   }, []);
+
+  useEffect(() => {
+    // When selectedPlanId changes, load the plan details
+    if (selectedPlanId && plans.length > 0) {
+      const plan = plans.find(p => p.id === selectedPlanId);
+      if (plan) {
+        loadPlanDetails(selectedPlanId);
+      }
+    } else {
+      setSelectedPlan(null);
+    }
+  }, [selectedPlanId, plans]);
 
   const loadPrograms = async () => {
     try {
       const response = await api.getPrograms();
-      setPrograms(response.programs || []);
+      setInternalPrograms(response.programs || []);
     } catch (error) {
       console.error('Failed to load programs:', error);
     }
@@ -34,7 +77,7 @@ const PlanBuilder = ({ onCreatePlan, userMode = 'student' }) => {
     
     try {
       const response = await api.getPlans({});
-      setPlans(response.plans || []);
+      setInternalPlans(response.plans || []);
     } catch (error) {
       console.error('Failed to load plans:', error);
       setError('Failed to load plans. Please try again.');
@@ -58,133 +101,41 @@ const PlanBuilder = ({ onCreatePlan, userMode = 'student' }) => {
     }
   };
 
-  
-  const handleCourseSelect = async (course) => {
-    if (!selectedPlan) return;
-
-    
-    const program = programs.find(p => p.id === selectedPlan.program_id);
-    if (!program) {
-      alert('Program information not found');
-      return;
+  const handleCourseSelect = (courses) => {
+    // Use external handler if provided, otherwise use internal modal
+    if (onAddToPlan) {
+      onAddToPlan(courses);
+    } else {
+      const coursesArray = Array.isArray(courses) ? courses : [courses];
+      const program = programsList.find(p => p.id === selectedPlan?.program_id);
+      
+      setAddCourseModal({
+        isOpen: true,
+        courses: coursesArray,
+        plan: selectedPlan,
+        program: program
+      });
     }
-
-    
-    showRequirementSelectionModal(course, program.requirements || []);
   };
 
-  const showRequirementSelectionModal = (course, requirements) => {
+  const handleCoursesAdded = async (courseDataArray) => {
+    if (!selectedPlan) return;
     
-    const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50';
+    for (const courseData of courseDataArray) {
+      await api.addCourseToPlan(selectedPlan.id, courseData);
+    }
     
-    modal.innerHTML = `
-      <div class="bg-white rounded-lg max-w-md w-full p-6">
-        <h3 class="text-lg font-semibold mb-4">Add Course to Plan</h3>
-        <div class="mb-4">
-          <h4 class="font-medium">${course.code}: ${course.title}</h4>
-          <p class="text-sm text-gray-600">${course.credits} credits • ${course.institution}</p>
-        </div>
-        
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Which requirement does this course satisfy?
-          </label>
-          <select id="requirement-select" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <option value="">Select a requirement category...</option>
-            ${requirements.map(req => 
-              `<option value="${req.category}">${req.category} (${req.credits_required} credits required)</option>`
-            ).join('')}
-            <option value="Elective">General Elective</option>
-          </select>
-        </div>
-        
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Semester & Year
-          </label>
-          <div class="grid grid-cols-2 gap-2">
-            <select id="semester-select" class="px-3 py-2 border border-gray-300 rounded-md">
-              <option value="Fall">Fall</option>
-              <option value="Spring">Spring</option>
-              <option value="Summer">Summer</option>
-            </select>
-            <input type="number" id="year-input" value="2024" min="2020" max="2030" 
-                   class="px-3 py-2 border border-gray-300 rounded-md">
-          </div>
-        </div>
-        
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 mb-2">
-            Status
-          </label>
-          <select id="status-select" class="w-full px-3 py-2 border border-gray-300 rounded-md">
-            <option value="planned">Planned</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-          </select>
-        </div>
-        
-        <div class="flex justify-end gap-3">
-          <button id="cancel-btn" class="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50">
-            Cancel
-          </button>
-          <button id="add-btn" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-            Add Course
-          </button>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(modal);
-
-    
-    const requirementSelect = modal.querySelector('#requirement-select');
-    const semesterSelect = modal.querySelector('#semester-select');
-    const yearInput = modal.querySelector('#year-input');
-    const statusSelect = modal.querySelector('#status-select');
-    const cancelBtn = modal.querySelector('#cancel-btn');
-    const addBtn = modal.querySelector('#add-btn');
-
-    cancelBtn.onclick = () => {
-      document.body.removeChild(modal);
-      setShowCourseSearch(false);
-    };
-
-    addBtn.onclick = async () => {
-      const requirementCategory = requirementSelect.value;
-      const semester = semesterSelect.value;
-      const year = parseInt(yearInput.value);
-      const status = statusSelect.value;
-
-      if (!requirementCategory) {
-        alert('Please select a requirement category');
-        return;
-      }
-
-      try {
-        await api.addCourseToPlan(selectedPlan.id, {
-          course_id: course.id,
-          semester: semester,
-          year: year,
-          status: status,
-          requirement_category: requirementCategory
-        });
-        
-        
-        await loadPlanDetails(selectedPlan.id);
-        document.body.removeChild(modal);
-        setShowCourseSearch(false);
-      } catch (error) {
-        console.error('Failed to add course to plan:', error);
-        alert(`Failed to add course to plan: ${error.message}`);
-      }
-    };
+    // Refresh plan details
+    await loadPlanDetails(selectedPlan.id);
+    setAddCourseModal({ isOpen: false, courses: [], plan: null, program: null });
+    setShowCourseSearch(false);
   };
 
   const handlePlanCreated = () => {
     setShowCreatePlan(false);
-    loadPlans(); 
+    if (!externalPlans) {
+      loadPlans();
+    }
   };
 
   // Handle both internal and external plan creation triggers
@@ -206,7 +157,7 @@ const PlanBuilder = ({ onCreatePlan, userMode = 'student' }) => {
         status: newStatus
       });
       
-      
+      // Refresh plan details
       await loadPlanDetails(selectedPlan.id);
     } catch (error) {
       console.error('Failed to update course status:', error);
@@ -222,7 +173,7 @@ const PlanBuilder = ({ onCreatePlan, userMode = 'student' }) => {
         requirement_category: newRequirement
       });
       
-      
+      // Refresh plan details
       await loadPlanDetails(selectedPlan.id);
     } catch (error) {
       console.error('Failed to update course requirement:', error);
@@ -261,7 +212,6 @@ const PlanBuilder = ({ onCreatePlan, userMode = 'student' }) => {
     ).join(' ');
   };
 
-  
   const groupCoursesByRequirement = (courses) => {
     const grouped = {};
     courses.forEach(course => {
@@ -276,7 +226,7 @@ const PlanBuilder = ({ onCreatePlan, userMode = 'student' }) => {
 
   const getProgram = () => {
     if (!selectedPlan) return null;
-    return programs.find(p => p.id === selectedPlan.program_id);
+    return programsList.find(p => p.id === selectedPlan.program_id);
   };
 
   if (loading && !selectedPlan && plans.length === 0) {
@@ -299,6 +249,15 @@ const PlanBuilder = ({ onCreatePlan, userMode = 'student' }) => {
             <BookOpen className="mr-2" size={20} />
             Academic Plans
           </h2>
+          {!selectedPlan && (
+            <button
+              onClick={handleCreatePlan}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
+            >
+              <Plus className="mr-1" size={16} />
+              Create New Plan
+            </button>
+          )}
         </div>
 
         {error && (
@@ -328,7 +287,7 @@ const PlanBuilder = ({ onCreatePlan, userMode = 'student' }) => {
                 <div 
                   key={plan.id} 
                   className="border border-gray-200 rounded-md p-4 hover:bg-gray-50 cursor-pointer transition-colors"
-                  onClick={() => loadPlanDetails(plan.id)}
+                  onClick={() => setSelectedPlanId(plan.id)}
                 >
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
@@ -356,7 +315,7 @@ const PlanBuilder = ({ onCreatePlan, userMode = 'student' }) => {
             <div className="flex justify-between items-center mb-6">
               <div>
                 <button
-                  onClick={() => setSelectedPlan(null)}
+                  onClick={() => setSelectedPlanId(null)}
                   className="flex items-center text-blue-600 hover:text-blue-800 mb-2 transition-colors"
                 >
                   <ChevronLeft className="mr-1" size={16} />
@@ -373,13 +332,43 @@ const PlanBuilder = ({ onCreatePlan, userMode = 'student' }) => {
                   </p>
                 )}
               </div>
-              <button
-                onClick={() => setShowCourseSearch(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center transition-colors"
-              >
-                <Plus className="mr-1" size={16} />
-                Add Course
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowCourseSearch(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center transition-colors"
+                >
+                  <Plus className="mr-1" size={16} />
+                  Add Course
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!confirm(`Are you sure you want to delete "${selectedPlan.plan_name}"? This action cannot be undone.`)) {
+                      return;
+                    }
+                    
+                    try {
+                      await api.deletePlan(selectedPlan.id);
+                      // Update plans list
+                      if (externalPlans && externalSetSelectedPlanId) {
+                        // If using external state, let parent handle the update
+                        externalSetSelectedPlanId(null);
+                      } else {
+                        // Update internal state
+                        setInternalPlans(plans => plans.filter(p => p.id !== selectedPlan.id));
+                        setInternalSelectedPlanId(null);
+                        setSelectedPlan(null);
+                      }
+                      alert('Plan deleted successfully.');
+                    } catch (error) {
+                      console.error('Failed to delete plan:', error);
+                      alert(`Failed to delete plan: ${error.message}`);
+                    }
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center transition-colors"
+                >
+                  Delete Plan
+                </button>
+              </div>
             </div>
 
             {/* Courses by Requirement Category */}
@@ -494,45 +483,10 @@ const PlanBuilder = ({ onCreatePlan, userMode = 'student' }) => {
             <div className="p-6">
               <CourseSearch 
                 onCourseSelect={handleCourseSelect}
-                onMultiSelect={async (selectedCourses) => {
-                  // Prompt for semester/year
-                  let semester = 'Fall';
-                  let year = new Date().getFullYear();
-                  const semesterYear = window.prompt('Enter semester and year (e.g. Fall 2025):', `Fall ${year}`);
-                  if (semesterYear) {
-                    const parts = semesterYear.split(' ');
-                    if (parts.length === 2) {
-                      semester = parts[0];
-                      year = parseInt(parts[1]) || year;
-                    }
-                  } else {
-                    return; // user cancelled
-                  }
-                  // Add all selected courses
-                  for (const course of selectedCourses) {
-                    const requirementCategory = course.requirement_category || course.category || 'Elective';
-                    const status = course.status || 'planned';
-                    try {
-                      await api.addCourseToPlan(selectedPlan.id, {
-                        course_id: course.id,
-                        semester,
-                        year,
-                        status,
-                        requirement_category: requirementCategory
-                      });
-                    } catch (error) {
-                      console.error('Failed to add course to plan:', error);
-                      alert(`Failed to add course ${course.code}: ${error.message}`);
-                    }
-                  }
-                  await loadPlanDetails(selectedPlan.id);
-                  setShowCourseSearch(false);
-                }}
+                onMultiSelect={handleCourseSelect}
                 planId={selectedPlan?.id}
-                onAddToPlan={async (course) => {
-                  // Use the same modal as handleCourseSelect for requirement/semester/status
-                  handleCourseSelect(course);
-                }}
+                onAddToPlan={handleCourseSelect}
+                program={getProgram()}
               />
             </div>
           </div>
@@ -546,6 +500,18 @@ const PlanBuilder = ({ onCreatePlan, userMode = 'student' }) => {
           onClose={() => setShowCreatePlan(false)}
           onPlanCreated={handlePlanCreated}
           userMode={userMode}
+        />
+      )}
+      
+      {/* Internal Add Course Modal - only show if external handler not provided */}
+      {!onAddToPlan && (
+        <AddCourseToPlanModal
+          isOpen={addCourseModal.isOpen}
+          onClose={() => setAddCourseModal({ isOpen: false, courses: [], plan: null, program: null })}
+          courses={addCourseModal.courses}
+          plan={addCourseModal.plan}
+          program={addCourseModal.program}
+          onCoursesAdded={handleCoursesAdded}
         />
       )}
     </div>

@@ -4,6 +4,7 @@ import CourseSearch from './components/CourseSearch';
 import PlanBuilder from './components/PlanBuilder';
 import CSVUpload from './components/CSVUpload';
 import CreatePlanModal from './components/CreatePlanModal';
+import AddCourseToPlanModal from './components/AddCourseToPlanModal';
 
 import api from './services/api';
 
@@ -14,6 +15,14 @@ const App = () => {
   const [plans, setPlans] = useState([]);
   const [selectedPlanId, setSelectedPlanId] = useState(null);
   const [programs, setPrograms] = useState([]);
+  
+  // Add course modal state
+  const [addCourseModal, setAddCourseModal] = useState({
+    isOpen: false,
+    courses: [],
+    plan: null,
+    program: null
+  });
 
   const tabs = [
     { id: 'search', label: 'Course Search', icon: Search },
@@ -33,42 +42,39 @@ const App = () => {
     api.getPlans({}).then(res => setPlans(res.plans || []));
   };
 
-  // Handler for adding a course to a plan from CourseSearch
-  const handleAddToPlan = async (course) => {
+  // Unified handler for adding courses to plan
+  const handleAddToPlan = async (courses) => {
     if (!selectedPlanId) {
       alert('Please select a plan first.');
       return;
     }
-    // Auto-populate requirement category from program requirements
+    
     const plan = plans.find(p => p.id === selectedPlanId);
     const program = programs.find(p => p.id === plan?.program_id);
-    let requirementCategory = 'Elective';
-    if (program && program.requirements) {
-      // Try to match by course code
-      const match = program.requirements.find(r => {
-        if (r.groups) {
-          return r.groups.some(g => g.course_options && g.course_options.some(opt => opt.course_code === course.code));
-        }
-        return false;
-      });
-      if (match) requirementCategory = match.category;
+    
+    // Ensure courses is always an array
+    const coursesArray = Array.isArray(courses) ? courses : [courses];
+    
+    setAddCourseModal({
+      isOpen: true,
+      courses: coursesArray,
+      plan: plan,
+      program: program
+    });
+  };
+
+  // Handler for when courses are successfully added
+  const handleCoursesAdded = async (courseDataArray) => {
+    for (const courseData of courseDataArray) {
+      await api.addCourseToPlan(selectedPlanId, courseData);
     }
-    // Default semester/year
-    let semester = 'Fall';
-    let year = new Date().getFullYear();
-    // Default status
-    let status = 'planned';
-    try {
-      await api.addCourseToPlan(selectedPlanId, {
-        course_id: course.id,
-        semester,
-        year,
-        status,
-        requirement_category: requirementCategory
-      });
-      alert(`Course added to plan!\nCategory: ${requirementCategory}\nSemester: ${semester} ${year}\nStatus: ${status}`);
-    } catch (error) {
-      alert('Failed to add course: ' + error.message);
+    
+    // Close modal and refresh if needed
+    setAddCourseModal({ isOpen: false, courses: [], plan: null, program: null });
+    
+    // If we're on the plans tab, trigger a refresh
+    if (activeTab === 'plans') {
+      // The PlanBuilder component should handle its own refresh
     }
   };
 
@@ -153,6 +159,7 @@ const App = () => {
             <CourseSearch
               planId={selectedPlanId}
               onAddToPlan={handleAddToPlan}
+              program={selectedPlanId ? programs.find(p => p.id === plans.find(plan => plan.id === selectedPlanId)?.program_id) : null}
             />
           </>
         )}
@@ -160,9 +167,17 @@ const App = () => {
           <PlanBuilder
             plans={plans}
             selectedPlanId={selectedPlanId}
-            setSelectedPlanId={setSelectedPlanId}
+            setSelectedPlanId={(id) => {
+              setSelectedPlanId(id);
+              // If plan was deleted (id is null) and we have updated plans, refresh
+              if (id === null) {
+                api.getPlans({}).then(res => setPlans(res.plans || []));
+              }
+            }}
             onCreatePlan={() => setIsModalOpen(true)}
             userMode={userMode}
+            onAddToPlan={handleAddToPlan}
+            programs={programs}
           />
         )}
         {activeTab === 'upload' && <CSVUpload />}
@@ -174,6 +189,16 @@ const App = () => {
         onClose={() => setIsModalOpen(false)} 
         onPlanCreated={handlePlanCreated} 
         userMode={userMode} 
+      />
+      
+      {/* Add Course Modal */}
+      <AddCourseToPlanModal
+        isOpen={addCourseModal.isOpen}
+        onClose={() => setAddCourseModal({ isOpen: false, courses: [], plan: null, program: null })}
+        courses={addCourseModal.courses}
+        plan={addCourseModal.plan}
+        program={addCourseModal.program}
+        onCoursesAdded={handleCoursesAdded}
       />
 
       {/* Plan Delete Button above Footer */}
