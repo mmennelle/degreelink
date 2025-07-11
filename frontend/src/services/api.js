@@ -1,4 +1,3 @@
-
 class ApiService {
     constructor() {
       this.baseURL = '/api';
@@ -23,6 +22,7 @@ class ApiService {
       
       return data;
     }
+    
     async getPrograms() {
       return this.request('/programs');
     }
@@ -35,11 +35,9 @@ class ApiService {
       return this.request(`/programs/${programId}/requirements/${requirementId}/suggestions`);
     }
     
-    
     async getPlanProgress(id) {
       return this.request(`/plans/${id}/progress`);
     }
-    
     
     async uploadRequirements(file) {
       const formData = new FormData();
@@ -51,12 +49,10 @@ class ApiService {
       });
     }
   
-    
     async healthCheck() {
       return this.request('/health');
     }
   
-    
     async searchCourses(params = {}) {
       const queryString = new URLSearchParams(params).toString();
       return this.request(`/courses${queryString ? `?${queryString}` : ''}`);
@@ -86,7 +82,6 @@ class ApiService {
       });
     }
   
-    
     async getPlans(params = {}) {
       const queryString = new URLSearchParams(params).toString();
       return this.request(`/plans${queryString ? `?${queryString}` : ''}`);
@@ -136,7 +131,6 @@ class ApiService {
       });
     }
   
-    
     async getEquivalencies(params = {}) {
       const queryString = new URLSearchParams(params).toString();
       return this.request(`/equivalencies${queryString ? `?${queryString}` : ''}`);
@@ -162,7 +156,6 @@ class ApiService {
       });
     }
   
-    
     async uploadCourses(file) {
       const formData = new FormData();
       formData.append('file', file);
@@ -182,10 +175,7 @@ class ApiService {
         body: formData
       });
     }
-  }
-  
-  
-  const api = new ApiService();
-  export default api;
+}
 
-  
+const api = new ApiService();
+export default api;

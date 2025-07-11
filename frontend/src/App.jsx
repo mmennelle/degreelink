@@ -5,7 +5,6 @@ import PlanBuilder from './components/PlanBuilder';
 import CSVUpload from './components/CSVUpload';
 import CreatePlanModal from './components/CreatePlanModal';
 import AddCourseToPlanModal from './components/AddCourseToPlanModal';
-
 import api from './services/api';
 
 const App = () => {
@@ -15,6 +14,7 @@ const App = () => {
   const [plans, setPlans] = useState([]);
   const [selectedPlanId, setSelectedPlanId] = useState(null);
   const [programs, setPrograms] = useState([]);
+  const [planRefreshTrigger, setPlanRefreshTrigger] = useState(0);
   
   // Add course modal state
   const [addCourseModal, setAddCourseModal] = useState({
@@ -33,13 +33,25 @@ const App = () => {
 
   // Load plans and programs for plan selection
   React.useEffect(() => {
-    api.getPlans({}).then(res => setPlans(res.plans || []));
-    api.getPrograms().then(res => setPrograms(res.programs || []));
+    loadPlansAndPrograms();
   }, []);
+
+  const loadPlansAndPrograms = async () => {
+    try {
+      const [plansRes, programsRes] = await Promise.all([
+        api.getPlans({}),
+        api.getPrograms()
+      ]);
+      setPlans(plansRes.plans || []);
+      setPrograms(programsRes.programs || []);
+    } catch (error) {
+      console.error('Failed to load data:', error);
+    }
+  };
 
   const handlePlanCreated = () => {
     setIsModalOpen(false);
-    api.getPlans({}).then(res => setPlans(res.plans || []));
+    loadPlansAndPrograms();
   };
 
   // Unified handler for adding courses to plan
@@ -69,13 +81,11 @@ const App = () => {
       await api.addCourseToPlan(selectedPlanId, courseData);
     }
     
-    // Close modal and refresh if needed
+    // Close modal
     setAddCourseModal({ isOpen: false, courses: [], plan: null, program: null });
     
-    // If we're on the plans tab, trigger a refresh
-    if (activeTab === 'plans') {
-      // The PlanBuilder component should handle its own refresh
-    }
+    // Trigger a refresh in PlanBuilder
+    setPlanRefreshTrigger(prev => prev + 1);
   };
 
   // Plan selector for Course Search tab
@@ -97,7 +107,7 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Header. contains basic portal switching for user login. it just needs authentication. */}
+      {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
@@ -169,21 +179,22 @@ const App = () => {
             selectedPlanId={selectedPlanId}
             setSelectedPlanId={(id) => {
               setSelectedPlanId(id);
-              // If plan was deleted (id is null) and we have updated plans, refresh
+              // If plan was deleted (id is null), refresh plans
               if (id === null) {
-                api.getPlans({}).then(res => setPlans(res.plans || []));
+                loadPlansAndPrograms();
               }
             }}
             onCreatePlan={() => setIsModalOpen(true)}
             userMode={userMode}
             onAddToPlan={handleAddToPlan}
             programs={programs}
+            refreshTrigger={planRefreshTrigger}
           />
         )}
         {activeTab === 'upload' && <CSVUpload />}
       </main>
 
-      {/* Modal - moved outside of main content for proper z-index */}
+      {/* Create Plan Modal */}
       <CreatePlanModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
@@ -227,8 +238,8 @@ const App = () => {
       <footer className="bg-white border-t border-gray-200 mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center text-sm text-gray-600">
-            <p>It's a Footer!</p>
-            <p className="mt-1"></p>
+            <p>Course Transfer System</p>
+            <p className="mt-1">© 2024 All rights reserved</p>
           </div>
         </div>
       </footer>

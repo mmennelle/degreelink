@@ -13,13 +13,14 @@ const PlanBuilder = ({
   programs = [],
   plans: externalPlans,
   selectedPlanId: externalSelectedPlanId,
-  setSelectedPlanId: externalSetSelectedPlanId
+  setSelectedPlanId: externalSetSelectedPlanId,
+  refreshTrigger = 0
 }) => {
   // Use external state if provided, otherwise use internal state
   const [internalPlans, setInternalPlans] = useState([]);
   const [internalSelectedPlanId, setInternalSelectedPlanId] = useState(null);
   
-  const plans = externalPlans || internalPlans;
+  const plans = externalPlans !== undefined ? externalPlans : internalPlans;
   const selectedPlanId = externalSelectedPlanId !== undefined ? externalSelectedPlanId : internalSelectedPlanId;
   const setSelectedPlanId = externalSetSelectedPlanId || setInternalSelectedPlanId;
   
@@ -42,16 +43,16 @@ const PlanBuilder = ({
   const programsList = programs.length > 0 ? programs : internalPrograms;
 
   useEffect(() => {
-    if (!externalPlans) {
+    if (externalPlans === undefined) {
       loadPlans();
     }
     if (programs.length === 0) {
       loadPrograms();
     }
-  }, []);
+  }, []); // Empty dependency array for initial load only
 
   useEffect(() => {
-    // When selectedPlanId changes, load the plan details
+    // When selectedPlanId changes or refreshTrigger updates, load the plan details
     if (selectedPlanId && plans.length > 0) {
       const plan = plans.find(p => p.id === selectedPlanId);
       if (plan) {
@@ -60,7 +61,7 @@ const PlanBuilder = ({
     } else {
       setSelectedPlan(null);
     }
-  }, [selectedPlanId, plans]);
+  }, [selectedPlanId, plans, refreshTrigger]);
 
   const loadPrograms = async () => {
     try {
@@ -81,6 +82,7 @@ const PlanBuilder = ({
     } catch (error) {
       console.error('Failed to load plans:', error);
       setError('Failed to load plans. Please try again.');
+      setInternalPlans([]); // Ensure we have an empty array on error
     } finally {
       setLoading(false);
     }
@@ -98,6 +100,37 @@ const PlanBuilder = ({
       setError('Failed to load plan details. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeletePlan = async (plan) => {
+    if (!confirm(`Are you sure you want to delete "${plan.plan_name}"? This action cannot be undone.`)) {
+      return;
+    }
+    
+    try {
+      await api.deletePlan(plan.id);
+      
+      // Update plans list
+      if (externalPlans && externalSetSelectedPlanId) {
+        // If using external state, clear selection and let parent refresh
+        if (selectedPlanId === plan.id) {
+          externalSetSelectedPlanId(null);
+        }
+        // Parent will handle refreshing the plans list
+      } else {
+        // Update internal state
+        setInternalPlans(prevPlans => prevPlans.filter(p => p.id !== plan.id));
+        if (internalSelectedPlanId === plan.id) {
+          setInternalSelectedPlanId(null);
+          setSelectedPlan(null);
+        }
+      }
+      
+      alert('Plan deleted successfully.');
+    } catch (error) {
+      console.error('Failed to delete plan:', error);
+      alert(`Failed to delete plan: ${error.message}`);
     }
   };
 
@@ -229,7 +262,8 @@ const PlanBuilder = ({
     return programsList.find(p => p.id === selectedPlan.program_id);
   };
 
-  if (loading && !selectedPlan && plans.length === 0) {
+  // Debug early return conditions
+  if (loading && plans.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex items-center justify-center py-8">
@@ -240,6 +274,7 @@ const PlanBuilder = ({
     );
   }
 
+  // Always render something
   return (
     <div className="space-y-6">
       {/* Main Plan Builder */}
@@ -266,10 +301,11 @@ const PlanBuilder = ({
           </div>
         )}
 
+        {/* Always show something in the content area */}
         {!selectedPlan ? (
           /* Plans List View */
           <div className="space-y-3">
-            {plans.length === 0 ? (
+            {(!plans || plans.length === 0) ? (
               <div className="text-center py-12">
                 <BookOpen className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No Plans Found</h3>
@@ -303,7 +339,21 @@ const PlanBuilder = ({
                         )}
                       </div>
                     </div>
-                    <ChevronRight className="text-gray-400 flex-shrink-0" size={20} />
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeletePlan(plan);
+                        }}
+                        className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded transition-colors"
+                        title="Delete plan"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                      <ChevronRight className="text-gray-400 flex-shrink-0" size={20} />
+                    </div>
                   </div>
                 </div>
               ))

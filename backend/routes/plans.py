@@ -48,6 +48,19 @@ def create_plan():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': 'Failed to create plan'}), 500
+    
+@bp.route('/<int:plan_id>', methods=['DELETE'])
+def delete_plan(plan_id):
+    """Delete a plan and all associated courses"""
+    plan = Plan.query.get_or_404(plan_id)
+    
+    try:
+        db.session.delete(plan)
+        db.session.commit()
+        return jsonify({'message': 'Plan deleted successfully'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Failed to delete plan'}), 500
 
 @bp.route('/<int:plan_id>/courses', methods=['POST'])
 def add_course_to_plan(plan_id):
