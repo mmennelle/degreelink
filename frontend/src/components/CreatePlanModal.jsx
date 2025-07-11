@@ -172,7 +172,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
                 required
                 value={formData.plan_name}
                 onChange={(e) => handleInputChange('plan_name', e.target.value)}
-                placeholder="e.g., Fall 2024 Transfer Plan"
+                placeholder="e.g., Fall 2025 Transfer Plan"
                 className={`flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                   errors.plan_name ? 'border-red-300' : 'border-gray-300'
                 }`}

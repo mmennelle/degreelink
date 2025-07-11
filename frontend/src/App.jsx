@@ -239,7 +239,8 @@ const App = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center text-sm text-gray-600">
             <p>Course Transfer System</p>
-            <p className="mt-1">© 2024 All rights reserved</p>
+            <p className="mt-1">Developed by Mitchell Mennelle under a joint grant between<br></br> Delgado Community College and The University of New Orleans</p>
+            <p className="mt-1">© 2025 All rights reserved</p>
           </div>
         </div>
       </footer>
