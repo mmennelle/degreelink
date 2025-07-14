@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search } from 'lucide-react';
 import api from '../services/api';
 
 const CourseSearch = ({ 
   onCourseSelect = null, 
   onMultiSelect = null, 
-  planId = null, 
+  planId = '', 
+  setPlanId = null,
   onAddToPlan = null,
-  program = null 
+  program = null
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [institution, setInstitution] = useState('');
@@ -19,6 +20,19 @@ const CourseSearch = ({
   const [error, setError] = useState(null);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [detectedCategories, setDetectedCategories] = useState(new Map());
+  const [plans, setPlans] = useState([]);
+  // Fetch plans on mount
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const res = await api.getPlans({});
+        setPlans(res.plans || []);
+      } catch (err) {
+        // Optionally handle error
+      }
+    };
+    fetchPlans();
+  }, []);
 
   const toggleCourseSelection = (course) => {
     const isSelected = selectedCourses.some((c) => c.id === course.id);
@@ -173,31 +187,45 @@ const CourseSearch = ({
       
       {/* Search Form */}
       <div className="space-y-4 mb-6">
-        <div className="flex gap-4">
-          <div className="flex-1">
-            <input
-              type="text"
-              placeholder="Search courses (code, title, description)"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={handleKeyPress}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-          <div className="w-48">
-            <input
-              type="text"
-              placeholder="Institution (optional)"
-              value={institution}
-              onChange={(e) => setInstitution(e.target.value)}
-              onKeyDown={handleKeyPress}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col sm:flex-row flex-1 gap-4">
+            <div className="flex-1 min-w-0">
+              <input
+                type="text"
+                placeholder="Search courses (code, title, description)"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={handleKeyPress}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div className="sm:w-48 w-full">
+              <input
+                type="text"
+                placeholder="Institution (optional)"
+                value={institution}
+                onChange={(e) => setInstitution(e.target.value)}
+                onKeyDown={handleKeyPress}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div className="sm:w-64 w-full">
+              <select
+                value={planId || ''}
+                onChange={e => setPlanId && setPlanId(Number(e.target.value))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+              >
+                <option value="">-- Choose a plan --</option>
+                {plans.map(plan => (
+                  <option key={plan.id} value={plan.id}>{plan.plan_name} ({plan.student_name})</option>
+                ))}
+              </select>
+            </div>
           </div>
           <button
             onClick={searchCourses}
             disabled={loading || !searchTerm.trim()}
-            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center self-stretch sm:self-auto"
           >
             {loading ? (
               <>

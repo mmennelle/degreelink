@@ -421,93 +421,17 @@ const PlanBuilder = ({
               </div>
             </div>
 
-            {/* Courses by Requirement Category */}
-            <div className="space-y-6">
-              <h4 className="font-medium text-gray-800 flex items-center">
-                <Target className="mr-2" size={18} />
-                Courses by Requirement
-              </h4>
-              
-              {selectedPlan.courses && selectedPlan.courses.length === 0 ? (
-                <div className="text-center py-8 bg-gray-50 rounded-md">
-                  <p className="text-gray-500 mb-3">No courses added yet.</p>
-                  <button
-                    onClick={() => setShowCourseSearch(true)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
-                  >
-                    Add Your First Course
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {Object.entries(groupCoursesByRequirement(selectedPlan.courses || [])).map(([category, courses]) => (
-                    <div key={category} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex justify-between items-center mb-3">
-                        <h5 className="font-medium text-gray-800">{category}</h5>
-                        <span className="text-sm text-gray-500">
-                          {courses.length} course{courses.length !== 1 ? 's' : ''} • {' '}
-                          {courses.reduce((sum, c) => sum + (c.credits || c.course.credits || 0), 0)} credits
-                        </span>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        {courses.map((planCourse) => (
-                          <div key={planCourse.id} className="bg-gray-50 rounded-md p-3">
-                            <div className="flex justify-between items-start">
-                              <div className="flex-1">
-                                <h6 className="font-medium text-gray-900">
-                                  {planCourse.course.code}: {planCourse.course.title}
-                                </h6>
-                                <div className="flex flex-wrap gap-4 mt-1 text-sm text-gray-600">
-                                  <span>🏫 {planCourse.course.institution}</span>
-                                  <span>📚 {planCourse.credits || planCourse.course.credits} credits</span>
-                                  {planCourse.semester && planCourse.year && (
-                                    <span>📅 {planCourse.semester} {planCourse.year}</span>
-                                  )}
-                                  {planCourse.grade && (
-                                    <span>🎯 Grade: {planCourse.grade}</span>
-                                  )}
-                                </div>
-                                {planCourse.notes && (
-                                  <p className="text-sm text-gray-500 mt-2">📝 {planCourse.notes}</p>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 ml-4">
-                                <select
-                                  value={planCourse.status}
-                                  onChange={(e) => updateCourseStatus(planCourse.id, e.target.value)}
-                                  className={`px-2 py-1 text-xs rounded border ${getStatusColor(planCourse.status)}`}
-                                >
-                                  <option value="planned">Planned</option>
-                                  <option value="in_progress">In Progress</option>
-                                  <option value="completed">Completed</option>
-                                </select>
-                                <select
-                                  value={planCourse.requirement_category || ''}
-                                  onChange={(e) => updateCourseRequirement(planCourse.id, e.target.value)}
-                                  className="px-2 py-1 text-xs rounded border border-gray-300"
-                                >
-                                  {getProgram()?.requirements?.map(req => (
-                                    <option key={req.category} value={req.category}>{req.category}</option>
-                                  ))}
-                                  <option value="Elective">General Elective</option>
-                                </select>
-                                <button
-                                  onClick={() => removeCourseFromPlan(planCourse.id)}
-                                  className="text-red-600 hover:text-red-800 text-sm px-2 py-1 hover:bg-red-50 rounded transition-colors"
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Courses by Requirement Category (Collapsible) */}
+            <CoursesByRequirementCollapsible
+              selectedPlan={selectedPlan}
+              groupCoursesByRequirement={groupCoursesByRequirement}
+              updateCourseStatus={updateCourseStatus}
+              updateCourseRequirement={updateCourseRequirement}
+              removeCourseFromPlan={removeCourseFromPlan}
+              getStatusColor={getStatusColor}
+              getProgram={getProgram}
+              setShowCourseSearch={setShowCourseSearch}
+            />
           </div>
         )}
       </div>
@@ -568,4 +492,195 @@ const PlanBuilder = ({
   );
 };
 
+
 export default PlanBuilder;
+
+// Collapsible Courses by Requirement Section
+function CoursesByRequirementCollapsible({
+  selectedPlan,
+  groupCoursesByRequirement,
+  updateCourseStatus,
+  updateCourseRequirement,
+  removeCourseFromPlan,
+  getStatusColor,
+  getProgram,
+  setShowCourseSearch
+}) {
+  // Per-category open/close
+  const [openCategories, setOpenCategories] = React.useState(() => {
+    if (!selectedPlan?.courses) return {};
+    const grouped = groupCoursesByRequirement(selectedPlan.courses);
+    const open = {};
+    Object.keys(grouped).forEach(cat => { open[cat] = true; });
+    return open;
+  });
+
+  // Collapse/expand all categories
+  const allOpen = Object.values(openCategories).every(Boolean);
+  const allClosed = Object.values(openCategories).every(v => !v);
+  const toggleAll = () => {
+    setOpenCategories(prev => {
+      const next = { ...prev };
+      const shouldOpen = !allOpen;
+      Object.keys(next).forEach(cat => { next[cat] = shouldOpen; });
+      return next;
+    });
+  };
+
+  React.useEffect(() => {
+    if (!selectedPlan?.courses) return;
+    const grouped = groupCoursesByRequirement(selectedPlan.courses);
+    setOpenCategories(prev => {
+      const next = { ...prev };
+      Object.keys(grouped).forEach(cat => {
+        if (!(cat in next)) next[cat] = true;
+      });
+      Object.keys(next).forEach(cat => {
+        if (!(cat in grouped)) delete next[cat];
+      });
+      return next;
+    });
+  }, [selectedPlan?.courses]);
+
+  if (selectedPlan.courses && selectedPlan.courses.length === 0) {
+    return (
+      <div className="text-center py-8 bg-gray-50 rounded-md">
+        <p className="text-gray-500 mb-3">No courses added yet.</p>
+        <button
+          onClick={() => setShowCourseSearch(true)}
+          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+        >
+          Add Your First Course
+        </button>
+      </div>
+    );
+  }
+
+  const grouped = groupCoursesByRequirement(selectedPlan.courses || []);
+
+  return (
+    <div className="space-y-4">
+      <div
+        className="flex items-center gap-2 cursor-pointer select-none mb-2"
+        onClick={toggleAll}
+        tabIndex={0}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') toggleAll();
+        }}
+        aria-expanded={allOpen}
+      >
+        <span className={`transition-transform ${allOpen ? 'rotate-90' : ''}`}>▶</span>
+        <h4 className="font-medium text-gray-800 flex items-center">
+          <Target className="mr-2" size={18} />
+          Courses by Requirement
+        </h4>
+      </div>
+      <div className="space-y-4">
+        {Object.entries(grouped).map(([category, courses]) => {
+          // Determine if more courses/credits are needed for this category
+          let needsMore = false;
+          const req = getProgram()?.requirements?.find(r => r.category === category);
+          if (req) {
+            const totalCredits = courses.reduce((sum, c) => sum + (c.credits || c.course.credits || 0), 0);
+            if ((req.credits && totalCredits < req.credits) || (req.courses && courses.length < req.courses)) {
+              needsMore = true;
+            }
+          }
+          return (
+            <div key={category} className="border border-gray-200 rounded-lg">
+              <div
+                className="flex justify-between items-center px-4 py-3 cursor-pointer select-none bg-gray-100 hover:bg-gray-200 rounded-t-lg"
+                onClick={() => setOpenCategories(prev => ({ ...prev, [category]: !prev[category] }))}
+                aria-expanded={openCategories[category]}
+                tabIndex={0}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    setOpenCategories(prev => ({ ...prev, [category]: !prev[category] }));
+                  }
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <span className={`transition-transform ${openCategories[category] ? 'rotate-90' : ''}`}>▶</span>
+                  <h5 className="font-medium text-gray-800">{category}</h5>
+                  {needsMore && (
+                    <button
+                      className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 focus:outline-none"
+                      title={`Add more courses to ${category}`}
+                      onClick={e => {
+                        e.stopPropagation();
+                        setShowCourseSearch(true);
+                        // Optionally, you could set a filter state here for the course search modal
+                        // e.g. setCourseSearchFilter(category)
+                      }}
+                    >
+                      + Add
+                    </button>
+                  )}
+                </div>
+                <span className="text-sm text-gray-500">
+                  {courses.length} course{courses.length !== 1 ? 's' : ''} • {' '}
+                  {courses.reduce((sum, c) => sum + (c.credits || c.course.credits || 0), 0)} credits
+                </span>
+              </div>
+              {openCategories[category] && (
+                <div className="space-y-2 p-4 pt-2">
+                  {courses.map((planCourse) => (
+                    <div key={planCourse.id} className="bg-gray-50 rounded-md p-3">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h6 className="font-medium text-gray-900">
+                            {planCourse.course.code}: {planCourse.course.title}
+                          </h6>
+                          <div className="flex flex-wrap gap-4 mt-1 text-sm text-gray-600">
+                            <span>🏫 {planCourse.course.institution}</span>
+                            <span>📚 {planCourse.credits || planCourse.course.credits} credits</span>
+                            {planCourse.semester && planCourse.year && (
+                              <span>📅 {planCourse.semester} {planCourse.year}</span>
+                            )}
+                            {planCourse.grade && (
+                              <span>🎯 Grade: {planCourse.grade}</span>
+                            )}
+                          </div>
+                          {planCourse.notes && (
+                            <p className="text-sm text-gray-500 mt-2">📝 {planCourse.notes}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 ml-4">
+                          <select
+                            value={planCourse.status}
+                            onChange={(e) => updateCourseStatus(planCourse.id, e.target.value)}
+                            className={`px-2 py-1 text-xs rounded border ${getStatusColor(planCourse.status)}`}
+                          >
+                            <option value="planned">Planned</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="completed">Completed</option>
+                          </select>
+                          <select
+                            value={planCourse.requirement_category || ''}
+                            onChange={(e) => updateCourseRequirement(planCourse.id, e.target.value)}
+                            className="px-2 py-1 text-xs rounded border border-gray-300"
+                          >
+                            {getProgram()?.requirements?.map(req => (
+                              <option key={req.category} value={req.category}>{req.category}</option>
+                            ))}
+                            <option value="Free Elective">Free Elective</option>
+                          </select>
+                          <button
+                            onClick={() => removeCourseFromPlan(planCourse.id)}
+                            className="text-red-600 hover:text-red-800 text-sm px-2 py-1 hover:bg-red-50 rounded transition-colors"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

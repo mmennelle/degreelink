@@ -99,22 +99,6 @@ const App = () => {
     setPlanRefreshTrigger(prev => prev + 1);
   };
 
-  // Plan selector for Course Search tab
-  const renderPlanSelector = () => (
-    <div className="mb-4 flex items-center gap-2">
-      <label className="text-sm font-medium text-gray-700">Select Plan:</label>
-      <select
-        value={selectedPlanId || ''}
-        onChange={e => setSelectedPlanId(Number(e.target.value))}
-        className="px-2 py-1 border rounded"
-      >
-        <option value="">-- Choose a plan --</option>
-        {plans.map(plan => (
-          <option key={plan.id} value={plan.id}>{plan.plan_name} ({plan.student_name})</option>
-        ))}
-      </select>
-    </div>
-  );
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -175,14 +159,12 @@ const App = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'search' && (
-          <>
-            {renderPlanSelector()}
-            <CourseSearch
-              planId={selectedPlanId}
-              onAddToPlan={handleAddToPlan}
-              program={selectedPlanId ? programs.find(p => p.id === plans.find(plan => plan.id === selectedPlanId)?.program_id) : null}
-            />
-          </>
+          <CourseSearch
+            planId={selectedPlanId}
+            setPlanId={setSelectedPlanId}
+            onAddToPlan={handleAddToPlan}
+            program={selectedPlanId ? programs.find(p => p.id === plans.find(plan => plan.id === selectedPlanId)?.program_id) : null}
+          />
         )}
         {activeTab === 'plans' && (
           <PlanBuilder

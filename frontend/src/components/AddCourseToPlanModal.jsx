@@ -11,39 +11,44 @@ const AddCourseToPlanModal = ({
 }) => {
   // Initialize form data for each course
   const initializeCourseData = () => {
-  return courses.map(course => {
-    let suggestedCategory = course.detectedCategory || 'Elective';
-    let suggestedGroup = null;
+    return courses.map(course => {
+      let suggestedCategory = course.detectedCategory || 'Free Electives';
+      let suggestedGroup = null;
 
-    if (program && program.requirements) {
-      // First, find matching category by group membership
-      const match = program.requirements.find(req => {
-        if (req.groups) {
-          const groupMatch = req.groups.find(g =>
-            g.course_options?.some(opt => opt.course_code === course.code)
-          );
-          if (groupMatch) {
-            suggestedGroup = groupMatch;
-            suggestedCategory = req.category;  // ✅ Always override category if matched
-            return true;
+      if (program && program.requirements) {
+        // First, find matching category by group membership
+        const match = program.requirements.find(req => {
+          if (req.groups) {
+            const groupMatch = req.groups.find(g =>
+              g.course_options?.some(opt => opt.course_code === course.code)
+            );
+            if (groupMatch) {
+              suggestedGroup = groupMatch;
+              suggestedCategory = req.category;  // Always override category if matched
+              return true;
+            }
           }
-        }
-        return false;
-      });
-    }
+          return false;
+        });
+      }
 
-    return {
-      course,
-      requirement_category: suggestedCategory,
-      requirement_group_id: suggestedGroup?.id || null,
-      semester: 'Fall',
-      year: new Date().getFullYear(),
-      status: 'planned',
-      grade: '',
-      notes: ''
-    };
-  });
-};
+      // Standardize any other elective label to 'Free Elective'
+      if (['Elective', 'General Elective', 'Free Elective'].includes(suggestedCategory)) {
+        suggestedCategory = 'Free Electives';
+      }
+
+      return {
+        course,
+        requirement_category: suggestedCategory,
+        requirement_group_id: suggestedGroup?.id || null,
+        semester: 'Fall',
+        year: new Date().getFullYear(),
+        status: 'planned',
+        grade: '',
+        notes: ''
+      };
+    });
+  };
 
 
   const [courseData, setCourseData] = useState([]);
