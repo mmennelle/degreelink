@@ -10,12 +10,18 @@ class Plan(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     student_name = db.Column(db.String(200), nullable=False)
     student_email = db.Column(db.String(200))
+
+    #Advisor ID and Access Code
+    advisor_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    access_code = db.Column(db.String(8), unique=True, nullable=False)
+
     program_id = db.Column(db.Integer, db.ForeignKey('programs.id'), nullable=False)
     plan_name = db.Column(db.String(200), nullable=False)
     status = db.Column(db.String(50), default='draft')  
+
     created_at = db.Column(db.DateTime, server_default=func.now())
     updated_at = db.Column(db.DateTime, server_default=func.now(), onupdate=func.now())
-    
+
     courses = db.relationship('PlanCourse', backref='plan', cascade='all, delete-orphan')
     
     def __repr__(self):
