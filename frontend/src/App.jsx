@@ -55,25 +55,36 @@ const App = () => {
   };
 
   // Unified handler for adding courses to plan
-  const handleAddToPlan = async (courses) => {
-    if (!selectedPlanId) {
-      alert('Please select a plan first.');
-      return;
-    }
+ const handleAddToPlan = async (courses) => {
+  if (!selectedPlanId) {
+    alert('Please select a plan first.');
+    return;
+  }
+
+  try {
+    // Refresh the selected plan before opening the modal
+    const refreshedPlan = await api.getPlan(selectedPlanId);
     
-    const plan = plans.find(p => p.id === selectedPlanId);
-    const program = programs.find(p => p.id === plan?.program_id);
-    
-    // Ensure courses is always an array
+    // Get matching program based on refreshed plan's program_id
+    const refreshedProgram = programs.find(p => p.id === refreshedPlan.program_id) 
+      || await api.getProgram(refreshedPlan.program_id);
+
+    // Ensure courses is an array
     const coursesArray = Array.isArray(courses) ? courses : [courses];
-    
+
     setAddCourseModal({
       isOpen: true,
       courses: coursesArray,
-      plan: plan,
-      program: program
+      plan: refreshedPlan,
+      program: refreshedProgram
     });
-  };
+
+  } catch (error) {
+    console.error('Failed to load latest plan or program:', error);
+    alert('Could not load plan data. Please try again.');
+  }
+};
+
 
   // Handler for when courses are successfully added
   const handleCoursesAdded = async (courseDataArray) => {
