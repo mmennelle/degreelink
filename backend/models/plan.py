@@ -184,7 +184,7 @@ class Plan(db.Model):
                 )
             
             
-            if any(course.course.institution == 'Delgado Community College' for course in self.courses):
+            if any(course.course.institution  for course in self.courses):
                 category_suggestions['transfer_options'] = self._get_transfer_suggestions(
                     category_suggestions['course_options']
                 )

@@ -90,25 +90,25 @@ const CSVUpload = () => {
     
     if (type === 'courses') {
       csvContent = `code,title,description,credits,institution,department,prerequisites
-"BIOL 101","Introduction to Biology","Fundamental principles of biology including cell structure, genetics, and evolution.",4,"City Community College","Biology",""
-"MATH 151","Calculus I","Limits, derivatives, and applications of differential calculus.",4,"City Community College","Mathematics","MATH 141"
-"ENG 101","English Composition I","Introduction to academic writing and critical thinking.",3,"City Community College","English",""
-"HIST 101","World History I","Survey of world civilizations from ancient times to 1500.",3,"City Community College","History",""
-"CHEM 111","General Chemistry I","Introduction to chemical principles and laboratory techniques.",4,"City Community College","Chemistry","MATH 120"`;
+"BIOL 101","Introduction to Biology","Fundamental principles of biology including cell structure, genetics, and evolution.",4,"Community College","Biology",""
+"MATH 151","Calculus I","Limits, derivatives, and applications of differential calculus.",4,"Community College","Mathematics","MATH 141"
+"ENG 101","English Composition I","Introduction to academic writing and critical thinking.",3,"Community College","English",""
+"HIST 101","World History I","Survey of world civilizations from ancient times to 1500.",3,"Community College","History",""
+"CHEM 111","General Chemistry I","Introduction to chemical principles and laboratory techniques.",4,"Community College","Chemistry","MATH 120"`;
       filename = 'sample_courses.csv';
     } else if (type === 'equivalencies') {
       csvContent = `from_course_code,from_institution,to_course_code,to_institution,equivalency_type,notes,approved_by
-"BIOL 101","City Community College","BIO 1010","State University","direct","Direct transfer equivalency","Dr. Smith"
-"MATH 151","City Community College","MATH 1210","State University","direct","Same content and credit hours","Dr. Johnson"
-"ENG 101","City Community College","ENGL 1010","State University","direct","Meets composition requirement","Dr. Williams"
-"HIST 101","City Community College","HIST 1700","State University","partial","Covers similar content but different time periods","Dr. Brown"
-"CHEM 111","City Community College","CHEM 1210","State University","direct","Laboratory component included","Dr. Davis"`;
+"BIOL 101","Community College","BIO 1010","State University","direct","Direct transfer equivalency","Dr. Smith"
+"MATH 151","Community College","MATH 1210","State University","direct","Same content and credit hours","Dr. Johnson"
+"ENG 101","Community College","ENGL 1010","State University","direct","Meets composition requirement","Dr. Williams"
+"HIST 101","Community College","HIST 1700","State University","partial","Covers similar content but different time periods","Dr. Brown"
+"CHEM 111","Community College","CHEM 1210","State University","direct","Laboratory component included","Dr. Davis"`;
       filename = 'sample_equivalencies.csv';
     } else if (type === 'requirements') {
       csvContent = `program_name,category,credits_required,requirement_type,group_name,courses_required,credits_required_group,course_option,institution,is_preferred,description,group_description,option_notes
 "Biology Major","Humanities",9,"grouped","Literature & Writing",2,6,"ENG 201","State University","true","Liberal arts breadth requirement","Choose 2 literature/writing courses","Advanced composition"
 "Biology Major","Humanities",9,"grouped","Literature & Writing",2,6,"ENG 205","State University","false","Liberal arts breadth requirement","Choose 2 literature/writing courses","Creative writing"
-"Biology Major","Humanities",9,"grouped","Literature & Writing",2,6,"LIT 101","City Community College","false","Liberal arts breadth requirement","Choose 2 literature/writing courses","Introduction to literature"
+"Biology Major","Humanities",9,"grouped","Literature & Writing",2,6,"LIT 101","Community College","false","Liberal arts breadth requirement","Choose 2 literature/writing courses","Introduction to literature"
 "Biology Major","Humanities",9,"grouped","Philosophy & Ethics",1,3,"PHIL 101","State University","true","Liberal arts breadth requirement","Choose 1 philosophy course","Introduction to philosophy"
 "Biology Major","Humanities",9,"grouped","Philosophy & Ethics",1,3,"PHIL 201","State University","false","Liberal arts breadth requirement","Choose 1 philosophy course","Ethics and moral philosophy"
 "Biology Major","Science Electives",12,"grouped","Upper Biology",2,8,"BIO 301","State University","true","Advanced biology courses","Choose 2 upper-division biology","Cell biology"
@@ -164,7 +164,7 @@ const CSVUpload = () => {
     } else if (uploadType === 'requirements') {
       return {
         title: 'Program Requirements Upload Instructions',
-        description: 'Upload a CSV file containing program requirement structures with grouping logic',
+        description: 'Upload a CSV file containing program requirements and grouping rules',
         columns: [
           { name: 'program_name', description: 'Name of the program (e.g., "Biology Major")', required: true },
           { name: 'category', description: 'Requirement category (e.g., "Humanities")', required: true },
@@ -232,7 +232,7 @@ const CSVUpload = () => {
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-xl font-semibold mb-4 flex items-center">
           <Upload className="mr-2" size={20} />
-          CSV Upload Manager
+          CSV Upload
         </h2>
 
         <div className="mb-6">
@@ -284,7 +284,6 @@ const CSVUpload = () => {
           
           <div className="space-y-4">
             <div className="mx-auto flex justify-center">
-              {getUploadTypeIcon()}
               {dragActive ? (
                 <div className="h-12 w-12 text-blue-500">📁</div>
               ) : (
@@ -430,22 +429,22 @@ const CSVUpload = () => {
         <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-md">
           <h5 className="font-medium text-blue-800 mb-2">💡 Upload Tips:</h5>
           <ul className="text-sm text-blue-700 space-y-1">
-            <li>• Ensure your CSV has the exact column names listed above</li>
-            <li>• Use double quotes around text values that contain commas</li>
+            <li>• Download the sample csv and input your course data into it ensuring that column requirements listed above are met.</li>
+            <li>• Use double quotes around text values that contain commas. ""this is a "quote" line""</li>
             <li>• Keep one header row at the top of your file</li>
-            <li>• Remove any empty rows at the end of your file</li>
+            
             
             {uploadType === 'courses' && (
               <>
-                <li>• Credits must be positive integers</li>
+                <li>• Credits must be zero or greater</li>
                 <li>• Course codes should be unique within each institution</li>
               </>
             )}
             
             {uploadType === 'equivalencies' && (
               <>
-                <li>• Both source and target courses must exist in the database</li>
                 <li>• Upload courses first if they don't exist yet</li>
+                <li>• Both source and target courses must exist in the database</li>
                 <li>• Use exact course codes and institution names</li>
                 <li>• Equivalency types: "direct", "partial", or "conditional"</li>
               </>

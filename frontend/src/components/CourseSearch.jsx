@@ -387,10 +387,10 @@ const CourseSearch = ({
                   {selectedCourse.course.code}: {selectedCourse.course.title}
                 </h4>
                 <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-600">
-                  <span>📍 {selectedCourse.course.institution}</span>
-                  <span>📚 {selectedCourse.course.credits} credits</span>
+                  <span>{selectedCourse.course.institution}</span>
+                  <span> {selectedCourse.course.credits} credits</span>
                   {selectedCourse.course.department && (
-                    <span>🏢 {selectedCourse.course.department}</span>
+                    <span> {selectedCourse.course.department}</span>
                   )}
                 </div>
               </div>
@@ -439,12 +439,12 @@ const CourseSearch = ({
                           </span>
                         </div>
                         <div className="text-sm text-gray-600 flex flex-col gap-2">
-                          <p>🏫 {equiv.course.institution} • {equiv.course.credits} credits</p>
+                          <p> {equiv.course.institution} • {equiv.course.credits} credits</p>
                           {equiv.equivalency.notes && (
-                            <p className="mt-1">📝 {equiv.equivalency.notes}</p>
+                            <p className="mt-1"> {equiv.equivalency.notes}</p>
                           )}
                           {equiv.equivalency.approved_by && (
-                            <p className="mt-1">✅ Approved by {equiv.equivalency.approved_by}</p>
+                            <p className="mt-1"> Approved by {equiv.equivalency.approved_by}</p>
                           )}
                           {/* Add equivalent course to plan if handler provided */}
                           {showAddToPlan && equiv.course && equiv.course.id && (
