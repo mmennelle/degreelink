@@ -164,17 +164,17 @@ const CSVUpload = () => {
     } else if (uploadType === 'requirements') {
       return {
         title: 'Program Requirements Upload Instructions',
-        description: 'Upload a CSV file containing program requirements and grouping rules',
+        description: 'Upload a CSV file containing program requirements and grouping rules. For grouped or conditional requirements, group-related columns (group_name, courses_required, credits_required_group, etc.) are required.',
         columns: [
           { name: 'program_name', description: 'Name of the program (e.g., "Biology Major")', required: true },
           { name: 'category', description: 'Requirement category (e.g., "Humanities")', required: true },
           { name: 'credits_required', description: 'Total credits for this category', required: true },
           { name: 'requirement_type', description: 'Type: simple, grouped, conditional', required: true },
-          { name: 'group_name', description: 'Sub-group name (for grouped types)', required: false },
-          { name: 'courses_required', description: 'Number of courses needed from group', required: false },
-          { name: 'credits_required_group', description: 'Credits needed from group', required: false },
-          { name: 'course_option', description: 'Specific course code option', required: false },
-          { name: 'institution', description: 'Institution for course option', required: false },
+          { name: 'group_name', description: 'Sub-group name (required for grouped/conditional types)', required: row => ["grouped","conditional"].includes(row.requirement_type) },
+          { name: 'courses_required', description: 'Number of courses needed from group (required for grouped/conditional types)', required: row => ["grouped","conditional"].includes(row.requirement_type) },
+          { name: 'credits_required_group', description: 'Credits needed from group (required for grouped/conditional types)', required: row => ["grouped","conditional"].includes(row.requirement_type) },
+          { name: 'course_option', description: 'Specific course code option (required for grouped/conditional types)', required: row => ["grouped","conditional"].includes(row.requirement_type) },
+          { name: 'institution', description: 'Institution for course option (required for grouped/conditional types)', required: row => ["grouped","conditional"].includes(row.requirement_type) },
           { name: 'is_preferred', description: 'Mark as preferred option (true/false)', required: false },
           { name: 'description', description: 'Category description', required: false },
           { name: 'group_description', description: 'Group description', required: false },
@@ -401,25 +401,32 @@ const CSVUpload = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {instructions.columns.map((column, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-mono text-gray-900 border-r">
-                      {column.name}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 border-r">
-                      {column.description}
-                    </td>
-                    <td className="px-4 py-3 text-sm border-r">
-                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded ${
-                        column.required 
-                          ? 'bg-red-100 text-red-800' 
-                          : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {column.required ? 'Required' : 'Optional'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {instructions.columns.map((column, index) => {
+                  let requiredLabel = 'Optional';
+                  let requiredClass = 'bg-gray-100 text-gray-600';
+                  if (typeof column.required === 'function') {
+                    requiredLabel = 'Required for grouped/conditional';
+                    requiredClass = 'bg-yellow-100 text-yellow-800';
+                  } else if (column.required === true) {
+                    requiredLabel = 'Required';
+                    requiredClass = 'bg-red-100 text-red-800';
+                  }
+                  return (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm font-mono text-gray-900 border-r">
+                        {column.name}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600 border-r">
+                        {column.description}
+                      </td>
+                      <td className="px-4 py-3 text-sm border-r">
+                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded ${requiredClass}`}>
+                          {requiredLabel}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

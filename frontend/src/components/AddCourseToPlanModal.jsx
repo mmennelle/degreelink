@@ -265,7 +265,7 @@ const AddCourseToPlanModal = ({
         });
       }
     }
-
+    // If there are validation errors, show them and stop submission
     if (newErrors.length > 0) {
       setErrors(newErrors);
       setLoading(false);

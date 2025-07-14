@@ -280,8 +280,17 @@ const CourseSearch = ({
                   className={`border border-gray-200 rounded-md p-4 hover:bg-gray-50 transition-colors ${
                     showMultiSelect && isSelected ? 'ring-2 ring-blue-400 bg-blue-50' : ''
                   }`}
-                  onClick={showMultiSelect ? () => toggleCourseSelection(course) : undefined}
-                  style={{ cursor: showMultiSelect ? 'pointer' : 'default' }}
+                  onClick={e => {
+                    // Prevent if clicking on a button or input inside
+                    if (
+                      e.target.tagName === 'BUTTON' ||
+                      e.target.tagName === 'INPUT' ||
+                      e.target.closest('button') ||
+                      e.target.closest('input')
+                    ) return;
+                    viewCourseDetails(course.id);
+                  }}
+                  style={{ cursor: 'pointer' }}
                 >
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
@@ -312,12 +321,7 @@ const CourseSearch = ({
                       )}
                     </div>
                     <div className="flex gap-2 ml-4 flex-shrink-0">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); viewCourseDetails(course.id); }}
-                        className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
-                      >
-                        Details
-                      </button>
+                      {DetailsButton()}
                       
                       {showSingleSelect && (
                         <button
@@ -359,6 +363,15 @@ const CourseSearch = ({
                   </div>
                 </div>
               );
+
+              function DetailsButton() {
+                return <button
+                  onClick={(e) => { e.stopPropagation(); viewCourseDetails(course.id); } }
+                  className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+                >
+                  Details
+                </button>;
+              }
             })
           )}
         </div>

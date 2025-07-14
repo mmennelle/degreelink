@@ -213,47 +213,52 @@ def upload_requirements():
         errors = []
         
         current_requirement = None
+        current_requirement = None
         current_group = None
-        
+
         for row_num, row in enumerate(csv_reader, start=2):
             try:
-                
-                
-                
-                
                 program_name = row.get('program_name', '').strip()
                 category = row.get('category', '').strip()
-                
+                requirement_type = row.get('requirement_type', 'simple').strip().lower()
+
+                # Validate required fields for grouped/conditional
+                if requirement_type in ['grouped', 'conditional']:
+                    group_fields = [
+                        ('group_name', 'Group name'),
+                        ('courses_required', 'Courses required'),
+                        ('credits_required_group', 'Credits required for group'),
+                        ('course_option', 'Course option'),
+                        ('institution', 'Institution for course option')
+                    ]
+                    for field, label in group_fields:
+                        if not row.get(field, '').strip():
+                            errors.append(f"Row {row_num}: {label} is required for grouped/conditional requirements")
+
                 if not program_name or not category:
                     errors.append(f"Row {row_num}: Missing program_name or category")
                     continue
-                
-                
+
                 program = Program.query.filter_by(name=program_name).first()
                 if not program:
-                                    
                     program = Program(
                         name=program_name,
-                        degree_type='BS',  
-                        institution='University of New Orleans',  
-                        total_credits_required=120,  
+                        degree_type='BS',
+                        institution='University of New Orleans',
+                        total_credits_required=120,
                         description=f'Auto-created program: {program_name}'
                     )
                     db.session.add(program)
                     db.session.commit()
                     programs_created += 1
                     continue
-                
-                
+
                 requirement_credits = int(row.get('credits_required', 0))
-                requirement_type = row.get('requirement_type', 'simple').strip()
-                
                 if not current_requirement or current_requirement.category != category:
                     current_requirement = ProgramRequirement.query.filter_by(
                         program_id=program.id,
                         category=category
                     ).first()
-                    
                     if not current_requirement:
                         current_requirement = ProgramRequirement(
                             program_id=program.id,
@@ -264,16 +269,11 @@ def upload_requirements():
                         )
                         db.session.add(current_requirement)
                         requirements_created += 1
-                
-                
+
                 group_name = row.get('group_name', '').strip()
                 if group_name and requirement_type == 'grouped':
                     if not current_group or current_group.group_name != group_name:
-                        current_group = RequirementGroup.query.filter_by(
-                            requirement_id=current_requirement.id,
-                            group_name=group_name
-                        ).first()
-                        
+                        current_group = RequirementGroup.query.filter_by(requirement_id=current_requirement.id, group_name=group_name).first()
                         if not current_group:
                             current_group = RequirementGroup(
                                 requirement_id=current_requirement.id,
@@ -284,30 +284,28 @@ def upload_requirements():
                             )
                             db.session.add(current_group)
                             groups_created += 1
-                    
-                    
-                    course_option = row.get('course_option', '').strip()
-                    if course_option:
-                        existing_option = GroupCourseOption.query.filter_by(
+
+                course_option = row.get('course_option', '').strip()
+                if course_option:
+                    existing_option = GroupCourseOption.query.filter_by(
+                        group_id=current_group.id,
+                        course_code=course_option
+                    ).first()
+                    if not existing_option:
+                        option = GroupCourseOption(
                             group_id=current_group.id,
-                            course_code=course_option
-                        ).first()
-                        
-                        if not existing_option:
-                            option = GroupCourseOption(
-                                group_id=current_group.id,
-                                course_code=course_option,
-                                institution=row.get('institution', '').strip() or None,
-                                is_preferred=row.get('is_preferred', '').lower() == 'true',
-                                notes=row.get('option_notes', '').strip()
-                            )
-                            db.session.add(option)
-                            options_created += 1
-                    
+                            course_code=course_option,
+                            institution=row.get('institution', '').strip() or None,
+                            is_preferred=row.get('is_preferred', '').lower() == 'true',
+                            notes=row.get('option_notes', '').strip()
+                        )
+                        db.session.add(option)
+                        options_created += 1
             except ValueError as e:
                 errors.append(f"Row {row_num}: Invalid data format - {str(e)}")
             except Exception as e:
                 errors.append(f"Row {row_num}: {str(e)}")
+            # removed stray .first() line
         
         if requirements_created > 0 or groups_created > 0 or options_created > 0:
             db.session.commit()
