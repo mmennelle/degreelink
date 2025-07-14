@@ -6,6 +6,8 @@ The Course Transfer System is a comprehensive web application designed to help s
 
 **Primary Use Case**: Students transferring from Delgado Community College to the University of New Orleans (or other institutions) can use this system to plan their academic journey, ensure credits transfer properly, and track progress toward degree completion.
 
+![Course Transfer System Homepage](Image 13)
+
 ---
 
 ## Getting Started
@@ -40,6 +42,8 @@ The Course Transfer System is a comprehensive web application designed to help s
 - Click the **"Course Search"** tab in the navigation bar
 - This is your starting point for finding courses and understanding transfer options
 
+![Course Search Interface](Image 3)
+
 **How to Search**:
 1. **Enter Search Terms**: Type course codes, titles, or keywords in the search box
    - Examples: "BIOL 101", "Introduction to Biology", "calculus"
@@ -57,6 +61,8 @@ The Course Transfer System is a comprehensive web application designed to help s
 - View complete course description, prerequisites, and **transfer equivalencies**
 - See which courses at other institutions are equivalent
 
+![Course Details Modal](Image 4)
+
 **Transfer Equivalency Information**:
 - **Green badges**: Direct equivalency (transfers exactly)
 - **Yellow badges**: Partial equivalency (may have conditions)
@@ -65,9 +71,18 @@ The Course Transfer System is a comprehensive web application designed to help s
 
 ### 2. Academic Plan Management
 
+#### Creating Your First Plan
+
+When you first access the Academic Plans section, you'll see an empty state prompting you to create your first plan:
+
+![No Plans Found Screen](Image 6)
+
 **Creating Your First Plan**:
 1. Click the **"Academic Plans"** tab
 2. Click **"Create New Plan"** (blue button)
+
+![Create New Plan Modal](Image 11)
+
 3. Fill out the form:
    - **Your Name**: Enter your full name
    - **Email**: Optional, for notifications
@@ -75,11 +90,23 @@ The Course Transfer System is a comprehensive web application designed to help s
    - **Target Program**: Select your intended degree program
 4. Click **"Create Plan"**
 
+![Filled Create Plan Form](Image 14)
+
+#### Managing Your Academic Plans
+
+Once you have created a plan, you can view and manage it:
+
+![Academic Plan Overview](Image 1)
+
 **Managing Multiple Plans**:
 - View all your plans on the main Academic Plans page
 - Each plan shows status, creation date, and number of courses
 - Click on any plan to view details and make modifications
 - Use the delete button (trash icon) to remove unwanted plans
+
+#### Adding Courses to Your Plan
+
+![Add Courses Modal](Image 2)
 
 **Adding Courses to Your Plan**:
 
@@ -92,6 +119,8 @@ The Course Transfer System is a comprehensive web application designed to help s
 1. Open your plan by clicking on it
 2. Click the **"Add Course"** button
 3. Search and select courses in the modal window
+
+![Course Search in Add Modal](Image 10)
 
 *Method 3 - Bulk Addition*:
 1. In Course Search, use checkboxes to select multiple courses
@@ -113,6 +142,10 @@ The system automatically suggests requirement categories based on:
 
 ### 3. Progress Tracking & Degree Planning
 
+#### Understanding Your Progress
+
+![Plan with Courses Added](Image 5)
+
 **Understanding Your Progress**:
 - Open any plan to see the **Progress Tracker** section below
 - View overall completion percentage and credits earned
@@ -123,6 +156,10 @@ The system automatically suggests requirement categories based on:
 - **Credits Summary**: Earned/Required/Remaining credits
 - **Requirement Status**: Green (complete), Yellow (in progress), Red (not started)
 - **Course Lists**: See exactly which courses count toward each requirement
+
+#### Detailed Requirements Breakdown
+
+![Requirements Progress Detail](Image 15)
 
 **Interpreting Requirements**:
 - **Simple Requirements**: Need a specific number of credits in a category
@@ -183,24 +220,37 @@ The system automatically suggests requirement categories based on:
 
 ### CSV Upload (Advisor Mode Only)
 
+![CSV Upload Interface](Image 7)
+
 **Purpose**: Bulk import of course catalogs, equivalency mappings, and program requirements
 
 **Upload Types**:
 
 1. **Course Information**:
+
+![Course Information Upload](Image 7)
+
    - Upload course catalogs with codes, titles, credits, descriptions
    - Required columns: code, title, credits, institution
    - Optional: description, department, prerequisites
 
 2. **Course Equivalencies**:
+
+![Course Equivalencies Upload](Image 8)
+
    - Map courses between institutions
    - Required: from_course_code, from_institution, to_course_code, to_institution
    - Optional: equivalency_type, notes, approved_by
 
 3. **Program Requirements**:
+
+![Program Requirements Upload](Image 9)
+
    - Define degree requirements and grouping rules
    - Supports complex grouped requirements ("choose 2 from group A")
    - Required: program_name, category, credits_required, requirement_type
+
+![Program Requirements Details](Image 16)
 
 **Using CSV Upload**:
 1. Switch to Advisor Mode
