@@ -7324,3 +7324,1650 @@ Get detailed plan information with progress analysis.
     }
   ]
 }
+# Course Transfer System - Technical Documentation
+
+## Table of Contents
+
+1. [System Architecture](#system-architecture)
+2. [Backend Implementation](#backend-implementation)
+3. [Frontend Implementation](#frontend-implementation)
+4. [Database Schema](#database-schema)
+5. [API Reference](#api-reference)
+6. [Development Setup](#development-setup)
+7. [Deployment Guide](#deployment-guide)
+8. [Testing Strategy](#testing-strategy)
+9. [Security Considerations](#security-considerations)
+10. [Performance Optimization](#performance-optimization)
+11. [Troubleshooting](#troubleshooting)
+
+---
+
+## Security Considerations
+
+### Authentication & Authorization
+
+**Current State**: The system currently operates without authentication, suitable for internal institutional use.
+
+**Recommended Enhancements**:
+
+**1. User Authentication Implementation**:
+```python
+# Backend - JWT Authentication
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+
+app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'super-secret')
+jwt = JWTManager(app)
+
+@bp.route('/auth/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+    
+    # Verify credentials (integrate with institutional LDAP/SSO)
+    if verify_credentials(username, password):
+        access_token = create_access_token(identity=username)
+        return jsonify({'access_token': access_token})
+    
+    return jsonify({'error': 'Invalid credentials'}), 401
+
+@bp.route('/api/plans', methods=['GET'])
+@jwt_required()
+def get_plans():
+    current_user = get_jwt_identity()
+    # Filter plans by user role and permissions
+    # ... implementation
+```
+
+**2. Role-Based Access Control**:
+```python
+# User roles and permissions
+ROLES = {
+    'student': ['view_own_plans', 'create_plans', 'search_courses'],
+    'advisor': ['view_all_plans', 'modify_plans', 'upload_data', 'manage_equivalencies'],
+    'admin': ['full_access', 'user_management', 'system_configuration']
+}
+
+def require_permission(permission):
+    def decorator(f):
+        @wraps(f)
+        @jwt_required()
+        def decorated_function(*args, **kwargs):
+            current_user = get_jwt_identity()
+            user_role = get_user_role(current_user)
+            
+            if permission not in ROLES.get(user_role, []):
+                return jsonify({'error': 'Insufficient permissions'}), 403
+            
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+@bp.route('/api/upload/courses', methods=['POST'])
+@require_permission('upload_data')
+def upload_courses():
+    # Only advisors and admins can upload data
+    # ... implementation
+```
+
+**3. Frontend Authentication Integration**:
+```jsx
+// services/auth.js
+class AuthService {
+  constructor() {
+    this.token = localStorage.getItem('access_token');
+  }
+
+  async login(username, password) {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      this.token = data.access_token;
+      localStorage.setItem('access_token', this.token);
+      return true;
+    }
+    return false;
+  }
+
+  getAuthHeaders() {
+    return this.token ? {
+      'Authorization': `Bearer ${this.token}`
+    } : {};
+  }
+
+  logout() {
+    this.token = null;
+    localStorage.removeItem('access_token');
+  }
+}
+
+// api.js - Add auth headers to requests
+async request(endpoint, options = {}) {
+  const config = {
+    headers: {
+      'Content-Type': 'application/json',
+      ...authService.getAuthHeaders(),
+      ...options.headers,
+    },
+    ...options,
+  };
+  // ... rest of implementation
+}
+```
+
+### Input Validation & Sanitization
+
+**1. Backend Input Validation**:
+```python
+from marshmallow import Schema, fields, validate, ValidationError
+
+class CourseSchema(Schema):
+    code = fields.Str(required=True, validate=validate.Length(min=1, max=20))
+    title = fields.Str(required=True, validate=validate.Length(min=1, max=200))
+    description = fields.Str(validate=validate.Length(max=2000))
+    credits = fields.Int(required=True, validate=validate.Range(min=0, max=12))
+    institution = fields.Str(required=True, validate=validate.Length(min=1, max=100))
+    department = fields.Str(validate=validate.Length(max=100))
+    prerequisites = fields.Str(validate=validate.Length(max=500))
+
+@bp.route('/api/courses', methods=['POST'])
+def create_course():
+    schema = CourseSchema()
+    try:
+        data = schema.load(request.get_json())
+    except ValidationError as err:
+        return jsonify({'errors': err.messages}), 400
+    
+    # Sanitize inputs
+    data['code'] = bleach.clean(data['code'].strip())
+    data['title'] = bleach.clean(data['title'].strip())
+    
+    # ... rest of implementation
+```
+
+**2. SQL Injection Prevention**:
+```python
+# Always use SQLAlchemy ORM or parameterized queries
+# GOOD - ORM usage
+courses = Course.query.filter(Course.code.ilike(f'%{search_term}%')).all()
+
+# GOOD - Parameterized query if raw SQL needed
+result = db.session.execute(
+    text("SELECT * FROM courses WHERE code LIKE :search"),
+    {'search': f'%{search_term}%'}
+)
+
+# BAD - Never do this
+# query = f"SELECT * FROM courses WHERE code LIKE '%{search_term}%'"
+```
+
+**3. Frontend Input Validation**:
+```jsx
+// components/CreatePlanModal.jsx
+const validateForm = () => {
+  const newErrors = {};
+  
+  // Sanitize and validate student name
+  const cleanName = DOMPurify.sanitize(formData.student_name.trim());
+  if (!cleanName) {
+    newErrors.student_name = 'Student name is required';
+  } else if (cleanName.length > 200) {
+    newErrors.student_name = 'Student name must be less than 200 characters';
+  }
+  
+  // Validate email format
+  if (formData.student_email && !isValidEmail(formData.student_email)) {
+    newErrors.student_email = 'Please enter a valid email address';
+  }
+  
+  // Validate plan name
+  const cleanPlanName = DOMPurify.sanitize(formData.plan_name.trim());
+  if (!cleanPlanName) {
+    newErrors.plan_name = 'Plan name is required';
+  }
+
+  setErrors(newErrors);
+  return Object.keys(newErrors).length === 0;
+};
+```
+
+### File Upload Security
+
+**1. Secure File Processing**:
+```python
+import tempfile
+import os
+from werkzeug.utils import secure_filename
+
+ALLOWED_EXTENSIONS = {'csv'}
+MAX_FILE_SIZE = 16 * 1024 * 1024  # 16MB
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@bp.route('/upload/courses', methods=['POST'])
+def upload_courses():
+    # Validate file presence
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    
+    file = request.files['file']
+    
+    # Validate filename
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if not allowed_file(file.filename):
+        return jsonify({'error': 'File must be a CSV'}), 400
+    
+    # Check file size
+    if request.content_length > MAX_FILE_SIZE:
+        return jsonify({'error': 'File too large'}), 413
+    
+    # Secure filename and temporary storage
+    filename = secure_filename(file.filename)
+    
+    # Process file in memory to avoid disk writes
+    try:
+        # Read and validate file content
+        content = file.stream.read()
+        if len(content) > MAX_FILE_SIZE:
+            return jsonify({'error': 'File too large'}), 413
+        
+        # Decode with error handling
+        try:
+            decoded_content = content.decode('utf-8')
+        except UnicodeDecodeError:
+            return jsonify({'error': 'Invalid file encoding. Please use UTF-8'}), 400
+        
+        # Process CSV content
+        stream = io.StringIO(decoded_content, newline=None)
+        # ... rest of CSV processing
+        
+    except Exception as e:
+        app.logger.error(f'File processing error: {str(e)}')
+        return jsonify({'error': 'Failed to process file'}), 500
+```
+
+**2. Frontend File Validation**:
+```jsx
+// components/CSVUpload.jsx
+const validateFile = (file) => {
+  const errors = [];
+  
+  // Check file type
+  if (!file.name.toLowerCase().endsWith('.csv')) {
+    errors.push('Please upload a CSV file (.csv extension required)');
+  }
+  
+  // Check file size (16MB limit)
+  if (file.size > 16 * 1024 * 1024) {
+    errors.push('File size too large. Please upload files smaller than 16MB.');
+  }
+  
+  // Check MIME type
+  if (file.type && !['text/csv', 'application/csv'].includes(file.type)) {
+    errors.push('Invalid file type. Please upload a CSV file.');
+  }
+  
+  return errors;
+};
+
+const handleFileUpload = async (file) => {
+  if (!file) return;
+  
+  const validationErrors = validateFile(file);
+  if (validationErrors.length > 0) {
+    setUploadResult({ error: validationErrors.join('. ') });
+    return;
+  }
+  
+  // ... rest of upload logic
+};
+```
+
+### Data Protection
+
+**1. Environment Variables & Secrets Management**:
+```bash
+# .env file (never commit to version control)
+SECRET_KEY=your-super-secret-key-here-min-32-chars
+DATABASE_URL=postgresql://user:password@localhost/course_transfer
+JWT_SECRET_KEY=your-jwt-secret-key-here
+UPLOAD_FOLDER=/secure/upload/path
+```
+
+**2. Database Security**:
+```python
+# config.py - Production security settings
+class ProductionConfig(Config):
+    DEBUG = False
+    TESTING = False
+    
+    # Use environment variables for sensitive data
+    SECRET_KEY = os.environ.get('SECRET_KEY')
+    if not SECRET_KEY:
+        raise ValueError("No SECRET_KEY set for Flask application")
+    
+    # Secure database connection
+    DATABASE_URL = os.environ.get('DATABASE_URL')
+    if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
+        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+    
+    SQLALCHEMY_DATABASE_URI = DATABASE_URL
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
+    # Security headers
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+```
+
+**3. HTTPS & Security Headers**:
+```python
+from flask_talisman import Talisman
+
+# Add security headers
+Talisman(app, force_https=True)
+
+# Custom security headers
+@app.after_request
+def after_request(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    return response
+```
+
+### CORS Security
+
+**1. Restrictive CORS Configuration**:
+```python
+from flask_cors import CORS
+
+# Production CORS settings
+if app.config['ENV'] == 'production':
+    CORS(app, 
+         origins=['https://yourdomain.com'],
+         methods=['GET', 'POST', 'PUT', 'DELETE'],
+         allow_headers=['Content-Type', 'Authorization'])
+else:
+    # Development settings
+    CORS(app)
+```
+
+---
+
+## Performance Optimization
+
+### Database Optimization
+
+**1. Query Optimization & Indexing**:
+```sql
+-- Essential indexes for performance
+CREATE INDEX idx_courses_search ON courses(institution, department, code);
+CREATE INDEX idx_courses_fulltext ON courses USING gin(to_tsvector('english', title || ' ' || description));
+CREATE INDEX idx_equivalencies_lookup ON equivalencies(from_course_id, to_course_id);
+CREATE INDEX idx_plan_courses_status ON plan_courses(plan_id, status);
+CREATE INDEX idx_plan_courses_category ON plan_courses(requirement_category, status);
+
+-- Composite indexes for common queries
+CREATE INDEX idx_courses_inst_dept ON courses(institution, department);
+CREATE INDEX idx_plans_student ON plans(student_email, status);
+```
+
+**2. Efficient Query Patterns**:
+```python
+# Optimize course search with proper joins and pagination
+@bp.route('/api/courses', methods=['GET'])
+def get_courses():
+    # Use select_related equivalent to avoid N+1 queries
+    query = Course.query.options(
+        db.joinedload(Course.equivalent_from),
+        db.joinedload(Course.equivalent_to)
+    )
+    
+    # Efficient search using database functions
+    if search:
+        # Use full-text search for better performance
+        query = query.filter(
+            db.func.to_tsvector('english', Course.title + ' ' + Course.description)
+            .match(search)
+        )
+    
+    # Always use pagination to limit memory usage
+    pagination = query.paginate(
+        page=page, 
+        per_page=min(per_page, 100),  # Limit max page size
+        error_out=False,
+        max_per_page=100
+    )
+    
+    return jsonify({
+        'courses': [course.to_dict() for course in pagination.items],
+        'pagination': {
+            'page': page,
+            'per_page': per_page,
+            'total': pagination.total,
+            'pages': pagination.pages
+        }
+    })
+
+# Optimize plan details with selective loading
+@bp.route('/api/plans/<int:plan_id>', methods=['GET'])
+def get_plan(plan_id):
+    # Load plan with related data in single query
+    plan = Plan.query.options(
+        db.joinedload(Plan.courses).joinedload(PlanCourse.course),
+        db.joinedload(Plan.program).joinedload(Program.requirements)
+    ).get_or_404(plan_id)
+    
+    # Cache heavy computations
+    cache_key = f'plan_progress_{plan_id}_{plan.updated_at.isoformat()}'
+    progress = cache.get(cache_key)
+    
+    if progress is None:
+        progress = plan.calculate_progress()
+        cache.set(cache_key, progress, timeout=300)  # 5 minute cache
+    
+    plan_data = plan.to_dict()
+    plan_data['progress'] = progress
+    
+    return jsonify(plan_data)
+```
+
+**3. Database Connection Pooling**:
+```python
+# config.py - Database optimization
+class ProductionConfig(Config):
+    # Connection pool settings
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_size': 10,
+        'pool_recycle': 3600,  # Recycle connections after 1 hour
+        'pool_pre_ping': True,  # Validate connections before use
+        'max_overflow': 20,
+        'pool_timeout': 30
+    }
+    
+    # Query optimization
+    SQLALCHEMY_RECORD_QUERIES = False  # Disable in production
+    SQLALCHEMY_ECHO = False  # Disable SQL logging in production
+```
+
+### Frontend Performance
+
+**1. Component Optimization**:
+```jsx
+// Memoization for expensive calculations
+import React, { memo, useMemo, useCallback } from 'react';
+
+const CourseSearch = memo(({ 
+  onCourseSelect, 
+  onMultiSelect, 
+  program 
+}) => {
+  // Memoize expensive category detection
+  const detectedCategories = useMemo(() => {
+    if (!program?.requirements || !courses.length) return new Map();
+    
+    const categoryMap = new Map();
+    courses.forEach(course => {
+      const category = detectCourseCategory(course, program.requirements);
+      categoryMap.set(course.id, category);
+    });
+    
+    return categoryMap;
+  }, [courses, program?.requirements]);
+
+  // Memoize filtered courses
+  const filteredCourses = useMemo(() => {
+    if (categoryFilter === 'all') return courses;
+    return courses.filter(course => 
+      detectedCategories.get(course.id) === categoryFilter
+    );
+  }, [courses, categoryFilter, detectedCategories]);
+
+  // Optimize event handlers
+  const handleCourseToggle = useCallback((course) => {
+    const isSelected = selectedCourses.some(c => c.id === course.id);
+    if (isSelected) {
+      setSelectedCourses(prev => prev.filter(c => c.id !== course.id));
+    } else {
+      setSelectedCourses(prev => [...prev, {
+        ...course,
+        detectedCategory: detectedCategories.get(course.id)
+      }]);
+    }
+  }, [selectedCourses, detectedCategories]);
+
+  return (
+    // Component JSX
+  );
+});
+
+export default CourseSearch;
+```
+
+**2. Virtual Scrolling for Large Lists**:
+```jsx
+// components/VirtualizedCourseList.jsx
+import { FixedSizeList as List } from 'react-window';
+
+const VirtualizedCourseList = ({ courses, onCourseSelect }) => {
+  const CourseItem = ({ index, style }) => {
+    const course = courses[index];
+    
+    return (
+      <div style={style} className="border-b border-gray-200">
+        <CourseCard 
+          course={course} 
+          onSelect={onCourseSelect}
+        />
+      </div>
+    );
+  };
+
+  return (
+    <List
+      height={600}  // Fixed height container
+      itemCount={courses.length}
+      itemSize={120}  // Height of each course card
+      width="100%"
+    >
+      {CourseItem}
+    </List>
+  );
+};
+```
+
+**3. Lazy Loading & Code Splitting**:
+```jsx
+// App.jsx - Dynamic imports for code splitting
+import { lazy, Suspense } from 'react';
+
+const CourseSearch = lazy(() => import('./components/CourseSearch'));
+const PlanBuilder = lazy(() => import('./components/PlanBuilder'));
+const CSVUpload = lazy(() => import('./components/CSVUpload'));
+
+const App = () => {
+  return (
+    <div className="min-h-screen bg-gray-100">
+      <Suspense fallback={<div>Loading...</div>}>
+        {activeTab === 'search' && <CourseSearch />}
+        {activeTab === 'plans' && <PlanBuilder />}
+        {activeTab === 'upload' && <CSVUpload />}
+      </Suspense>
+    </div>
+  );
+};
+```
+
+### Caching Strategies
+
+**1. Backend Caching**:
+```python
+from flask_caching import Cache
+
+# Initialize cache
+cache = Cache(app, config={
+    'CACHE_TYPE': 'redis',
+    'CACHE_REDIS_URL': os.environ.get('REDIS_URL', 'redis://localhost:6379')
+})
+
+# Cache expensive operations
+@bp.route('/api/programs/<int:program_id>/requirements/<int:requirement_id>/suggestions')
+@cache.cached(timeout=3600, key_prefix='requirement_suggestions')
+def get_requirement_suggestions(program_id, requirement_id):
+    # Expensive computation for course suggestions
+    # ... implementation
+    return jsonify(suggestions)
+
+# Cache with dynamic keys
+def get_plan_progress_cache_key(plan_id):
+    plan = Plan.query.get(plan_id)
+    return f'plan_progress_{plan_id}_{plan.updated_at.isoformat()}'
+
+@bp.route('/api/plans/<int:plan_id>/progress')
+def get_plan_progress(plan_id):
+    cache_key = get_plan_progress_cache_key(plan_id)
+    progress = cache.get(cache_key)
+    
+    if progress is None:
+        plan = Plan.query.get_or_404(plan_id)
+        progress = plan.calculate_progress()
+        cache.set(cache_key, progress, timeout=300)
+    
+    return jsonify(progress)
+
+# Invalidate cache when data changes
+@bp.route('/api/plans/<int:plan_id>/courses', methods=['POST'])
+def add_course_to_plan(plan_id):
+    # ... add course logic
+    
+    # Invalidate related caches
+    cache.delete(get_plan_progress_cache_key(plan_id))
+    cache.delete_memoized(get_requirement_suggestions, plan.program_id)
+    
+    return jsonify(result)
+```
+
+**2. Frontend Caching**:
+```jsx
+// services/cache.js
+class CacheService {
+  constructor() {
+    this.cache = new Map();
+    this.timeouts = new Map();
+  }
+
+  set(key, value, ttl = 300000) { // 5 minutes default
+    this.cache.set(key, value);
+    
+    // Clear existing timeout
+    if (this.timeouts.has(key)) {
+      clearTimeout(this.timeouts.get(key));
+    }
+    
+    // Set new timeout
+    const timeout = setTimeout(() => {
+      this.cache.delete(key);
+      this.timeouts.delete(key);
+    }, ttl);
+    
+    this.timeouts.set(key, timeout);
+  }
+
+  get(key) {
+    return this.cache.get(key);
+  }
+
+  has(key) {
+    return this.cache.has(key);
+  }
+
+  delete(key) {
+    this.cache.delete(key);
+    if (this.timeouts.has(key)) {
+      clearTimeout(this.timeouts.get(key));
+      this.timeouts.delete(key);
+    }
+  }
+}
+
+const cacheService = new CacheService();
+
+// api.js - Implement request caching
+async searchCourses(params = {}) {
+  const cacheKey = `courses_${JSON.stringify(params)}`;
+  
+  if (cacheService.has(cacheKey)) {
+    return cacheService.get(cacheKey);
+  }
+  
+  const result = await this.request(`/courses?${new URLSearchParams(params)}`);
+  cacheService.set(cacheKey, result, 300000); // 5 minutes
+  
+  return result;
+}
+```
+
+### Asset Optimization
+
+**1. Vite Build Optimization**:
+```javascript
+// vite.config.js
+export default defineConfig({
+  plugins: [react()],
+  build: {
+    // Optimize chunks
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          utils: ['lucide-react'],
+        }
+      }
+    },
+    // Enable compression
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true
+      }
+    }
+  },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true
+      }
+    }
+  }
+});
+```
+
+**2. Image and Asset Optimization**:
+```jsx
+// Optimize image loading
+const LazyImage = ({ src, alt, className }) => {
+  return (
+    <img 
+      src={src}
+      alt={alt}
+      className={className}
+      loading="lazy"
+      decoding="async"
+    />
+  );
+};
+
+// Optimize icon usage
+import { Search, FileText, Upload } from 'lucide-react';
+
+// Use sprite icons for repeated icons
+const IconSprite = () => (
+  <svg style={{ display: 'none' }}>
+    <defs>
+      <g id="search-icon">
+        <Search size={16} />
+      </g>
+    </defs>
+  </svg>
+);
+```
+
+---
+
+## Troubleshooting
+
+### Common Issues & Solutions
+
+#### Backend Issues
+
+**1. Database Connection Errors**:
+```bash
+# Symptoms
+sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) could not connect to server
+
+# Solutions
+# Check database service status
+sudo systemctl status postgresql
+
+# Verify connection string
+export DATABASE_URL="postgresql://user:password@localhost:5432/course_transfer"
+
+# Test connection manually
+psql postgresql://user:password@localhost:5432/course_transfer
+
+# Common fixes
+# - Ensure PostgreSQL is running
+# - Check firewall settings
+# - Verify user permissions
+# - Check pg_hba.conf for authentication settings
+```
+
+**2. CSV Upload Failures**:
+```python
+# Common CSV upload issues and debugging
+@bp.route('/upload/courses', methods=['POST'])
+def upload_courses():
+    try:
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_reader = csv.DictReader(stream)
+        
+        # Debug: Log first few rows
+        rows = list(csv_reader)
+        app.logger.info(f"CSV has {len(rows)} rows")
+        app.logger.info(f"Headers: {rows[0].keys() if rows else 'No data'}")
+        
+        for row_num, row in enumerate(rows, start=2):
+            try:
+                # Log problematic rows
+                if not row.get('code'):
+                    app.logger.warning(f"Row {row_num}: Missing code - {row}")
+                
+                # ... processing logic
+                
+            except Exception as e:
+                app.logger.error(f"Row {row_num} error: {str(e)} - Data: {row}")
+                errors.append(f"Row {row_num}: {str(e)}")
+                
+    except UnicodeDecodeError as e:
+        app.logger.error(f"File encoding error: {str(e)}")
+        return jsonify({'error': 'File encoding issue. Please save as UTF-8'}), 400
+    
+    except Exception as e:
+        app.logger.error(f"Upload error: {str(e)}")
+        return jsonify({'error': f'Upload failed: {str(e)}'}), 500
+```
+
+**3. Memory Issues with Large Datasets**:
+```python
+# Process large CSV files in chunks
+def process_large_csv(file_stream, chunk_size=1000):
+    csv_reader = csv.DictReader(file_stream)
+    
+    chunk = []
+    for row_num, row in enumerate(csv_reader, start=2):
+        chunk.append(row)
+        
+        # Process in chunks to avoid memory issues
+        if len(chunk) >= chunk_size:
+            process_chunk(chunk)
+            chunk = []
+            
+            # Commit periodically to avoid large transactions
+            db.session.commit()
+    
+    # Process remaining rows
+    if chunk:
+        process_chunk(chunk)
+        db.session.commit()
+
+def process_chunk(rows):
+    for row in rows:
+        try:
+            # Process individual row
+            course = Course(**extract_course_data(row))
+            db.session.add(course)
+        except Exception as e:
+            app.logger.error(f"Failed to process row: {e}")
+            db.session.rollback()
+```
+
+#### Frontend Issues
+
+**1. API Connection Issues**:
+```jsx
+// services/api.js - Add comprehensive error handling
+class ApiService {
+  async request(endpoint, options = {}) {
+    try {
+      const response = await fetch(url, config);
+      
+      // Handle different HTTP status codes
+      if (!response.ok) {
+        if (response.status === 401) {
+          // Handle unauthorized - redirect to login
+          authService.logout();
+          window.location.href = '/login';
+          throw new Error('Session expired');
+        }
+        
+        if (response.status === 403) {
+          throw new Error('Insufficient permissions');
+        }
+        
+        if (response.status >= 500) {
+          throw new Error('Server error. Please try again later.');
+        }
+        
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+      
+      return await response.json();
+      
+    } catch (error) {
+      // Network or parsing errors
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        throw new Error('Network error. Please check your connection.');
+      }
+      
+      console.error('API Request failed:', error);
+      throw error;
+    }
+  }
+}
+
+// Component error handling
+const CourseSearch = () => {
+  const [error, setError] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
+  
+  const searchCourses = async (retryAttempt = 0) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await api.searchCourses(params);
+      setCourses(response.courses);
+      setRetryCount(0); // Reset on success
+      
+    } catch (error) {
+      console.error('Search failed:', error);
+      
+      // Implement retry logic
+      if (retryAttempt < 3 && error.message.includes('Network')) {
+        setTimeout(() => {
+          searchCourses(retryAttempt + 1);
+        }, 1000 * Math.pow(2, retryAttempt)); // Exponential backoff
+      } else {
+        setError(error.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  return (
+    <div>
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-4">
+          <p className="text-red-700">{error}</p>
+          <button 
+            onClick={() => searchCourses()}
+            className="mt-2 text-sm text-red-600 hover:text-red-800"
+          >
+            Try Again
+          </button>
+        </div>
+      )}
+      {/* Rest of component */}
+    </div>
+  );
+};
+```
+
+**2. Performance Issues**:
+```jsx
+// Debug slow components
+import { Profiler } from 'react';
+
+const App = () => {
+  const onRenderCallback = (id, phase, actualDuration) => {
+    if (actualDuration > 16) { // Longer than one frame (60fps)
+      console.warn(`Slow render: ${id} took ${actualDuration}ms in ${phase} phase`);
+    }
+  };
+
+  return (
+    <Profiler id="App" onRender={onRenderCallback}>
+      {/* App content */}
+    </Profiler>
+  );
+};
+
+// Identify memory leaks
+useEffect(() => {
+  const interval = setInterval(() => {
+    // Heavy operation
+    heavyCalculation();
+  }, 1000);
+
+  // Always clean up intervals and event listeners
+  return () => {
+    clearInterval(interval);
+  };
+}, []);
+
+// Monitor component re-renders
+const useRenderCount = (componentName) => {
+  const renderCount = useRef(0);
+  renderCount.current++;
+  
+  console.log(`${componentName} rendered ${renderCount.current} times`);
+  
+  return renderCount.current;
+};
+
+// Usage
+const PlanBuilder = () => {
+  const renderCount = useRenderCount('PlanBuilder');
+  
+  // If this logs frequently, investigate unnecessary re-renders
+  // ... component logic
+};
+```
+
+**3. State Management Issues**:
+```jsx
+// Debug state updates
+const useStateLogger = (stateName, state) => {
+  useEffect(() => {
+    console.log(`${stateName} updated:`, state);
+  }, [stateName, state]);
+};
+
+// Usage
+const [plans, setPlans] = useState([]);
+useStateLogger('plans', plans);
+
+// Prevent unnecessary state updates
+const updatePlanCourse = useCallback((planId, courseId, updates) => {
+  setPlans(prevPlans => 
+    prevPlans.map(plan => {
+      if (plan.id !== planId) return plan;
+      
+      return {
+        ...plan,
+        courses: plan.courses.map(course => 
+          course.id === courseId 
+            ? { ...course, ...updates }
+            : course
+        )
+      };
+    })
+  );
+}, []);
+
+// Use reducer for complex state logic
+const planReducer = (state, action) => {
+  switch (action.type) {
+    case 'ADD_COURSE':
+      return {
+        ...state,
+        courses: [...state.courses, action.course]
+      };
+    case 'UPDATE_COURSE':
+      return {
+        ...state,
+        courses: state.courses.map(course =>
+          course.id === action.courseId
+            ? { ...course, ...action.updates }
+            : course
+        )
+      };
+    case 'REMOVE_COURSE':
+      return {
+        ...state,
+        courses: state.courses.filter(course => course.id !== action.courseId)
+      };
+    default:
+      return state;
+  }
+};
+```
+
+### System Diagnostics
+
+**1. Backend Health Monitoring**:
+```python
+# routes/diagnostics.py
+import psutil
+import time
+from datetime import datetime
+
+@bp.route('/api/system/health', methods=['GET'])
+def system_health():
+    """Comprehensive system health check"""
+    
+    health_data = {
+        'timestamp': datetime.utcnow().isoformat(),
+        'status': 'healthy',
+        'checks': {}
+    }
+    
+    # Database connectivity
+    try:
+        db.session.execute(text('SELECT 1'))
+        health_data['checks']['database'] = {
+            'status': 'healthy',
+            'response_time_ms': measure_db_response_time()
+        }
+    except Exception as e:
+        health_data['checks']['database'] = {
+            'status': 'unhealthy',
+            'error': str(e)
+        }
+        health_data['status'] = 'unhealthy'
+    
+    # System resources
+    health_data['checks']['system'] = {
+        'cpu_percent': psutil.cpu_percent(),
+        'memory_percent': psutil.virtual_memory().percent,
+        'disk_percent': psutil.disk_usage('/').percent
+    }
+    
+    # Application metrics
+    health_data['checks']['application'] = {
+        'uptime_seconds': time.time() - app.start_time,
+        'active_connections': get_active_connections(),
+        'cache_hit_ratio': get_cache_hit_ratio()
+    }
+    
+    return jsonify(health_data)
+
+def measure_db_response_time():
+    """Measure database response time"""
+    start_time = time.time()
+    db.session.execute(text('SELECT COUNT(*) FROM courses'))
+    return (time.time() - start_time) * 1000
+
+@bp.route('/api/system/logs', methods=['GET'])
+def get_recent_logs():
+    """Get recent application logs for debugging"""
+    try:
+        with open('logs/course_transfer.log', 'r') as f:
+            lines = f.readlines()
+            # Return last 100 lines
+            recent_logs = lines[-100:]
+            
+        return jsonify({
+            'logs': recent_logs,
+            'total_lines': len(lines)
+        })
+    except FileNotFoundError:
+        return jsonify({'error': 'Log file not found'}), 404
+```
+
+**2. Frontend Debug Tools**:
+```jsx
+// utils/debug.js
+export const DebugPanel = ({ isOpen, onClose }) => {
+  const [apiCalls, setApiCalls] = useState([]);
+  const [performance, setPerformance] = useState({});
+  
+  useEffect(() => {
+    // Monitor API calls
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const start = performance.now();
+      const response = await originalFetch(...args);
+      const duration = performance.now() - start;
+      
+      setApiCalls(prev => [...prev, {
+        url: args[0],
+        method: args[1]?.method || 'GET',
+        duration: Math.round(duration),
+        status: response.status,
+        timestamp: new Date().toISOString()
+      }]);
+      
+      return response;
+    };
+    
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, []);
+  
+  const clearLogs = () => {
+    setApiCalls([]);
+  };
+  
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed bottom-0 right-0 w-96 h-64 bg-black text-white p-4 overflow-auto font-mono text-xs">
+      <div className="flex justify-between items-center mb-2">
+        <h3>Debug Panel</h3>
+        <div>
+          <button onClick={clearLogs} className="mr-2 text-yellow-400">Clear</button>
+          <button onClick={onClose} className="text-red-400">×</button>
+        </div>
+      </div>
+      
+      <div className="space-y-1">
+        {apiCalls.slice(-10).map((call, index) => (
+          <div key={index} className={`text-xs ${
+            call.status >= 400 ? 'text-red-400' : 'text-green-400'
+          }`}>
+            {call.method} {call.url} - {call.duration}ms ({call.status})
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// Add to App.jsx for development
+const App = () => {
+  const [showDebug, setShowDebug] = useState(false);
+  
+  useEffect(() => {
+    // Show debug panel with Ctrl+Shift+D
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        setShowDebug(prev => !prev);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+  
+  return (
+    <div>
+      {/* Main app content */}
+      <DebugPanel isOpen={showDebug} onClose={() => setShowDebug(false)} />
+    </div>
+  );
+};
+```
+
+### Error Reporting & Monitoring
+
+**1. Backend Error Tracking**:
+```python
+# utils/error_tracking.py
+import traceback
+import uuid
+from datetime import datetime
+
+class ErrorTracker:
+    def __init__(self, app):
+        self.app = app
+        self.setup_handlers()
+    
+    def setup_handlers(self):
+        @self.app.errorhandler(Exception)
+        def handle_exception(e):
+            error_id = str(uuid.uuid4())
+            
+            error_data = {
+                'error_id': error_id,
+                'timestamp': datetime.utcnow().isoformat(),
+                'type': type(e).__name__,
+                'message': str(e),
+                'traceback': traceback.format_exc(),
+                'url': request.url if request else None,
+                'method': request.method if request else None,
+                'user_agent': request.headers.get('User-Agent') if request else None,
+                'remote_addr': request.remote_addr if request else None
+            }
+            
+            # Log error
+            self.app.logger.error(f"Error {error_id}: {error_data}")
+            
+            # Send to monitoring service (e.g., Sentry)
+            # sentry_sdk.capture_exception(e)
+            
+            if isinstance(e, HTTPException):
+                return e
+            
+            return jsonify({
+                'error': 'Internal server error',
+                'error_id': error_id
+            }), 500
+
+# Initialize error tracking
+error_tracker = ErrorTracker(app)
+```
+
+**2. Frontend Error Boundaries**:
+```jsx
+// components/ErrorBoundary.jsx
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    this.setState({
+      error: error,
+      errorInfo: errorInfo
+    });
+    
+    // Log error to monitoring service
+    console.error('React Error Boundary caught an error:', error, errorInfo);
+    
+    // Send to error tracking service
+    // this.reportError(error, errorInfo);
+  }
+
+  reportError = (error, errorInfo) => {
+    const errorReport = {
+      message: error.message,
+      stack: error.stack,
+      componentStack: errorInfo.componentStack,
+      timestamp: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+      url: window.location.href
+    };
+    
+    // Send to your error reporting service
+    fetch('/api/errors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(errorReport)
+    }).catch(console.error);
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-6">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0">
+                <svg className="h-12 w-12 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.962-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Something went wrong
+                </h3>
+                <div className="mt-2 text-sm text-gray-500">
+                  <p>We're sorry, but something unexpected happened.</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="mt-4">
+              <button
+                onClick={() => window.location.reload()}
+                className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              >
+                Reload Page
+              </button>
+            </div>
+            
+            {process.env.NODE_ENV === 'development' && (
+              <details className="mt-4">
+                <summary className="cursor-pointer text-sm text-gray-600">
+                  Error Details (Development)
+                </summary>
+                <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto">
+                  {this.state.error && this.state.error.toString()}
+                  {this.state.errorInfo.componentStack}
+                </pre>
+              </details>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+// Usage in App.jsx
+const App = () => {
+  return (
+    <ErrorBoundary>
+      <div className="min-h-screen bg-gray-100">
+        {/* App content */}
+      </div>
+    </ErrorBoundary>
+  );
+};
+```
+
+### Database Debugging
+
+**1. Query Performance Analysis**:
+```python
+# utils/db_profiler.py
+import time
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
+
+class QueryProfiler:
+    def __init__(self):
+        self.queries = []
+        self.setup_listeners()
+    
+    def setup_listeners(self):
+        @event.listens_for(Engine, "before_cursor_execute")
+        def receive_before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+            context._query_start_time = time.time()
+        
+        @event.listens_for(Engine, "after_cursor_execute")
+        def receive_after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+            total = time.time() - context._query_start_time
+            
+            if total > 0.1:  # Log slow queries (>100ms)
+                app.logger.warning(f"Slow query ({total:.2f}s): {statement[:200]}")
+            
+            self.queries.append({
+                'query': statement,
+                'parameters': parameters,
+                'duration': total,
+                'timestamp': time.time()
+            })
+    
+    def get_recent_queries(self, limit=50):
+        return self.queries[-limit:]
+    
+    def get_slow_queries(self, threshold=0.1):
+        return [q for q in self.queries if q['duration'] > threshold]
+
+# Initialize profiler
+if app.debug:
+    query_profiler = QueryProfiler()
+```
+
+**2. Database Migration Issues**:
+```bash
+# Common migration commands and troubleshooting
+
+# Check current migration status
+flask db current
+
+# Show migration history
+flask db history
+
+# Create new migration
+flask db migrate -m "Add new index for performance"
+
+# Apply migrations
+flask db upgrade
+
+# Rollback to previous migration
+flask db downgrade
+
+# Fix common migration issues
+
+# Issue: Migration conflicts
+# Solution: Create merge migration
+flask db merge -m "Merge conflicting migrations"
+
+# Issue: Data migration needed
+# Create empty migration and add data operations
+flask db revision -m "Data migration for course codes"
+
+# Edit the generated migration file:
+"""
+def upgrade():
+    # Schema changes first
+    op.add_column('courses', sa.Column('normalized_code', sa.String(20)))
+    
+    # Data migration
+    connection = op.get_bind()
+    result = connection.execute(text("SELECT id, code FROM courses"))
+    for row in result:
+        normalized = row.code.upper().replace(' ', '')
+        connection.execute(
+            text("UPDATE courses SET normalized_code = :norm WHERE id = :id"),
+            {'norm': normalized, 'id': row.id}
+        )
+
+def downgrade():
+    op.drop_column('courses', 'normalized_code')
+"""
+```
+
+### Deployment Troubleshooting
+
+**1. Docker Issues**:
+```bash
+# Common Docker debugging commands
+
+# Check container logs
+docker logs course-transfer-backend
+docker logs course-transfer-frontend
+
+# Debug container startup
+docker run -it course-transfer-backend /bin/bash
+
+# Check network connectivity
+docker network ls
+docker network inspect course-transfer_default
+
+# Database connection issues
+docker exec -it course-transfer-db psql -U course_user -d course_transfer
+
+# Volume mounting issues
+docker volume ls
+docker volume inspect course-transfer_postgres_data
+
+# Fix common issues
+
+# Issue: Port conflicts
+# Check what's using the port
+netstat -tulpn | grep :5000
+# Kill process or change port in docker-compose.yml
+
+# Issue: Permission denied on volumes
+# Fix volume permissions
+sudo chown -R $USER:$USER ./data
+sudo chmod -R 755 ./data
+
+# Issue: Out of disk space
+# Clean up Docker
+docker system prune -a
+docker volume prune
+```
+
+**2. Nginx Configuration Issues**:
+```nginx
+# /etc/nginx/sites-available/course-transfer
+server {
+    listen 80;
+    server_name your-domain.com;
+    
+    # Enable detailed logging for debugging
+    access_log /var/log/nginx/course-transfer.access.log;
+    error_log /var/log/nginx/course-transfer.error.log debug;
+    
+    # Frontend static files
+    location / {
+        root /var/www/course-transfer/dist;
+        try_files $uri $uri/ /index.html;
+        
+        # Add headers for debugging
+        add_header X-Served-By nginx;
+        add_header X-Content-Type-Options nosniff;
+    }
+    
+    # API proxy
+    location /api/ {
+        proxy_pass http://localhost:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Debugging headers
+        proxy_set_header X-Debug-Backend $proxy_host;
+        
+        # Timeouts
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+        
+        # File upload size
+        client_max_body_size 16M;
+    }
+}
+
+# Test nginx configuration
+sudo nginx -t
+
+# Reload configuration
+sudo systemctl reload nginx
+
+# Check nginx status
+sudo systemctl status nginx
+
+# Monitor nginx logs in real-time
+sudo tail -f /var/log/nginx/error.log
+sudo tail -f /var/log/nginx/course-transfer.error.log
+```
+
+### Performance Troubleshooting
+
+**1. Slow API Responses**:
+```python
+# Add request timing middleware
+@app.before_request
+def before_request():
+    g.start_time = time.time()
+
+@app.after_request
+def after_request(response):
+    if hasattr(g, 'start_time'):
+        duration = time.time() - g.start_time
+        if duration > 1.0:  # Log slow requests
+            app.logger.warning(f"Slow request: {request.endpoint} took {duration:.2f}s")
+    return response
+
+# Profile specific endpoints
+from werkzeug.middleware.profiler import ProfilerMiddleware
+
+if app.config.get('PROFILING'):
+    app.wsgi_app = ProfilerMiddleware(app.wsgi_app, restrictions=[30])
+```
+
+**2. Memory Usage Issues**:
+```python
+import psutil
+import os
+
+def log_memory_usage():
+    process = psutil.Process(os.getpid())
+    memory_info = process.memory_info()
+    app.logger.info(f"Memory usage: {memory_info.rss / 1024 / 1024:.2f} MB")
+
+# Call before heavy operations
+@bp.route('/api/upload/courses', methods=['POST'])
+def upload_courses():
+    log_memory_usage()
+    
+    # Process file
+    result = process_csv_file(file)
+    
+    log_memory_usage()
+    return jsonify(result)
+```
+
+---
+
+## Conclusion
+
+This comprehensive technical documentation covers all aspects of the Course Transfer System, from architecture and implementation to deployment and troubleshooting. The system is designed to be scalable, maintainable, and user-friendly while handling complex academic requirements and transfer scenarios.
+
+### Key Strengths
+
+1. **Modular Architecture**: Clean separation between frontend and backend with well-defined APIs
+2. **Flexible Requirements Engine**: Supports simple, grouped, and conditional academic requirements
+3. **Robust File Processing**: Handles large CSV uploads with comprehensive error reporting
+4. **Real-time Progress Tracking**: Dynamic calculation of degree completion progress
+5. **Intelligent Course Categorization**: Automatic detection of requirement categories
+6. **Comprehensive Error Handling**: Both frontend and backend error management
+
+### Future Enhancements
+
+1. **Authentication Integration**: LDAP/SSO integration for institutional users
+2. **Advanced Analytics**: Reporting and analytics for transfer patterns
+3. **Mobile Responsive Design**: Enhanced mobile experience
+4. **Automated Testing**: Comprehensive test suite for all components
+5. **API Rate Limiting**: Protection against abuse and overload
+6. **Real-time Notifications**: WebSocket integration for live updates
+
+### Support and Maintenance
+
+- Regular database maintenance and optimization
+- Monitoring of system performance and usage patterns  
+- Periodic security audits and updates
+- User training and documentation updates
+- Backup and disaster recovery procedures
+
+This documentation serves as a complete reference for developers, administrators, and stakeholders involved in the Course Transfer System project.
