@@ -1,22 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Calendar, Target, AlertCircle, CheckCircle, Info } from 'lucide-react';
+import { BookOpen, Calendar, Target, AlertCircle, CheckCircle, Info, X, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 
+// Updated AddCourseToPlanModal with mobile optimization and dark mode
 const AddCourseToPlanModal = ({ 
   isOpen, 
   onClose, 
-  courses = [], // array of courses to add (supports single or multiple)
+  courses = [], 
   plan,
   program,
   onCoursesAdded 
 }) => {
-  // Initialize form data for each course
   const initializeCourseData = () => {
     return courses.map(course => {
       let suggestedCategory = course.detectedCategory || 'Free Electives';
       let suggestedGroup = null;
 
       if (program && program.requirements) {
-        // First, find matching category by group membership
         const match = program.requirements.find(req => {
           if (req.groups) {
             const groupMatch = req.groups.find(g =>
@@ -24,7 +23,7 @@ const AddCourseToPlanModal = ({
             );
             if (groupMatch) {
               suggestedGroup = groupMatch;
-              suggestedCategory = req.category;  // Always override category if matched
+              suggestedCategory = req.category;
               return true;
             }
           }
@@ -32,7 +31,6 @@ const AddCourseToPlanModal = ({
         });
       }
 
-      // Standardize any other elective label to 'Free Elective'
       if (['Elective', 'General Elective', 'Free Elective'].includes(suggestedCategory)) {
         suggestedCategory = 'Free Electives';
       }
@@ -50,12 +48,18 @@ const AddCourseToPlanModal = ({
     });
   };
 
-
   const [courseData, setCourseData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState([]);
   const [planCourses, setPlanCourses] = useState([]);
   const [requirementStatus, setRequirementStatus] = useState({});
+  const [expandedCourses, setExpandedCourses] = useState(() => {
+    // Expand first course by default, collapse others on mobile
+    return courses.reduce((acc, _, index) => {
+      acc[index] = index === 0;
+      return acc;
+    }, {});
+  });
   
   // Global settings for bulk operations
   const [applyToAll, setApplyToAll] = useState({
@@ -69,7 +73,6 @@ const AddCourseToPlanModal = ({
     if (isOpen && courses.length > 0) {
       setCourseData(initializeCourseData());
       setErrors([]);
-      // Reset apply to all when modal opens
       setApplyToAll({
         semester: false,
         year: false,
@@ -77,7 +80,6 @@ const AddCourseToPlanModal = ({
         requirement_category: false
       });
       
-      // Load current plan courses to check constraints
       if (plan && plan.courses) {
         setPlanCourses(plan.courses);
         calculateRequirementStatus(plan.courses);
@@ -99,20 +101,16 @@ const AddCourseToPlanModal = ({
         groups: {}
       };
 
-      // Get courses in this requirement category
       const categoryCourses = currentCourses.filter(c => 
         c.requirement_category === req.category
       );
 
-      // Calculate total credits completed
       categoryStatus.totalCompleted = categoryCourses.reduce((sum, c) => 
         sum + (c.credits || c.course.credits || 0), 0
       );
 
-      // Handle grouped requirements
       if (req.requirement_type === 'grouped' && req.groups) {
         req.groups.forEach(group => {
-          // Find courses that match this specific group
           const groupCourses = categoryCourses.filter(planCourse => {
             return group.course_options?.some(opt => 
               opt.course_code === planCourse.course.code
@@ -130,7 +128,6 @@ const AddCourseToPlanModal = ({
             isFull: false
           };
 
-          // Check if group is full
           if (group.courses_required) {
             categoryStatus.groups[group.id].isFull = 
               groupCourses.length >= group.courses_required;
@@ -147,34 +144,6 @@ const AddCourseToPlanModal = ({
     setRequirementStatus(status);
   };
 
-  const getAvailableGroups = (courseIndex) => {
-    const data = courseData[courseIndex];
-    if (!data || !program || !program.requirements) return [];
-
-    const requirement = program.requirements.find(req => 
-      req.category === data.requirement_category
-    );
-
-    if (!requirement || requirement.requirement_type !== 'grouped') return [];
-
-    // Filter groups that:
-    // 1. Include this course as an option
-    // 2. Are not already full
-    return requirement.groups.filter(group => {
-      // Check if course is an option in this group
-      const isOption = group.course_options?.some(opt => 
-        opt.course_code === data.course.code
-      );
-      if (!isOption) return false;
-
-      // Check if group is full
-      const groupStatus = requirementStatus[requirement.category]?.groups[group.id];
-      if (!groupStatus) return true; // If no status, assume not full
-
-      return !groupStatus.isFull;
-    });
-  };
-
   const validateCourseAssignment = (courseIndex) => {
     const data = courseData[courseIndex];
     const requirement = program?.requirements?.find(req => 
@@ -186,7 +155,6 @@ const AddCourseToPlanModal = ({
     const categoryStatus = requirementStatus[data.requirement_category];
     if (!categoryStatus) return { valid: true };
 
-    // Check if category is already full
     if (categoryStatus.totalCompleted >= categoryStatus.totalRequired) {
       return {
         valid: false,
@@ -194,7 +162,6 @@ const AddCourseToPlanModal = ({
       };
     }
 
-    // For grouped requirements, check specific group constraints
     if (requirement.requirement_type === 'grouped' && data.requirement_group_id) {
       const groupStatus = categoryStatus.groups[data.requirement_group_id];
       if (groupStatus && groupStatus.isFull) {
@@ -216,18 +183,10 @@ const AddCourseToPlanModal = ({
     const updated = [...courseData];
     updated[index][field] = value;
     
-    // If changing requirement category, reset group selection
     if (field === 'requirement_category') {
       updated[index].requirement_group_id = null;
-      
-      // Auto-select group if only one available
-      const availableGroups = getAvailableGroups(index);
-      if (availableGroups.length === 1) {
-        updated[index].requirement_group_id = availableGroups[0].id;
-      }
     }
     
-    // If "apply to all" is checked for this field, update all courses
     if (applyToAll[field]) {
       updated.forEach((data, i) => {
         if (i !== index) {
@@ -246,7 +205,6 @@ const AddCourseToPlanModal = ({
     const newApplyToAll = { ...applyToAll, [field]: !applyToAll[field] };
     setApplyToAll(newApplyToAll);
     
-    // If turning on, apply the first course's value to all
     if (!applyToAll[field] && courseData.length > 0) {
       const value = courseData[0][field];
       const updated = courseData.map(data => ({ ...data, [field]: value }));
@@ -258,9 +216,7 @@ const AddCourseToPlanModal = ({
     setLoading(true);
     setErrors([]);
     const newErrors = [];
-    const addedCourses = [];
 
-    // Validate all course assignments before submitting
     for (let i = 0; i < courseData.length; i++) {
       const validation = validateCourseAssignment(i);
       if (!validation.valid) {
@@ -270,14 +226,13 @@ const AddCourseToPlanModal = ({
         });
       }
     }
-    // If there are validation errors, show them and stop submission
+
     if (newErrors.length > 0) {
       setErrors(newErrors);
       setLoading(false);
       return;
     }
 
-    // Proceed with adding courses
     for (const data of courseData) {
       try {
         await onCoursesAdded([{
@@ -289,7 +244,6 @@ const AddCourseToPlanModal = ({
           grade: data.grade || undefined,
           notes: data.notes || undefined
         }]);
-        addedCourses.push(data.course);
       } catch (error) {
         newErrors.push({
           course: data.course,
@@ -307,317 +261,330 @@ const AddCourseToPlanModal = ({
     }
   };
 
+  const toggleCourseExpansion = (index) => {
+    setExpandedCourses(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }));
+  };
+
   if (!isOpen) return null;
 
   const isBulkMode = courses.length > 1;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
+      <div className="bg-white dark:bg-gray-800 rounded-t-lg sm:rounded-lg w-full sm:max-w-4xl h-[90vh] sm:h-auto sm:max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
           <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
               Add {isBulkMode ? `${courses.length} Courses` : 'Course'} to Plan
             </h3>
             <button
               onClick={onClose}
               disabled={loading}
-              className="text-gray-500 hover:text-gray-700 text-xl font-bold"
+              className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
             >
-              ×
+              <X size={20} />
             </button>
           </div>
           {plan && (
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
               Plan: {plan.plan_name} • {plan.student_name}
             </p>
           )}
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           {/* Bulk Options */}
           {isBulkMode && (
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h4 className="font-medium text-blue-800 mb-3 flex items-center">
+            <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
+              <h4 className="font-medium text-blue-800 dark:text-blue-300 mb-3 flex items-center">
                 <Target className="mr-2" size={16} />
                 Bulk Settings
               </h4>
-              <div className="space-y-2 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                 <label className="flex items-center">
                   <input
                     type="checkbox"
                     checked={applyToAll.requirement_category}
                     onChange={() => toggleApplyToAll('requirement_category')}
-                    className="mr-2"
+                    className="mr-2 rounded"
                   />
-                  Apply same requirement category to all courses
+                  <span className="text-blue-700 dark:text-blue-300">Apply same requirement to all</span>
                 </label>
                 <label className="flex items-center">
                   <input
                     type="checkbox"
                     checked={applyToAll.semester}
                     onChange={() => toggleApplyToAll('semester')}
-                    className="mr-2"
+                    className="mr-2 rounded"
                   />
-                  Apply same semester to all courses
+                  <span className="text-blue-700 dark:text-blue-300">Apply same semester to all</span>
                 </label>
                 <label className="flex items-center">
                   <input
                     type="checkbox"
                     checked={applyToAll.year}
                     onChange={() => toggleApplyToAll('year')}
-                    className="mr-2"
+                    className="mr-2 rounded"
                   />
-                  Apply same year to all courses
+                  <span className="text-blue-700 dark:text-blue-300">Apply same year to all</span>
                 </label>
                 <label className="flex items-center">
                   <input
                     type="checkbox"
                     checked={applyToAll.status}
                     onChange={() => toggleApplyToAll('status')}
-                    className="mr-2"
+                    className="mr-2 rounded"
                   />
-                  Apply same status to all courses
+                  <span className="text-blue-700 dark:text-blue-300">Apply same status to all</span>
                 </label>
               </div>
             </div>
           )}
 
-         <div className="space-y-6">
-  {courseData.map((data, index) => {
-    const requirement = program?.requirements?.find(req => 
-      req.category === data.requirement_category
-    );
-    const validation = validateCourseAssignment(index);
+          <div className="space-y-4">
+            {courseData.map((data, index) => {
+              const requirement = program?.requirements?.find(req => 
+                req.category === data.requirement_category
+              );
+              const validation = validateCourseAssignment(index);
+              const isExpanded = expandedCourses[index];
 
-    return (
-      <div key={index} className={`border rounded-lg p-4 ${isBulkMode ? 'bg-gray-50' : ''} ${!validation.valid ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
-        
-        {/* Course Info */}
-        <div className="mb-4">
-          <h4 className="font-medium text-gray-900 flex items-center">
-            <BookOpen className="mr-2" size={16} />
-            {data.course.code}: {data.course.title}
-          </h4>
-          <p className="text-sm text-gray-600 mt-1">
-            {data.course.credits} credits • {data.course.institution}
-            {data.course.department && ` • ${data.course.department}`}
-          </p>
-          {data.course.description && (
-            <p className="text-sm text-gray-500 mt-2 line-clamp-2">
-              {data.course.description}
-            </p>
+              return (
+                <div key={index} className={`border rounded-lg ${!validation.valid ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20' : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/50'}`}>
+                  
+                  {/* Course Header - Always Visible */}
+                  <div 
+                    className="p-4 cursor-pointer"
+                    onClick={() => toggleCourseExpansion(index)}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-gray-900 dark:text-white flex items-center">
+                          <BookOpen className="mr-2 flex-shrink-0" size={16} />
+                          <span className="truncate">{data.course.code}: {data.course.title}</span>
+                        </h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          {data.course.credits} credits • {data.course.institution}
+                          {data.course.department && ` • ${data.course.department}`}
+                        </p>
+                        {isBulkMode && (
+                          <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                            Course {index + 1} of {courses.length}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center ml-4">
+                        {!validation.valid && (
+                          <AlertCircle className="text-red-500 mr-2" size={16} />
+                        )}
+                        {isExpanded ? 
+                          <ChevronUp className="text-gray-400" size={20} /> : 
+                          <ChevronDown className="text-gray-400" size={20} />
+                        }
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Course Details - Collapsible */}
+                  {isExpanded && (
+                    <div className="px-4 pb-4 border-t border-gray-200 dark:border-gray-600">
+                      {/* Validation Errors */}
+                      {!validation.valid && (
+                        <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-600 rounded-md">
+                          <p className="text-sm text-red-700 dark:text-red-400 flex items-start">
+                            <AlertCircle className="mr-1 mt-0.5 flex-shrink-0" size={16} />
+                            {validation.error}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Course Description */}
+                      {data.course.description && (
+                        <div className="mb-4 p-3 bg-white dark:bg-gray-700 rounded-md">
+                          <p className="text-sm text-gray-600 dark:text-gray-300">
+                            {data.course.description}
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {/* Category (read-only) */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Requirement Category
+                          </label>
+                          <div className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                            {data.requirement_category || 'N/A'}
+                          </div>
+                        </div>
+
+                        {/* Group (read-only, if grouped) */}
+                        {requirement?.requirement_type === 'grouped' && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              Specific Group
+                            </label>
+                            <div className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                              {(() => {
+                                const group = requirement?.groups?.find(g => g.id === data.requirement_group_id);
+                                return group ? group.group_name : 'N/A';
+                              })()}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Status */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Status *
+                          </label>
+                          <select
+                            value={data.status}
+                            onChange={(e) => updateCourseField(index, 'status', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            disabled={applyToAll.status && index > 0}
+                          >
+                            <option value="planned">Planned</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="completed">Completed</option>
+                          </select>
+                        </div>
+
+                        {/* Semester */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Semester *
+                          </label>
+                          <select
+                            value={data.semester}
+                            onChange={(e) => updateCourseField(index, 'semester', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            disabled={applyToAll.semester && index > 0}
+                          >
+                            <option value="Fall">Fall</option>
+                            <option value="Spring">Spring</option>
+                            <option value="Summer">Summer</option>
+                          </select>
+                        </div>
+
+                        {/* Year */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Year *
+                          </label>
+                          <input
+                            type="number"
+                            value={data.year}
+                            onChange={(e) => updateCourseField(index, 'year', e.target.value)}
+                            min="2020"
+                            max="2030"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            disabled={applyToAll.year && index > 0}
+                          />
+                        </div>
+
+                        {/* Grade (if completed) */}
+                        {data.status === 'completed' && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              Grade
+                            </label>
+                            <input
+                              type="text"
+                              value={data.grade}
+                              onChange={(e) => updateCourseField(index, 'grade', e.target.value)}
+                              placeholder="e.g., A, B+, C"
+                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Notes */}
+                      <div className="mt-4">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Notes (optional)
+                        </label>
+                        <textarea
+                          value={data.notes}
+                          onChange={(e) => updateCourseField(index, 'notes', e.target.value)}
+                          rows="2"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          placeholder="Any additional notes about this course..."
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Errors */}
+          {errors.length > 0 && (
+            <div className="mt-6 p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-600 rounded-md">
+              <div className="flex items-start">
+                <AlertCircle className="text-red-600 dark:text-red-400 mr-2 mt-0.5 flex-shrink-0" size={20} />
+                <div>
+                  <h4 className="font-medium text-red-800 dark:text-red-400 mb-1">
+                    Cannot add some courses:
+                  </h4>
+                  <ul className="text-sm text-red-700 dark:text-red-400 space-y-1">
+                    {errors.map((err, i) => (
+                      <li key={i}>
+                        <strong>{err.course.code}:</strong> {err.error}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
           )}
         </div>
 
-        {/* Validation Warnings */}
-        {validation.warnings && validation.warnings.length > 0 && (
-          <div className="mb-4 p-2 bg-yellow-50 border border-yellow-300 rounded text-yellow-800 text-sm">
-            <div className="flex items-center mb-1 font-medium">
-              <AlertCircle className="mr-1" size={16} />
-              Warning
-            </div>
-            <ul className="list-disc pl-4">
-              {validation.warnings.map((warn, idx) => (
-                <li key={idx}>{warn}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {!validation.valid && (
-          <div className="mb-4 p-3 bg-red-100 border border-red-200 rounded-md">
-            <p className="text-sm text-red-700 flex items-start">
-              <AlertCircle className="mr-1 mt-0.5 flex-shrink-0" size={16} />
-              {validation.error}
-            </p>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Category (read-only) */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Requirement Category
-            </label>
-            <p className="px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700">
-              {data.requirement_category || 'N/A'}
-            </p>
-          </div>
-
-          {/* Group (read-only, if grouped) */}
-          {requirement?.requirement_type === 'grouped' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Specific Group
-              </label>
-              <p className="px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700">
-                {(() => {
-                  const group = requirement?.groups?.find(g => g.id === data.requirement_group_id);
-                  return group ? group.group_name : 'N/A';
-                })()}
-              </p>
-              {data.requirement_group_id && (
-                <p className="text-xs text-gray-600 mt-1">
-                  {(() => {
-                    const group = requirement?.groups?.find(g => g.id === data.requirement_group_id);
-                    const status = requirementStatus[data.requirement_category]?.groups[group?.id];
-                    if (!group) return null;
-                    return group.courses_required ?
-                      `This group requires ${group.courses_required} courses. Currently has ${status?.coursesCompleted || 0}.` :
-                      `This group requires ${group.credits_required} credits. Currently has ${status?.creditsCompleted || 0}.`;
-                  })()}
-                </p>
+        {/* Footer */}
+        <div className="px-4 sm:px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex-shrink-0">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div className="text-sm text-gray-600 dark:text-gray-400 order-2 sm:order-1">
+              {isBulkMode && (
+                <span className="flex items-center">
+                  <Calendar className="mr-1" size={16} />
+                  Adding {courses.length} courses to your plan
+                </span>
               )}
             </div>
-          )}
-
-          {/* Status */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Status *
-            </label>
-            <select
-              value={data.status}
-              onChange={(e) => updateCourseField(index, 'status', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={applyToAll.status && index > 0}
-            >
-              <option value="planned">Planned</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
-            </select>
-          </div>
-
-          {/* Semester */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Semester *
-            </label>
-            <select
-              value={data.semester}
-              onChange={(e) => updateCourseField(index, 'semester', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={applyToAll.semester && index > 0}
-            >
-              <option value="Fall">Fall</option>
-              <option value="Spring">Spring</option>
-              <option value="Summer">Summer</option>
-            </select>
-          </div>
-
-          {/* Year */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Year *
-            </label>
-            <input
-              type="number"
-              value={data.year}
-              onChange={(e) => updateCourseField(index, 'year', e.target.value)}
-              min="2020"
-              max="2030"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={applyToAll.year && index > 0}
-            />
-          </div>
-
-          {/* Grade (if completed) */}
-          {data.status === 'completed' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Grade
-              </label>
-              <input
-                type="text"
-                value={data.grade}
-                onChange={(e) => updateCourseField(index, 'grade', e.target.value)}
-                placeholder="e.g., A, B+, C"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+            <div className="flex gap-3 w-full sm:w-auto order-1 sm:order-2">
+              <button
+                onClick={onClose}
+                disabled={loading}
+                className="flex-1 sm:flex-none px-4 py-2 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={loading || courseData.some((_, i) => !validateCourseAssignment(i).valid)}
+                className="flex-1 sm:flex-none px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50 flex items-center justify-center transition-colors"
+              >
+                {loading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Adding...
+                  </>
+                ) : (
+                  `Add ${isBulkMode ? 'All Courses' : 'Course'}`
+                )}
+              </button>
             </div>
-          )}
-        </div>
-
-        {/* Notes */}
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Notes (optional)
-          </label>
-          <textarea
-            value={data.notes}
-            onChange={(e) => updateCourseField(index, 'notes', e.target.value)}
-            rows="2"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Any additional notes about this course..."
-          />
+          </div>
         </div>
       </div>
-    );
-  })}
-</div>
-
-{/* Errors */}
-{errors.length > 0 && (
-  <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-md">
-    <div className="flex items-start">
-      <AlertCircle className="text-red-600 mr-2 mt-0.5" size={20} />
-      <div>
-        <h4 className="font-medium text-red-800 mb-1">
-          Cannot add some courses:
-        </h4>
-        <ul className="text-sm text-red-700 space-y-1">
-          {errors.map((err, i) => (
-            <li key={i}>
-              <strong>{err.course.code}:</strong> {err.error}
-            </li>
-          ))}
-        </ul>
-      </div>
     </div>
-  </div>
-)}
-
-{/* Footer */}
-<div className="px-6 py-4 border-t border-gray-200 flex justify-between items-center">
-  <div className="text-sm text-gray-600">
-    {isBulkMode && (
-      <span className="flex items-center">
-        <Calendar className="mr-1" size={16} />
-        Adding {courses.length} courses to your plan
-      </span>
-    )}
-  </div>
-  <div className="flex gap-3">
-    <button
-      onClick={onClose}
-      disabled={loading}
-      className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
-    >
-      Cancel
-    </button>
-    <button
-      onClick={handleSubmit}
-      disabled={loading || courseData.some((_, i) => !validateCourseAssignment(i).valid)}
-      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center"
-    >
-      {loading ? (
-        <>
-          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-          Adding...
-        </>
-      ) : (
-        `Add ${isBulkMode ? 'All Courses' : 'Course'}`
-      )}
-    </button>
-  </div>
-</div>
-
-      </div>
-    </div>
-  </div>
   );
 };
 

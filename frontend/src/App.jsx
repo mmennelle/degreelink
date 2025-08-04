@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { Search, FileText, Upload, GraduationCap, Users } from 'lucide-react';
+import React, { useState, useEffect, createContext, useContext } from 'react';
+import { ChevronRight, ArrowLeft, GraduationCap, Search, FileText, Eye, Users, Target, Plus, Moon, Sun } from 'lucide-react';
+
+// Import your existing components
 import CourseSearch from './components/CourseSearch';
 import PlanBuilder from './components/PlanBuilder';
 import CSVUpload from './components/CSVUpload';
@@ -7,9 +9,360 @@ import CreatePlanModal from './components/CreatePlanModal';
 import AddCourseToPlanModal from './components/AddCourseToPlanModal';
 import api from './services/api';
 
+// Dark Mode Context
+const DarkModeContext = createContext();
+
+export const useDarkMode = () => {
+  const context = useContext(DarkModeContext);
+  if (!context) {
+    throw new Error('useDarkMode must be used within a DarkModeProvider');
+  }
+  return context;
+};
+
+const DarkModeProvider = ({ children }) => {
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem('darkMode');
+    return saved ? JSON.parse(saved) : true; // Default to dark mode
+  });
+
+  useEffect(() => {
+    localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
+
+  const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
+
+  return (
+    <DarkModeContext.Provider value={{ isDarkMode, toggleDarkMode }}>
+      {children}
+    </DarkModeContext.Provider>
+  );
+};
+
+const MobileOnboarding = ({ onComplete }) => {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [answers, setAnswers] = useState({
+    userType: null,
+    goal: null
+  });
+
+  const questions = [
+    {
+      id: 'userType',
+      title: 'Who are you?',
+      subtitle: 'Help us personalize your experience',
+      options: [
+        {
+          value: 'student',
+          label: 'Student',
+          description: 'I am a current or prospective student',
+          icon: <GraduationCap className="w-6 h-6" />,
+          color: 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300'
+        },
+        {
+          value: 'parent',
+          label: 'Parent',
+          description: 'I am helping my child with their education',
+          icon: <Users className="w-6 h-6" />,
+          color: 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300'
+        },
+        {
+          value: 'advisor',
+          label: 'Academic Advisor',
+          description: 'I am an advisor helping students',
+          icon: <Target className="w-6 h-6" />,
+          color: 'bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/30 dark:border-purple-700 dark:text-purple-300'
+        },
+        {
+          value: 'browsing',
+          label: 'Just Browsing',
+          description: 'Exploring options and gathering information',
+          icon: <Eye className="w-6 h-6" />,
+          color: 'bg-gray-50 border-gray-200 text-gray-700 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300'
+        }
+      ]
+    },
+    {
+      id: 'goal',
+      title: 'What would you like to focus on?',
+      subtitle: 'Choose your primary goal today',
+      options: [
+        {
+          value: 'transfer',
+          label: 'Course Transfer Research',
+          description: 'Find courses that transfer between institutions',
+          icon: <Search className="w-6 h-6" />,
+          color: 'bg-orange-50 border-orange-200 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300'
+        },
+        {
+          value: 'planning',
+          label: 'Academic Planning',
+          description: 'Create and track academic plans',
+          icon: <FileText className="w-6 h-6" />,
+          color: 'bg-teal-50 border-teal-200 text-teal-700 dark:bg-teal-900/30 dark:border-teal-700 dark:text-teal-300'
+        }
+      ]
+    }
+  ];
+
+  const handleOptionSelect = (questionId, value) => {
+    const newAnswers = { ...answers, [questionId]: value };
+    setAnswers(newAnswers);
+
+    // If this is the last question or user is just browsing, complete onboarding
+    if (currentStep === questions.length - 1 || (questionId === 'userType' && value === 'browsing')) {
+      handleComplete(newAnswers);
+    } else {
+      // Move to next question
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const handleComplete = (finalAnswers) => {
+    // Determine the destination and user mode based on answers
+    let destination = 'search'; // default
+    let userMode = 'student'; // default
+    let showCreatePlan = false;
+
+    // Set user mode based on user type
+    if (finalAnswers.userType === 'advisor') {
+      userMode = 'advisor';
+    } else {
+      userMode = 'student'; // parent, student, and browsing all use student mode
+    }
+
+    // Determine destination based on user type and goal
+    if (finalAnswers.userType === 'browsing') {
+      destination = 'search';
+    } else if (finalAnswers.goal === 'transfer') {
+      destination = 'search';
+    } else if (finalAnswers.goal === 'planning') {
+      destination = 'plans';
+      // Only show create plan for non-browsing users
+      if (finalAnswers.userType !== 'browsing') {
+        showCreatePlan = true;
+      }
+    }
+
+    // Save session data including destination and userMode for persistence
+    const sessionData = {
+      ...finalAnswers,
+      destination,
+      userMode,
+      timestamp: Date.now()
+    };
+    localStorage.setItem('currentSession', JSON.stringify(sessionData));
+
+    onComplete({
+      destination,
+      userMode,
+      showCreatePlan,
+      userProfile: finalAnswers
+    });
+  };
+
+  const handleBack = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const currentQuestion = questions[currentStep];
+  const progress = ((currentStep + 1) / questions.length) * 100;
+
+  // Skip second question if user is just browsing
+  if (answers.userType === 'browsing') {
+    return null; // Component will be unmounted as onComplete was called
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-indigo-900 flex flex-col">
+      {/* Header */}
+      <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            {currentStep > 0 && (
+              <button
+                onClick={handleBack}
+                className="mr-3 p-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+            )}
+            <div className="flex items-center">
+              <GraduationCap className="text-blue-600 dark:text-blue-400 mr-2" size={24} />
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white">Course Transfer System</h1>
+            </div>
+          </div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            {currentStep + 1} of {questions.length}
+          </div>
+        </div>
+        
+        {/* Progress Bar */}
+        <div className="mt-3">
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+            <div 
+              className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all duration-300 ease-out"
+              style={{ width: `${progress}%` }}
+            ></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 px-4 py-6">
+        <div className="max-w-md mx-auto">
+          {/* Question */}
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              {currentQuestion.title}
+            </h2>
+            <p className="text-gray-600 dark:text-gray-300">
+              {currentQuestion.subtitle}
+            </p>
+          </div>
+
+          {/* Options */}
+          <div className="space-y-4">
+            {currentQuestion.options.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => handleOptionSelect(currentQuestion.id, option.value)}
+                className={`w-full p-6 border-2 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg active:scale-95 ${option.color} border-opacity-50 hover:border-opacity-100`}
+              >
+                <div className="flex items-start text-left">
+                  <div className="mr-4 mt-1 flex-shrink-0">
+                    {option.icon}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-lg mb-1">
+                      {option.label}
+                    </h3>
+                    <p className="text-sm opacity-80">
+                      {option.description}
+                    </p>
+                  </div>
+                  <ChevronRight className="w-5 h-5 ml-2 mt-1 opacity-60" />
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Help Text */}
+          <div className="mt-8 text-center">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Don't worry, you can always change your path later
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-4">
+        <div className="max-w-md mx-auto text-center">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Course Transfer System - Helping you navigate your academic journey
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Mobile-friendly CourseSearch component wrapper
+const MobileCourseSearch = (props) => {
+  const { isDarkMode } = useDarkMode();
+  
+  return (
+    <div className="space-y-4">
+      {/* Mobile Header */}
+      <div className="block lg:hidden">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Find Courses</h2>
+        <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">Search for courses and check transfer equivalencies</p>
+      </div>
+      <CourseSearch {...props} />
+    </div>
+  );
+};
+
+// Mobile-friendly PlanBuilder component wrapper
+const MobilePlanBuilder = (props) => {
+  const { isDarkMode } = useDarkMode();
+  
+  return (
+    <div className="space-y-4">
+      {/* Mobile Header */}
+      <div className="block lg:hidden">
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-1">Academic Plans</h2>
+            <p className="text-gray-600 dark:text-gray-300 text-sm">Create and manage your degree plans</p>
+          </div>
+          {!props.selectedPlanId && (
+            <button
+              onClick={props.onCreatePlan}
+              className="px-3 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 text-sm flex items-center"
+            >
+              <Plus className="mr-1" size={16} />
+              Create
+            </button>
+          )}
+        </div>
+      </div>
+      <PlanBuilder {...props} />
+    </div>
+  );
+};
+
+// Mobile-friendly CSVUpload component wrapper
+const MobileCSVUpload = (props) => {
+  const { isDarkMode } = useDarkMode();
+  
+  return (
+    <div className="space-y-4">
+      {/* Mobile Header */}
+      <div className="block lg:hidden">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">CSV Upload</h2>
+        <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">Bulk import course data and equivalencies</p>
+      </div>
+      <CSVUpload {...props} />
+    </div>
+  );
+};
+
+// Updated App component with dark mode and mobile optimizations
 const App = () => {
-  const [activeTab, setActiveTab] = useState('search');
-  const [userMode, setUserMode] = useState('student');
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    // Check if there's an active session - if so, skip onboarding
+    const currentSession = localStorage.getItem('currentSession');
+    return !currentSession; // Show onboarding only if no session exists
+  });
+  
+  const [activeTab, setActiveTab] = useState(() => {
+    // Restore active tab from session
+    const currentSession = localStorage.getItem('currentSession');
+    if (currentSession) {
+      const session = JSON.parse(currentSession);
+      return session.destination || 'search';
+    }
+    return 'search';
+  });
+  
+  const [userMode, setUserMode] = useState(() => {
+    // Restore user mode from session
+    const currentSession = localStorage.getItem('currentSession');
+    if (currentSession) {
+      const session = JSON.parse(currentSession);
+      return session.userMode || 'student';
+    }
+    return 'student';
+  });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [plans, setPlans] = useState([]);
   const [selectedPlanId, setSelectedPlanId] = useState(null);
@@ -24,17 +377,12 @@ const App = () => {
     program: null
   });
 
-  const tabs = [
-    { id: 'search', label: 'Course Search', icon: Search },
-    { id: 'plans', label: 'Academic Plans', icon: FileText },
-    ...(userMode === 'advisor' ?
-    [{ id: 'upload', label: 'CSV Upload', icon: Upload }] : []),
-  ];
-
   // Load plans and programs for plan selection
-  React.useEffect(() => {
-    loadPlansAndPrograms();
-  }, []);
+  useEffect(() => {
+    if (!showOnboarding) {
+      loadPlansAndPrograms();
+    }
+  }, [showOnboarding]);
 
   const loadPlansAndPrograms = async () => {
     try {
@@ -49,44 +397,73 @@ const App = () => {
     }
   };
 
+  const handleOnboardingComplete = (result) => {
+    setShowOnboarding(false);
+    setActiveTab(result.destination);
+    setUserMode(result.userMode);
+    
+    // If user wants to plan degree, show create plan modal after a brief delay
+    if (result.showCreatePlan) {
+      setTimeout(() => setIsModalOpen(true), 500);
+    }
+  };
+
+  // Load session state on app mount
+  useEffect(() => {
+    const currentSession = localStorage.getItem('currentSession');
+    if (currentSession && !showOnboarding) {
+      const session = JSON.parse(currentSession);
+      // Check if session is not too old (optional - 24 hours)
+      const sessionAge = Date.now() - (session.timestamp || 0);
+      const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+      
+      if (sessionAge < maxAge) {
+        setActiveTab(session.destination || 'search');
+        setUserMode(session.userMode || 'student');
+      } else {
+        // Session expired, clear it and show onboarding
+        localStorage.removeItem('currentSession');
+        setShowOnboarding(true);
+      }
+    }
+  }, [showOnboarding]);
+
   const handlePlanCreated = () => {
     setIsModalOpen(false);
     loadPlansAndPrograms();
   };
 
   // Unified handler for adding courses to plan
- const handleAddToPlan = async (courses) => {
-  if (!selectedPlanId) {
-    alert('Please select a plan first.');
-    return;
-  }
+  const handleAddToPlan = async (courses) => {
+    if (!selectedPlanId) {
+      alert('Please select a plan first.');
+      return;
+    }
 
-  try {
-    // Refresh the selected plan before opening the modal
-    const refreshedPlan = await api.getPlan(selectedPlanId);
-    
-    // Get matching program based on refreshed plan's program_id
-    const refreshedProgram = programs.find(p => p.id === refreshedPlan.program_id) 
-      || await api.getProgram(refreshedPlan.program_id);
+    try {
+      // Refresh the selected plan before opening the modal
+      const refreshedPlan = await api.getPlan(selectedPlanId);
+      
+      // Get matching program based on refreshed plan's program_id
+      const refreshedProgram = programs.find(p => p.id === refreshedPlan.program_id) 
+        || await api.getProgram(refreshedPlan.program_id);
 
-    // Ensure courses is an array
-    const coursesArray = Array.isArray(courses) ? courses : [courses];
+      // Ensure courses is an array
+      const coursesArray = Array.isArray(courses) ? courses : [courses];
 
-    setAddCourseModal({
-      isOpen: true,
-      courses: coursesArray,
-      plan: refreshedPlan,
-      program: refreshedProgram
-    });
+      setAddCourseModal({
+        isOpen: true,
+        courses: coursesArray,
+        plan: refreshedPlan,
+        program: refreshedProgram
+      });
 
-  } catch (error) {
-    console.error('Failed to load latest plan or program:', error);
-    alert('Could not load plan data. Please try again.');
-  }
-};
+    } catch (error) {
+      console.error('Failed to load latest plan or program:', error);
+      alert('Could not load plan data. Please try again.');
+    }
+  };
 
-
-  // Handler for when courses are successfully added
   const handleCoursesAdded = async (courseDataArray) => {
     for (const courseData of courseDataArray) {
       await api.addCourseToPlan(selectedPlanId, courseData);
@@ -99,56 +476,144 @@ const App = () => {
     setPlanRefreshTrigger(prev => prev + 1);
   };
 
+  // Skip onboarding for returning users or allow manual skip
+  const skipOnboarding = () => {
+    setShowOnboarding(false);
+  };
+
+  // Reset to onboarding (go back to homepage)
+  const resetToOnboarding = () => {
+    localStorage.removeItem('currentSession');
+    setShowOnboarding(true);
+    setActiveTab('search');
+    setSelectedPlanId(null);
+  };
+
+  if (showOnboarding) {
+    return (
+      <DarkModeProvider>
+        <MobileOnboarding onComplete={handleOnboardingComplete} />
+      </DarkModeProvider>
+    );
+  }
+
+  const tabs = [
+    { id: 'search', label: 'Course Search', shortLabel: 'Search', icon: Search },
+    { id: 'plans', label: 'Academic Plans', shortLabel: 'Plans', icon: FileText },
+    ...(userMode === 'advisor' ?
+    [{ id: 'upload', label: 'CSV Upload', shortLabel: 'Upload', icon: Users }] : []),
+  ];
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
+    <DarkModeProvider>
+      <AppContent 
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        userMode={userMode}
+        tabs={tabs}
+        resetOnboarding={resetToOnboarding}
+        isModalOpen={isModalOpen}
+        setIsModalOpen={setIsModalOpen}
+        handlePlanCreated={handlePlanCreated}
+        plans={plans}
+        selectedPlanId={selectedPlanId}
+        setSelectedPlanId={setSelectedPlanId}
+        programs={programs}
+        planRefreshTrigger={planRefreshTrigger}
+        handleAddToPlan={handleAddToPlan}
+        addCourseModal={addCourseModal}
+        setAddCourseModal={setAddCourseModal}
+        handleCoursesAdded={handleCoursesAdded}
+        loadPlansAndPrograms={loadPlansAndPrograms}
+      />
+    </DarkModeProvider>
+  );
+};
+
+const AppContent = ({
+  activeTab, setActiveTab, userMode, tabs, resetOnboarding,
+  isModalOpen, setIsModalOpen, handlePlanCreated, plans, selectedPlanId,
+  setSelectedPlanId, programs, planRefreshTrigger, handleAddToPlan,
+  addCourseModal, setAddCourseModal, handleCoursesAdded, loadPlansAndPrograms
+}) => {
+  const { isDarkMode, toggleDarkMode } = useDarkMode();
+
+  return (
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors">
+      {/* Mobile-optimized Header */}
+      <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40 transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <GraduationCap className="text-blue-600 mr-3" size={32} />
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Course Transfer System</h1>
-                <p className="text-sm text-gray-600">Map Your Courses Across Institutions</p>
+          <div className="flex justify-between items-center py-3 sm:py-4 lg:py-6">
+            <div className="flex items-center min-w-0 flex-1">
+              <GraduationCap className="text-blue-600 dark:text-blue-400 mr-2 sm:mr-3 flex-shrink-0" size={24} />
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 dark:text-white truncate">
+                  Course Transfer System
+                </h1>
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 hidden sm:block">
+                  Map Your Courses Across Institutions
+                </p>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
+            
+            <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0">
+              {/* Dark Mode Toggle */}
+              <button
+                onClick={toggleDarkMode}
+                className="p-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              >
+                {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              </button>
+              
               <div className="flex items-center space-x-2">
-                <div className="flex items-center text-sm text-gray-600">
+                <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
                   <Users className="mr-1" size={16} />
-                  <span>{userMode === 'advisor' ? 'Advisor Portal' : 'Student Portal'}</span>
+                  <span className="hidden sm:inline">
+                    {userMode === 'advisor' ? 'Advisor Portal' : 'Student Portal'}
+                  </span>
+                  <span className="sm:hidden">
+                    {userMode === 'advisor' ? 'Advisor' : 'Student'}
+                  </span>
                 </div>
-                <button
-                  onClick={() => setUserMode(userMode === 'student' ? 'advisor' : 'student')}
-                  className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
-                >
-                  {userMode === 'student' ? 'Advisor' : 'Student'}
-                </button>
+                {/* Show current user mode but disable manual toggle since it's set by onboarding */}
+                <span className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-md">
+                  {userMode === 'advisor' ? 'Advisor Mode' : 'Student Mode'}
+                </span>
               </div>
+              
+              <button
+                onClick={resetOnboarding}
+                className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                title="Go back to homepage"
+              >
+                <span className="hidden sm:inline">Home</span>
+                <span className="sm:hidden">🏠</span>
+              </button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Navigation */}
-      <nav className="bg-white border-b border-gray-200">
+      {/* Mobile-optimized Navigation */}
+      <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-16 sm:top-20 lg:top-24 z-30 transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex space-x-8">
+          <div className="flex space-x-2 sm:space-x-4 lg:space-x-8 overflow-x-auto scrollbar-hide">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center px-3 py-4 text-sm font-medium border-b-2 ${
+                  className={`flex items-center px-3 py-3 sm:py-4 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
                     activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'border-blue-500 dark:border-blue-400 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                   }`}
                 >
-                  <Icon className="mr-2" size={16} />
-                  {tab.label}
+                  <Icon className="mr-1 sm:mr-2" size={16} />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                  <span className="sm:hidden">{tab.shortLabel}</span>
                 </button>
               );
             })}
@@ -157,9 +622,9 @@ const App = () => {
       </nav>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         {activeTab === 'search' && (
-          <CourseSearch
+          <MobileCourseSearch
             planId={selectedPlanId}
             setPlanId={setSelectedPlanId}
             onAddToPlan={handleAddToPlan}
@@ -167,7 +632,7 @@ const App = () => {
           />
         )}
         {activeTab === 'plans' && (
-          <PlanBuilder
+          <MobilePlanBuilder
             plans={plans}
             selectedPlanId={selectedPlanId}
             setSelectedPlanId={(id) => {
@@ -184,7 +649,7 @@ const App = () => {
             refreshTrigger={planRefreshTrigger}
           />
         )}
-        {activeTab === 'upload' && <CSVUpload />}
+        {activeTab === 'upload' && <MobileCSVUpload />}
       </main>
 
       {/* Create Plan Modal */}
@@ -205,11 +670,11 @@ const App = () => {
         onCoursesAdded={handleCoursesAdded}
       />
 
-      {/* Plan Delete Button above Footer */}
+      {/* Plan Delete Button above Footer - Mobile optimized */}
       {activeTab === 'plans' && selectedPlanId && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8 flex justify-end">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4 sm:pb-8 flex justify-center sm:justify-end">
           <button
-            className="px-4 py-2 bg-red-100 text-red-700 rounded hover:bg-red-200 shadow"
+            className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 shadow transition-colors font-medium"
             onClick={async () => {
               const plan = plans.find(p => p.id === selectedPlanId);
               if (!plan) return;
@@ -223,17 +688,24 @@ const App = () => {
                 alert('Failed to delete plan: ' + (err?.message || err));
               }
             }}
-          >Delete Selected Plan</button>
+          >
+            Delete Selected Plan
+          </button>
         </div>
       )}
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center text-sm text-gray-600">
-            <p>Course Transfer System</p>
-            <p className="mt-1">Developed by Mitchell Mennelle under a joint grant between<br></br> Delgado Community College and The University of New Orleans</p>
-            <p className="mt-1">© 2025 All rights reserved</p>
+      <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-8 sm:mt-16 transition-colors">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+          <div className="text-center text-sm text-gray-600 dark:text-gray-400">
+            <p className="font-medium">Course Transfer System</p>
+            <p className="mt-1 text-xs sm:text-sm">
+              Developed by Mitchell Mennelle under a joint grant between
+              <br className="sm:hidden" />
+              <span className="hidden sm:inline"> </span>
+              Delgado Community College and The University of New Orleans
+            </p>
+            <p className="mt-1 text-xs">© 2025 All rights reserved</p>
           </div>
         </div>
       </footer>

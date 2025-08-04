@@ -11,8 +11,10 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
   });
 
   useEffect(() => {
-    setFormData(prev => ({ ...prev, student_name: '', plan_name: '' }));
-  }, [userMode]);
+    if (isOpen) {
+      setFormData(prev => ({ ...prev, student_name: '', plan_name: '' }));
+    }
+  }, [userMode, isOpen]);
 
   const [creating, setCreating] = useState(false);
   const [errors, setErrors] = useState({});
@@ -97,23 +99,27 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold text-gray-900">Create New Academic Plan</h3>
-          <button
-            onClick={onClose}
-            disabled={creating}
-            className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
-          >
-            <X size={24} />
-          </button>
+    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
+      <div className="bg-white dark:bg-gray-800 rounded-t-lg sm:rounded-lg w-full sm:max-w-md h-[90vh] sm:h-auto overflow-y-auto transition-colors">
+        {/* Header */}
+        <div className="sticky top-0 bg-white dark:bg-gray-800 px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700 rounded-t-lg">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Create New Academic Plan</h3>
+            <button
+              onClick={onClose}
+              disabled={creating}
+              className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Form */}
+        <div className="p-4 sm:p-6 space-y-5">
           {/* Student Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               <User className="inline mr-1" size={16} />
               {userMode === 'advisor' ? "Student Name *" : "Your Name *"}
             </label>
@@ -128,18 +134,18 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
                 }
               }}
               placeholder={userMode === 'advisor' ? "Enter Student's Full Name" : "Enter Your Name"}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.student_name ? 'border-red-300' : 'border-gray-300'
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors ${
+                errors.student_name ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
               }`}
             />
             {errors.student_name && (
-              <p className="mt-1 text-xs text-red-600">{errors.student_name}</p>
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.student_name}</p>
             )}
           </div>
 
           {/* Student Email */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               <Mail className="inline mr-1" size={16} />
               {userMode === 'advisor' ? "Student Email" : "Your Email"}
             </label>
@@ -148,21 +154,21 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
               value={formData.student_email}
               onChange={(e) => handleInputChange('student_email', e.target.value)}
               placeholder={userMode === 'advisor' ? "student@example.com (optional)" : "your@example.com (optional)"}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.student_email ? 'border-red-300' : 'border-gray-300'
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors ${
+                errors.student_email ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
               }`}
             />
             {errors.student_email && (
-              <p className="mt-1 text-xs text-red-600">{errors.student_email}</p>
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.student_email}</p>
             )}
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Optional: Used for notifications and plan sharing
             </p>
           </div>
 
           {/* Plan Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               <BookOpen className="inline mr-1" size={16} />
               Plan Name *
             </label>
@@ -173,64 +179,65 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
                 value={formData.plan_name}
                 onChange={(e) => handleInputChange('plan_name', e.target.value)}
                 placeholder="e.g., Fall 2025 Transfer Plan"
-                className={`flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  errors.plan_name ? 'border-red-300' : 'border-gray-300'
+                className={`flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors ${
+                  errors.plan_name ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
                 }`}
               />
               <button
                 type="button"
                 onClick={generatePlanName}
                 disabled={!formData.student_name}
-                className="px-3 py-2 text-xs bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-2 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 title="Auto-generate plan name"
               >
                 Auto
               </button>
             </div>
             {errors.plan_name && (
-              <p className="mt-1 text-xs text-red-600">{errors.plan_name}</p>
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.plan_name}</p>
             )}
           </div>
 
           {/* Program Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Target Program
             </label>
             <select
               value={formData.program_id}
               onChange={(e) => handleInputChange('program_id', parseInt(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
             >
               <option value={1}>Biology Major (BS) - UNO</option>
               {/* This will need to be populated by the api */}
             </select>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               The degree program this plan is designed for
             </p>
           </div>
 
           {/* Submit Error */}
           {errors.submit && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-sm text-red-700">{errors.submit}</p>
+            <div className="p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-600 rounded-md">
+              <p className="text-sm text-red-700 dark:text-red-400">{errors.submit}</p>
             </div>
           )}
 
           {/* Form Actions */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+          <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
             <button
               type="button"
               onClick={onClose}
               disabled={creating}
-              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto px-4 py-2 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Cancel
             </button>
             <button
-              type="submit"
+              type="button"
+              onClick={handleSubmit}
               disabled={creating || !formData.student_name.trim() || !formData.plan_name.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              className="w-full sm:w-auto px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
             >
               {creating ? (
                 <>
@@ -242,17 +249,19 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
               )}
             </button>
           </div>
-        </form>
+        </div>
 
         {/* Help Text */}
-        <div className="mt-6 p-3 bg-blue-50 border border-blue-200 rounded-md">
-          <h4 className="text-sm font-medium text-blue-800 mb-1">💡 Getting Started</h4>
-          <ul className="text-xs text-blue-700 space-y-1">
-            <li>• Create a plan to organize your course transfer strategy</li>
-            <li>• Add courses using the course search after creating your plan</li>
-            <li>• Track your progress toward degree completion</li>
-            <li>• Share your plan with advisors for review and approval</li>
-          </ul>
+        <div className="p-4 sm:p-6 pt-0">
+          <div className="p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-md">
+            <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-1">💡 Getting Started</h4>
+            <ul className="text-xs text-blue-700 dark:text-blue-400 space-y-1">
+              <li>• Create a plan to organize your course transfer strategy</li>
+              <li>• Add courses using the course search after creating your plan</li>
+              <li>• Track your progress toward degree completion</li>
+              <li>• Share your plan with advisors for review and approval</li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
