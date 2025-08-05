@@ -1,5 +1,5 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
-import { ChevronRight, ArrowLeft, GraduationCap, Search, FileText, Eye, Users, Target, Plus, Moon, Sun, Key } from 'lucide-react';
+import { ChevronRight, ArrowLeft, GraduationCap, Search, FileText, Eye, Users, Target, Plus, Moon, Sun, Key, Shield, AlertTriangle, EyeOff } from 'lucide-react';
 
 // Import your existing components
 import CourseSearch from './components/CourseSearch';
@@ -42,6 +42,42 @@ const DarkModeProvider = ({ children }) => {
     <DarkModeContext.Provider value={{ isDarkMode, toggleDarkMode }}>
       {children}
     </DarkModeContext.Provider>
+  );
+};
+
+// Privacy Notice Component
+const PrivacyNotice = () => {
+  const [showNotice, setShowNotice] = useState(() => {
+    return !localStorage.getItem('privacyNoticeAcknowledged');
+  });
+
+  const acknowledgeNotice = () => {
+    localStorage.setItem('privacyNoticeAcknowledged', 'true');
+    setShowNotice(false);
+  };
+
+  if (!showNotice) return null;
+
+  return (
+    <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:max-w-md bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4 shadow-lg z-50">
+      <div className="flex items-start">
+        <Shield className="text-blue-600 dark:text-blue-400 mr-3 mt-0.5 flex-shrink-0" size={20} />
+        <div className="flex-1">
+          <h4 className="font-medium text-blue-800 dark:text-blue-300 mb-1">
+            🔒 Your Privacy Matters
+          </h4>
+          <p className="text-sm text-blue-700 dark:text-blue-400 mb-3">
+            Your academic plans are protected by secure codes. Only you and those you share your code with can access your information.
+          </p>
+          <button
+            onClick={acknowledgeNotice}
+            className="px-3 py-1 bg-blue-600 dark:bg-blue-700 text-white rounded text-sm hover:bg-blue-700 dark:hover:bg-blue-800 transition-colors"
+          >
+            I Understand
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -307,9 +343,12 @@ const MobileCourseSearch = (props) => {
   );
 };
 
-// Mobile-friendly PlanBuilder component wrapper
-const MobilePlanBuilder = (props) => {
+// Secure Mobile PlanBuilder with privacy controls
+const SecureMobilePlanBuilder = (props) => {
   const { isDarkMode } = useDarkMode();
+  
+  // Check if user has any plans accessible
+  const hasAccessiblePlans = props.plans && props.plans.length > 0;
   
   return (
     <div className="space-y-4">
@@ -318,7 +357,7 @@ const MobilePlanBuilder = (props) => {
         <div className="flex justify-between items-start mb-4">
           <div className="flex-1">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-1">Academic Plans</h2>
-            <p className="text-gray-600 dark:text-gray-300 text-sm">Create and manage your degree plans</p>
+            <p className="text-gray-600 dark:text-gray-300 text-sm">Secure access to your degree plans</p>
             
             {/* Show plan code if a plan is selected */}
             {props.selectedPlanId && props.plans && (
@@ -330,26 +369,80 @@ const MobilePlanBuilder = (props) => {
               </div>
             )}
           </div>
-          {!props.selectedPlanId && (
-            <div className="flex gap-2">
+          
+          <div className="flex gap-2">
+            {/* Security-conscious plan access */}
+            {!hasAccessiblePlans ? (
+              <>
+                <button
+                  onClick={() => props.setPlanLookupModal(true)}
+                  className="px-3 py-2 bg-green-600 dark:bg-green-700 text-white rounded-md hover:bg-green-700 dark:hover:bg-green-800 text-sm flex items-center"
+                >
+                  <Key className="mr-1" size={16} />
+                  Find Plan
+                </button>
+                <button
+                  onClick={props.onCreatePlan}
+                  className="px-3 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 text-sm flex items-center"
+                >
+                  <Plus className="mr-1" size={16} />
+                  Create
+                </button>
+              </>
+            ) : (
               <button
-                onClick={() => props.setPlanLookupModal(true)}
-                className="px-3 py-2 bg-green-600 dark:bg-green-700 text-white rounded-md hover:bg-green-700 dark:hover:bg-green-800 text-sm flex items-center"
+                onClick={async () => {
+                  if (confirm('Clear secure access to your plan?\n\nYou\'ll need to enter your plan code again to access it.')) {
+                    await api.clearPlanAccess();
+                    props.setSelectedPlanId(null);
+                    // Refresh to clear plans list
+                    if (props.loadPlansAndPrograms) {
+                      props.loadPlansAndPrograms();
+                    }
+                  }
+                }}
+                className="px-3 py-2 bg-gray-600 dark:bg-gray-700 text-white rounded-md hover:bg-gray-700 dark:hover:bg-gray-800 text-sm flex items-center"
+                title="Clear plan access for security"
               >
-                <Key className="mr-1" size={16} />
-                Find
+                <EyeOff className="mr-1" size={16} />
+                Clear Access
               </button>
-              <button
-                onClick={props.onCreatePlan}
-                className="px-3 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 text-sm flex items-center"
-              >
-                <Plus className="mr-1" size={16} />
-                Create
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
+      
+      {/* Security notice for no accessible plans */}
+      {!hasAccessiblePlans && (
+        <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-4">
+          <div className="flex items-start">
+            <Shield className="text-blue-600 dark:text-blue-400 mr-3 mt-0.5 flex-shrink-0" size={20} />
+            <div>
+              <h4 className="font-medium text-blue-800 dark:text-blue-300 mb-1">
+                Secure Plan Access
+              </h4>
+              <p className="text-sm text-blue-700 dark:text-blue-400 mb-2">
+                For your privacy, plans can only be accessed using secure plan codes.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  onClick={() => props.setPlanLookupModal(true)}
+                  className="px-3 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded text-sm hover:bg-blue-700 dark:hover:bg-blue-800 transition-colors"
+                >
+                  Enter Plan Code
+                </button>
+                <button
+                  onClick={props.onCreatePlan}
+                  className="px-3 py-2 bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 rounded text-sm hover:bg-blue-200 dark:hover:bg-blue-700 transition-colors"
+                >
+                  Create New Plan
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <PlanBuilder {...props} />
     </div>
   );
@@ -371,7 +464,7 @@ const MobileCSVUpload = (props) => {
   );
 };
 
-// Updated App component with dark mode and mobile optimizations
+// Updated App component with security and plan code features
 const App = () => {
   const [showOnboarding, setShowOnboarding] = useState(() => {
     // Check if there's an active session - if so, skip onboarding
@@ -398,6 +491,7 @@ const App = () => {
     }
     return 'student';
   });
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [plans, setPlans] = useState([]);
   const [selectedPlanId, setSelectedPlanId] = useState(null);
@@ -415,7 +509,7 @@ const App = () => {
   // Plan code lookup state
   const [planLookupModal, setPlanLookupModal] = useState(false);
 
-  // Load plans and programs for plan selection
+  // Load plans and programs for plan selection (now security-aware)
   useEffect(() => {
     if (!showOnboarding) {
       loadPlansAndPrograms();
@@ -425,13 +519,33 @@ const App = () => {
   const loadPlansAndPrograms = async () => {
     try {
       const [plansRes, programsRes] = await Promise.all([
-        api.getPlans({}),
+        api.getPlans({}), // This will now return empty for security
         api.getPrograms()
       ]);
-      setPlans(plansRes.plans || []);
+      
+      // Only load programs, not plans for security
       setPrograms(programsRes.programs || []);
+      
+      // Check if we have session access to any plan
+      const sessionStatus = await api.getSessionStatus();
+      if (sessionStatus.has_access && sessionStatus.plan_id) {
+        try {
+          const planData = await api.getPlan(sessionStatus.plan_id);
+          setPlans([planData]);
+          setSelectedPlanId(planData.id);
+        } catch (error) {
+          console.log('Session expired or plan not accessible');
+          setPlans([]);
+          setSelectedPlanId(null);
+        }
+      } else {
+        setPlans([]);
+        setSelectedPlanId(null);
+      }
     } catch (error) {
       console.error('Failed to load data:', error);
+      setPrograms([]);
+      setPlans([]);
     }
   };
 
@@ -469,26 +583,27 @@ const App = () => {
   const handlePlanCreated = async () => {
     setIsModalOpen(false);
     
-    // Reload plans to get the new plan with its code
     try {
-      const response = await api.getPlans({});
-      setPlans(response.plans || []);
-      
-      // Find the most recently created plan (highest ID)
-      const newestPlan = response.plans?.reduce((newest, plan) => {
-        return plan.id > (newest?.id || 0) ? plan : newest;
-      }, null);
-      
-      // Show the plan code to the user
-      if (newestPlan && newestPlan.plan_code) {
-        setTimeout(() => {
-          const message = `Plan created successfully!\n\nYour plan code: ${newestPlan.plan_code}\n\nSave this code to access your plan from any device or share it with your advisor.`;
-          alert(message);
-        }, 500);
+      // The create plan response now includes the full plan with code
+      // We should already have access to the created plan
+      const sessionStatus = await api.getSessionStatus();
+      if (sessionStatus.has_access) {
+        const planData = await api.getPlan(sessionStatus.plan_id);
+        setPlans([planData]);
+        setSelectedPlanId(planData.id);
+        
+        // Show the plan code to the user with security emphasis
+        if (planData.plan_code) {
+          setTimeout(() => {
+            const message = `Plan created successfully!\n\nYour secure plan code: ${planData.plan_code}\n\n🔒 IMPORTANT SECURITY NOTICE:\n• Save this code securely (password manager recommended)\n• This code provides full access to your plan\n• Only share with trusted advisors\n• Keep it private and secure`;
+            alert(message);
+          }, 500);
+        }
       }
     } catch (error) {
-      console.error('Failed to reload plans:', error);
-      loadPlansAndPrograms(); // Fallback to existing method
+      console.error('Failed to load created plan:', error);
+      // Fallback to manual reload
+      await loadPlansAndPrograms();
     }
   };
 
@@ -496,14 +611,8 @@ const App = () => {
     // Switch to plans tab and load the found plan
     setActiveTab('plans');
     
-    // Add the plan to our plans list if it's not already there
-    setPlans(currentPlans => {
-      const exists = currentPlans.some(p => p.id === planData.id);
-      if (!exists) {
-        return [...currentPlans, planData];
-      }
-      return currentPlans;
-    });
+    // Replace the entire plans list with just this plan for security
+    setPlans([planData]);
     
     // Select the found plan
     setSelectedPlanId(planData.id);
@@ -511,8 +620,8 @@ const App = () => {
     // Close any open modals
     setPlanLookupModal(false);
     
-    // Show success message
-    alert(`Plan "${planData.plan_name}" loaded successfully!`);
+    // Show success message with security reminder
+    alert(`Plan "${planData.plan_name}" loaded successfully!\n\n🔒 Security reminder: Your plan is now accessible for 1 hour. Clear access when done on shared devices.`);
   };
 
   // Unified handler for adding courses to plan
@@ -542,7 +651,14 @@ const App = () => {
 
     } catch (error) {
       console.error('Failed to load latest plan or program:', error);
-      alert('Could not load plan data. Please try again.');
+      if (error.message.includes('Access denied')) {
+        alert('Your session has expired. Please enter your plan code again.');
+        setSelectedPlanId(null);
+        setPlans([]);
+        setActiveTab('lookup');
+      } else {
+        alert('Could not load plan data. Please try again.');
+      }
     }
   };
 
@@ -558,23 +674,22 @@ const App = () => {
     setPlanRefreshTrigger(prev => prev + 1);
   };
 
-  // Skip onboarding for returning users or allow manual skip
-  const skipOnboarding = () => {
-    setShowOnboarding(false);
-  };
-
   // Reset to onboarding (go back to homepage)
   const resetToOnboarding = () => {
+    // Clear all session data for security
     localStorage.removeItem('currentSession');
+    api.clearPlanAccess(); // Clear server-side session
     setShowOnboarding(true);
     setActiveTab('search');
     setSelectedPlanId(null);
+    setPlans([]);
   };
 
   if (showOnboarding) {
     return (
       <DarkModeProvider>
         <MobileOnboarding onComplete={handleOnboardingComplete} />
+        <PrivacyNotice />
       </DarkModeProvider>
     );
   }
@@ -612,6 +727,7 @@ const App = () => {
         setPlanLookupModal={setPlanLookupModal}
         handlePlanFoundByCode={handlePlanFoundByCode}
       />
+      <PrivacyNotice />
     </DarkModeProvider>
   );
 };
@@ -674,7 +790,6 @@ const AppContent = ({
                     {userMode === 'advisor' ? 'Advisor' : 'Student'}
                   </span>
                 </div>
-                {/* Show current user mode but disable manual toggle since it's set by onboarding */}
                 <span className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-md">
                   {userMode === 'advisor' ? 'Advisor Mode' : 'Student Mode'}
                 </span>
@@ -730,7 +845,7 @@ const AppContent = ({
           />
         )}
         {activeTab === 'plans' && (
-          <MobilePlanBuilder
+          <SecureMobilePlanBuilder
             plans={plans}
             selectedPlanId={selectedPlanId}
             setSelectedPlanId={(id) => {
@@ -746,13 +861,14 @@ const AppContent = ({
             programs={programs}
             refreshTrigger={planRefreshTrigger}
             setPlanLookupModal={setPlanLookupModal}
+            loadPlansAndPrograms={loadPlansAndPrograms}
           />
         )}
         {activeTab === 'lookup' && (
           <div className="space-y-4">
             <div className="block lg:hidden">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Find Plan</h2>
-              <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">Access your plan using your plan code</p>
+              <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">Access your plan using your secure plan code</p>
             </div>
             <PlanCodeLookup onPlanFound={handlePlanFoundByCode} />
           </div>
@@ -787,42 +903,72 @@ const AppContent = ({
         />
       )}
 
-      {/* Plan Delete Button above Footer - Mobile optimized */}
+      {/* Plan Delete Button above Footer - Mobile optimized with security */}
       {activeTab === 'plans' && selectedPlanId && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4 sm:pb-8 flex justify-center sm:justify-end">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4 sm:pb-8 flex flex-col sm:flex-row justify-center sm:justify-end gap-4">
+          {/* Clear Access Button */}
+          <button
+            className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded-lg hover:bg-yellow-200 dark:hover:bg-yellow-900/50 shadow transition-colors font-medium flex items-center justify-center"
+            onClick={async () => {
+              if (confirm('Clear secure access to your plan?\n\nYou\'ll need to enter your plan code again to access it.')) {
+                await api.clearPlanAccess();
+                setSelectedPlanId(null);
+                setPlans([]);
+                setActiveTab('lookup');
+              }
+            }}
+          >
+            <EyeOff className="mr-2" size={16} />
+            Clear Plan Access
+          </button>
+          
+          {/* Delete Plan Button */}
           <button
             className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 shadow transition-colors font-medium"
             onClick={async () => {
               const plan = plans.find(p => p.id === selectedPlanId);
               if (!plan) return;
-              if (!window.confirm(`Delete plan '${plan.plan_name}'? This cannot be undone.`)) return;
+              
+              const confirmMessage = `⚠️ PERMANENTLY DELETE PLAN?\n\nPlan: "${plan.plan_name}"\nCode: ${plan.plan_code}\n\nThis action CANNOT be undone!\nAll course data will be lost forever.`;
+              
+              if (!window.confirm(confirmMessage)) return;
+              
               try {
                 await api.deletePlan(plan.id);
-                setPlans(plans => plans.filter(p => p.id !== plan.id));
+                setPlans([]);
                 setSelectedPlanId(null);
-                alert('Plan deleted successfully.');
+                setActiveTab('lookup');
+                alert('Plan permanently deleted. All data has been securely removed.');
               } catch (err) {
-                alert('Failed to delete plan: ' + (err?.message || err));
+                if (err.message.includes('Access denied')) {
+                  alert('Session expired. Plan deletion requires current access.');
+                  setActiveTab('lookup');
+                } else {
+                  alert('Failed to delete plan: ' + (err?.message || err));
+                }
               }
             }}
           >
-            Delete Selected Plan
+            Permanently Delete Plan
           </button>
         </div>
       )}
 
-      {/* Footer */}
+      {/* Footer with Security Notice */}
       <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-8 sm:mt-16 transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
           <div className="text-center text-sm text-gray-600 dark:text-gray-400">
-            <p className="font-medium">Course Transfer System</p>
+            <div className="flex justify-center items-center mb-2">
+              <Shield className="mr-2" size={16} />
+              <p className="font-medium">Course Transfer System - Privacy Protected</p>
+            </div>
             <p className="mt-1 text-xs sm:text-sm">
               Developed by Mitchell Mennelle under a joint grant between
               <br className="sm:hidden" />
               <span className="hidden sm:inline"> </span>
               Delgado Community College and The University of New Orleans
             </p>
-            <p className="mt-1 text-xs">© 2025 All rights reserved</p>
+            <p className="mt-1 text-xs">© 2025 All rights reserved • Student privacy protected by secure plan codes</p>
           </div>
         </div>
       </footer>

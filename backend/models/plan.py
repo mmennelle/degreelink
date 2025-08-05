@@ -51,7 +51,12 @@ class Plan(db.Model):
         if not plan_code or len(plan_code.strip()) != 8:
             return None
         
-        return cls.query.filter_by(plan_code=plan_code.upper().strip()).first()
+        # Sanitize the input
+        clean_code = ''.join(c for c in plan_code.upper().strip() if c.isalnum())
+        if len(clean_code) != 8:
+            return None
+            
+        return cls.query.filter_by(plan_code=clean_code).first()
     
     def __repr__(self):
         return f'<Plan {self.plan_name} for {self.student_name} (Code: {self.plan_code})>'
