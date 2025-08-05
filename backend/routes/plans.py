@@ -5,7 +5,6 @@ bp = Blueprint('plans', __name__, url_prefix='/api/plans')
 
 @bp.route('', methods=['GET'])
 def get_plans():
-    
     student_email = request.args.get('student_email')
     program_id = request.args.get('program_id', type=int)
     
@@ -23,30 +22,82 @@ def get_plans():
         'plans': [plan.to_dict() for plan in plans]
     })
 
+@bp.route('/by-code/<plan_code>', methods=['GET'])
+def get_plan_by_code(plan_code):
+    """Get a plan using its 8-character secure code"""
+    if not plan_code or len(plan_code.strip()) != 8:
+        return jsonify({'error': 'Plan code must be exactly 8 characters'}), 400
+    
+    plan = Plan.find_by_code(plan_code)
+    
+    if not plan:
+        return jsonify({'error': 'Plan not found with the provided code'}), 404
+    
+    plan_data = plan.to_dict()
+    plan_data['progress'] = plan.calculate_progress()
+    plan_data['unmet_requirements'] = plan.get_unmet_requirements()
+    plan_data['course_suggestions'] = plan.suggest_courses_for_requirements()
+    
+    return jsonify(plan_data)
+
+@bp.route('/verify-code/<plan_code>', methods=['GET'])
+def verify_plan_code(plan_code):
+    """Verify if a plan code exists and return basic plan info"""
+    if not plan_code or len(plan_code.strip()) != 8:
+        return jsonify({'valid': False, 'error': 'Plan code must be exactly 8 characters'}), 400
+    
+    plan = Plan.find_by_code(plan_code)
+    
+    if not plan:
+        return jsonify({'valid': False, 'error': 'Plan not found'})
+    
+    return jsonify({
+        'valid': True,
+        'plan': {
+            'id': plan.id,
+            'plan_name': plan.plan_name,
+            'student_name': plan.student_name,
+            'plan_code': plan.plan_code,
+            'status': plan.status,
+            'created_at': plan.created_at.isoformat() if plan.created_at else None
+        }
+    })
+
 @bp.route('', methods=['POST'])
 def create_plan():
-    
     data = request.get_json()
     
-    
+    # Validate program exists
     program = Program.query.get(data.get('program_id'))
     if not program:
         return jsonify({'error': 'Program not found'}), 404
     
-    plan = Plan(
-        student_name=data.get('student_name'),
-        student_email=data.get('student_email'),
-        program_id=data.get('program_id'),
-        plan_name=data.get('plan_name'),
-        status=data.get('status', 'draft')
-    )
-    
     try:
+        plan = Plan(
+            student_name=data.get('student_name'),
+            student_email=data.get('student_email'),
+            program_id=data.get('program_id'),
+            plan_name=data.get('plan_name'),
+            status=data.get('status', 'draft')
+            # plan_code will be auto-generated in __init__
+        )
+        
         db.session.add(plan)
         db.session.commit()
-        return jsonify(plan.to_dict()), 201
+        
+        # Return the plan with the generated code
+        return jsonify({
+            'plan': plan.to_dict(),
+            'message': f'Plan created successfully with code: {plan.plan_code}'
+        }), 201
+        
     except Exception as e:
         db.session.rollback()
+        
+        # Handle the unlikely case where code generation fails
+        if "Unable to generate unique plan code" in str(e):
+            return jsonify({'error': 'Unable to generate unique plan code. Please try again.'}), 500
+        
         return jsonify({'error': 'Failed to create plan'}), 500
     
 @bp.route('/<int:plan_id>', methods=['DELETE'])
@@ -62,18 +113,36 @@ def delete_plan(plan_id):
         db.session.rollback()
         return jsonify({'error': 'Failed to delete plan'}), 500
 
+@bp.route('/by-code/<plan_code>', methods=['DELETE'])
+def delete_plan_by_code(plan_code):
+    """Delete a plan using its secure code"""
+    if not plan_code or len(plan_code.strip()) != 8:
+        return jsonify({'error': 'Plan code must be exactly 8 characters'}), 400
+    
+    plan = Plan.find_by_code(plan_code)
+    
+    if not plan:
+        return jsonify({'error': 'Plan not found with the provided code'}), 404
+    
+    try:
+        db.session.delete(plan)
+        db.session.commit()
+        return jsonify({'message': 'Plan deleted successfully'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Failed to delete plan'}), 500
+
 @bp.route('/<int:plan_id>/courses', methods=['POST'])
 def add_course_to_plan(plan_id):
-    
     plan = Plan.query.get_or_404(plan_id)
     data = request.get_json()
     
-    
+    # Validate course exists
     course = Course.query.get(data.get('course_id'))
     if not course:
         return jsonify({'error': 'Course not found'}), 404
     
-    
+    # Check if course already in plan
     existing = PlanCourse.query.filter_by(
         plan_id=plan_id,
         course_id=data.get('course_id')
@@ -100,9 +169,52 @@ def add_course_to_plan(plan_id):
         db.session.rollback()
         return jsonify({'error': 'Failed to add course to plan'}), 500
 
+@bp.route('/by-code/<plan_code>/courses', methods=['POST'])
+def add_course_to_plan_by_code(plan_code):
+    """Add a course to a plan using the plan's secure code"""
+    if not plan_code or len(plan_code.strip()) != 8:
+        return jsonify({'error': 'Plan code must be exactly 8 characters'}), 400
+    
+    plan = Plan.find_by_code(plan_code)
+    if not plan:
+        return jsonify({'error': 'Plan not found with the provided code'}), 404
+    
+    data = request.get_json()
+    
+    # Validate course exists
+    course = Course.query.get(data.get('course_id'))
+    if not course:
+        return jsonify({'error': 'Course not found'}), 404
+    
+    # Check if course already in plan
+    existing = PlanCourse.query.filter_by(
+        plan_id=plan.id,
+        course_id=data.get('course_id')
+    ).first()
+    
+    if existing:
+        return jsonify({'error': 'Course already in plan'}), 400
+    
+    plan_course = PlanCourse(
+        plan_id=plan.id,
+        course_id=data.get('course_id'),
+        semester=data.get('semester'),
+        year=data.get('year'),
+        status=data.get('status', 'planned'),
+        requirement_category=data.get('requirement_category'),
+        notes=data.get('notes', '')
+    )
+    
+    try:
+        db.session.add(plan_course)
+        db.session.commit()
+        return jsonify(plan_course.to_dict()), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Failed to add course to plan'}), 500
+
 @bp.route('/<int:plan_id>/courses/<int:plan_course_id>', methods=['PUT'])
 def update_plan_course(plan_id, plan_course_id):
-    
     plan_course = PlanCourse.query.filter_by(
         id=plan_course_id,
         plan_id=plan_id
@@ -126,7 +238,6 @@ def update_plan_course(plan_id, plan_course_id):
 
 @bp.route('/<int:plan_id>/courses/<int:plan_course_id>', methods=['DELETE'])
 def remove_course_from_plan(plan_id, plan_course_id):
-    
     plan_course = PlanCourse.query.filter_by(
         id=plan_course_id,
         plan_id=plan_id
@@ -142,12 +253,9 @@ def remove_course_from_plan(plan_id, plan_course_id):
     
 @bp.route('/<int:plan_id>', methods=['GET'])
 def get_plan(plan_id):
-    
     plan = Plan.query.get_or_404(plan_id)
     
     plan_data = plan.to_dict()
-    
-    
     plan_data['progress'] = plan.calculate_progress()
     plan_data['unmet_requirements'] = plan.get_unmet_requirements()
     plan_data['course_suggestions'] = plan.suggest_courses_for_requirements()
@@ -156,7 +264,6 @@ def get_plan(plan_id):
 
 @bp.route('/<int:plan_id>/progress', methods=['GET'])
 def get_plan_progress(plan_id):
-    
     plan = Plan.query.get_or_404(plan_id)
     
     progress = plan.calculate_progress()

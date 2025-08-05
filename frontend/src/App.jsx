@@ -1,5 +1,5 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
-import { ChevronRight, ArrowLeft, GraduationCap, Search, FileText, Eye, Users, Target, Plus, Moon, Sun } from 'lucide-react';
+import { ChevronRight, ArrowLeft, GraduationCap, Search, FileText, Eye, Users, Target, Plus, Moon, Sun, Key } from 'lucide-react';
 
 // Import your existing components
 import CourseSearch from './components/CourseSearch';
@@ -7,6 +7,7 @@ import PlanBuilder from './components/PlanBuilder';
 import CSVUpload from './components/CSVUpload';
 import CreatePlanModal from './components/CreatePlanModal';
 import AddCourseToPlanModal from './components/AddCourseToPlanModal';
+import PlanCodeLookup, { PlanCodeDisplay } from './components/PlanCodeLookup';
 import api from './services/api';
 
 // Dark Mode Context
@@ -84,6 +85,13 @@ const MobileOnboarding = ({ onComplete }) => {
           description: 'Exploring options and gathering information',
           icon: <Eye className="w-6 h-6" />,
           color: 'bg-gray-50 border-gray-200 text-gray-700 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300'
+        },
+        {
+          value: 'returning',
+          label: 'I Have a Plan Code',
+          description: 'I want to access my existing plan',
+          icon: <Key className="w-6 h-6" />,
+          color: 'bg-yellow-50 border-yellow-200 text-yellow-700 dark:bg-yellow-900/30 dark:border-yellow-700 dark:text-yellow-300'
         }
       ]
     },
@@ -114,6 +122,12 @@ const MobileOnboarding = ({ onComplete }) => {
     const newAnswers = { ...answers, [questionId]: value };
     setAnswers(newAnswers);
 
+    // If user selected "returning" (has plan code), skip to lookup
+    if (questionId === 'userType' && value === 'returning') {
+      handleComplete({ ...newAnswers, goal: 'lookup' });
+      return;
+    }
+
     // If this is the last question or user is just browsing, complete onboarding
     if (currentStep === questions.length - 1 || (questionId === 'userType' && value === 'browsing')) {
       handleComplete(newAnswers);
@@ -139,6 +153,8 @@ const MobileOnboarding = ({ onComplete }) => {
     // Determine destination based on user type and goal
     if (finalAnswers.userType === 'browsing') {
       destination = 'search';
+    } else if (finalAnswers.userType === 'returning' || finalAnswers.goal === 'lookup') {
+      destination = 'lookup';
     } else if (finalAnswers.goal === 'transfer') {
       destination = 'search';
     } else if (finalAnswers.goal === 'planning') {
@@ -175,8 +191,8 @@ const MobileOnboarding = ({ onComplete }) => {
   const currentQuestion = questions[currentStep];
   const progress = ((currentStep + 1) / questions.length) * 100;
 
-  // Skip second question if user is just browsing
-  if (answers.userType === 'browsing') {
+  // Skip second question if user is just browsing or returning
+  if (answers.userType === 'browsing' || answers.userType === 'returning') {
     return null; // Component will be unmounted as onComplete was called
   }
 
@@ -300,18 +316,37 @@ const MobilePlanBuilder = (props) => {
       {/* Mobile Header */}
       <div className="block lg:hidden">
         <div className="flex justify-between items-start mb-4">
-          <div>
+          <div className="flex-1">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-1">Academic Plans</h2>
             <p className="text-gray-600 dark:text-gray-300 text-sm">Create and manage your degree plans</p>
+            
+            {/* Show plan code if a plan is selected */}
+            {props.selectedPlanId && props.plans && (
+              <div className="mt-3">
+                <PlanCodeDisplay 
+                  plan={props.plans.find(p => p.id === props.selectedPlanId)} 
+                  compact={true}
+                />
+              </div>
+            )}
           </div>
           {!props.selectedPlanId && (
-            <button
-              onClick={props.onCreatePlan}
-              className="px-3 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 text-sm flex items-center"
-            >
-              <Plus className="mr-1" size={16} />
-              Create
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => props.setPlanLookupModal(true)}
+                className="px-3 py-2 bg-green-600 dark:bg-green-700 text-white rounded-md hover:bg-green-700 dark:hover:bg-green-800 text-sm flex items-center"
+              >
+                <Key className="mr-1" size={16} />
+                Find
+              </button>
+              <button
+                onClick={props.onCreatePlan}
+                className="px-3 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 text-sm flex items-center"
+              >
+                <Plus className="mr-1" size={16} />
+                Create
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -377,6 +412,9 @@ const App = () => {
     program: null
   });
 
+  // Plan code lookup state
+  const [planLookupModal, setPlanLookupModal] = useState(false);
+
   // Load plans and programs for plan selection
   useEffect(() => {
     if (!showOnboarding) {
@@ -428,9 +466,53 @@ const App = () => {
     }
   }, [showOnboarding]);
 
-  const handlePlanCreated = () => {
+  const handlePlanCreated = async () => {
     setIsModalOpen(false);
-    loadPlansAndPrograms();
+    
+    // Reload plans to get the new plan with its code
+    try {
+      const response = await api.getPlans({});
+      setPlans(response.plans || []);
+      
+      // Find the most recently created plan (highest ID)
+      const newestPlan = response.plans?.reduce((newest, plan) => {
+        return plan.id > (newest?.id || 0) ? plan : newest;
+      }, null);
+      
+      // Show the plan code to the user
+      if (newestPlan && newestPlan.plan_code) {
+        setTimeout(() => {
+          const message = `Plan created successfully!\n\nYour plan code: ${newestPlan.plan_code}\n\nSave this code to access your plan from any device or share it with your advisor.`;
+          alert(message);
+        }, 500);
+      }
+    } catch (error) {
+      console.error('Failed to reload plans:', error);
+      loadPlansAndPrograms(); // Fallback to existing method
+    }
+  };
+
+  const handlePlanFoundByCode = (planData) => {
+    // Switch to plans tab and load the found plan
+    setActiveTab('plans');
+    
+    // Add the plan to our plans list if it's not already there
+    setPlans(currentPlans => {
+      const exists = currentPlans.some(p => p.id === planData.id);
+      if (!exists) {
+        return [...currentPlans, planData];
+      }
+      return currentPlans;
+    });
+    
+    // Select the found plan
+    setSelectedPlanId(planData.id);
+    
+    // Close any open modals
+    setPlanLookupModal(false);
+    
+    // Show success message
+    alert(`Plan "${planData.plan_name}" loaded successfully!`);
   };
 
   // Unified handler for adding courses to plan
@@ -500,6 +582,7 @@ const App = () => {
   const tabs = [
     { id: 'search', label: 'Course Search', shortLabel: 'Search', icon: Search },
     { id: 'plans', label: 'Academic Plans', shortLabel: 'Plans', icon: FileText },
+    { id: 'lookup', label: 'Find Plan', shortLabel: 'Find', icon: Key },
     ...(userMode === 'advisor' ?
     [{ id: 'upload', label: 'CSV Upload', shortLabel: 'Upload', icon: Users }] : []),
   ];
@@ -525,6 +608,9 @@ const App = () => {
         setAddCourseModal={setAddCourseModal}
         handleCoursesAdded={handleCoursesAdded}
         loadPlansAndPrograms={loadPlansAndPrograms}
+        planLookupModal={planLookupModal}
+        setPlanLookupModal={setPlanLookupModal}
+        handlePlanFoundByCode={handlePlanFoundByCode}
       />
     </DarkModeProvider>
   );
@@ -534,7 +620,8 @@ const AppContent = ({
   activeTab, setActiveTab, userMode, tabs, resetOnboarding,
   isModalOpen, setIsModalOpen, handlePlanCreated, plans, selectedPlanId,
   setSelectedPlanId, programs, planRefreshTrigger, handleAddToPlan,
-  addCourseModal, setAddCourseModal, handleCoursesAdded, loadPlansAndPrograms
+  addCourseModal, setAddCourseModal, handleCoursesAdded, loadPlansAndPrograms,
+  planLookupModal, setPlanLookupModal, handlePlanFoundByCode
 }) => {
   const { isDarkMode, toggleDarkMode } = useDarkMode();
 
@@ -564,6 +651,17 @@ const AppContent = ({
                 title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
               >
                 {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              </button>
+
+              {/* Quick Plan Lookup Button */}
+              <button
+                onClick={() => setPlanLookupModal(true)}
+                className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 rounded-md hover:bg-green-200 dark:hover:bg-green-800/50 transition-colors flex items-center"
+                title="Find plan by code"
+              >
+                <Key className="mr-1" size={14} />
+                <span className="hidden sm:inline">Find Plan</span>
+                <span className="sm:hidden">🔍</span>
               </button>
               
               <div className="flex items-center space-x-2">
@@ -647,7 +745,17 @@ const AppContent = ({
             onAddToPlan={handleAddToPlan}
             programs={programs}
             refreshTrigger={planRefreshTrigger}
+            setPlanLookupModal={setPlanLookupModal}
           />
+        )}
+        {activeTab === 'lookup' && (
+          <div className="space-y-4">
+            <div className="block lg:hidden">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Find Plan</h2>
+              <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">Access your plan using your plan code</p>
+            </div>
+            <PlanCodeLookup onPlanFound={handlePlanFoundByCode} />
+          </div>
         )}
         {activeTab === 'upload' && <MobileCSVUpload />}
       </main>
@@ -669,6 +777,15 @@ const AppContent = ({
         program={addCourseModal.program}
         onCoursesAdded={handleCoursesAdded}
       />
+
+      {/* Plan Code Lookup Modal */}
+      {planLookupModal && (
+        <PlanCodeLookup 
+          showAsModal={true}
+          onClose={() => setPlanLookupModal(false)}
+          onPlanFound={handlePlanFoundByCode}
+        />
+      )}
 
       {/* Plan Delete Button above Footer - Mobile optimized */}
       {activeTab === 'plans' && selectedPlanId && (

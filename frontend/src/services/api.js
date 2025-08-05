@@ -23,6 +23,41 @@ class ApiService {
       return data;
     }
     
+    // Plan Code Methods
+    async getPlanByCode(planCode) {
+      if (!planCode || planCode.length !== 8) {
+        throw new Error('Plan code must be exactly 8 characters');
+      }
+      return this.request(`/plans/by-code/${planCode.toUpperCase()}`);
+    }
+    
+    async verifyPlanCode(planCode) {
+      if (!planCode || planCode.length !== 8) {
+        throw new Error('Plan code must be exactly 8 characters');
+      }
+      return this.request(`/plans/verify-code/${planCode.toUpperCase()}`);
+    }
+    
+    async addCourseToPlanByCode(planCode, courseData) {
+      if (!planCode || planCode.length !== 8) {
+        throw new Error('Plan code must be exactly 8 characters');
+      }
+      return this.request(`/plans/by-code/${planCode.toUpperCase()}/courses`, {
+        method: 'POST',
+        body: JSON.stringify(courseData)
+      });
+    }
+    
+    async deletePlanByCode(planCode) {
+      if (!planCode || planCode.length !== 8) {
+        throw new Error('Plan code must be exactly 8 characters');
+      }
+      return this.request(`/plans/by-code/${planCode.toUpperCase()}`, {
+        method: 'DELETE'
+      });
+    }
+    
+    // Existing methods...
     async getPrograms() {
       return this.request('/programs');
     }
