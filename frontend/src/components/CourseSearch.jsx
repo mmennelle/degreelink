@@ -20,24 +20,14 @@ const CourseSearch = ({
   const [error, setError] = useState(null);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [detectedCategories, setDetectedCategories] = useState(new Map());
-  const [plans, setPlans] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'grid'
 
   // Mobile search state
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
 
-  useEffect(() => {
-    const fetchPlans = async () => {
-      try {
-        const res = await api.getPlans({});
-        setPlans(res.plans || []);
-      } catch (err) {
-        console.error('Failed to fetch plans:', err);
-      }
-    };
-    fetchPlans();
-  }, []);
+  // Removed the useEffect that fetched plans for security reasons
+  // Plans are now managed at the app level via session access
 
   const toggleCourseSelection = (course) => {
     const isSelected = selectedCourses.some((c) => c.id === course.id);
@@ -78,7 +68,7 @@ const CourseSearch = ({
       const searchResults = response.courses || [];
       setCourses(searchResults);
       
-      // Detect categories logic (same as before)
+      // Detect categories logic
       if (program && program.requirements && searchResults.length > 0) {
         const categoryMap = new Map();
         
@@ -261,21 +251,7 @@ const CourseSearch = ({
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Select Plan
-                </label>
-                <select
-                  value={planId || ''}
-                  onChange={e => setPlanId && setPlanId(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
-                >
-                  <option value="">-- Choose a plan --</option>
-                  {plans.map(plan => (
-                    <option key={plan.id} value={plan.id}>{plan.plan_name} ({plan.student_name})</option>
-                  ))}
-                </select>
-              </div>
+            
 
               {program && program.requirements && (
                 <div>

@@ -73,20 +73,41 @@ const PlanBuilder = ({
   };
 
   const loadPlans = async () => {
-    setLoading(true);
-    setError(null);
+  setLoading(true);
+  setError(null);
+  
+  try {
+    // With the new security model, we can't browse all plans
+    // Plans are only accessible via session after using a plan code
+    const sessionStatus = await api.getSessionStatus();
     
-    try {
-      const response = await api.getPlans({});
-      setInternalPlans(response.plans || []);
-    } catch (error) {
-      console.error('Failed to load plans:', error);
-      setError('Failed to load plans. Please try again.');
-      setInternalPlans([]); // Ensure we have an empty array on error
-    } finally {
-      setLoading(false);
+    if (sessionStatus.has_access && sessionStatus.plan_id) {
+      try {
+        const planData = await api.getPlan(sessionStatus.plan_id);
+        setInternalPlans([planData]);
+        if (!internalSelectedPlanId) {
+          setInternalSelectedPlanId(planData.id);
+        }
+      } catch (error) {
+        console.log('Session expired or plan not accessible');
+        setInternalPlans([]);
+        setInternalSelectedPlanId(null);
+      }
+    } else {
+      // No session access - user needs to enter a plan code
+      setInternalPlans([]);
+      setInternalSelectedPlanId(null);
     }
-  };
+  } catch (error) {
+    console.error('Failed to check session status:', error);
+    // If session checking fails, assume no access
+    setInternalPlans([]);
+    setInternalSelectedPlanId(null);
+    setError('Unable to access plans. Use a plan code to access your plan.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const loadPlanDetails = async (planId) => {
     setLoading(true);

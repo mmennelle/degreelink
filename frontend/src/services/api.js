@@ -23,6 +23,39 @@ class ApiService {
       return data;
     }
     
+    // Session Management Methods
+    async getSessionStatus() {
+      try {
+        return await this.request('/plans/session/status');
+      } catch (error) {
+        // If session endpoint doesn't exist, return default
+        return { has_access: false, plan_id: null };
+      }
+    }
+    
+    async clearPlanAccess() {
+      try {
+        return await this.request('/plans/session/clear', {
+          method: 'POST'
+        });
+      } catch (error) {
+        // If session clearing endpoint doesn't exist, clear client-side storage
+        console.warn('Session clearing not available on server, clearing client-side only');
+        return { success: true };
+      }
+    }
+    
+    async extendSession() {
+      try {
+        return await this.request('/plans/session/extend', {
+          method: 'POST'
+        });
+      } catch (error) {
+        console.warn('Session extension not available on server');
+        return { success: false };
+      }
+    }
+    
     // Plan Code Methods
     async getPlanByCode(planCode) {
       if (!planCode || planCode.length !== 8) {
@@ -119,7 +152,15 @@ class ApiService {
   
     async getPlans(params = {}) {
       const queryString = new URLSearchParams(params).toString();
-      return this.request(`/plans${queryString ? `?${queryString}` : ''}`);
+      try {
+        return await this.request(`/plans${queryString ? `?${queryString}` : ''}`);
+      } catch (error) {
+        // If plans endpoint returns 403 (no access), return empty list
+        if (error.message.includes('403') || error.message.includes('Access denied')) {
+          return { plans: [] };
+        }
+        throw error;
+      }
     }
   
     async getPlan(id) {
