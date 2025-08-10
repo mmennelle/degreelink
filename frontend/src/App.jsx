@@ -10,6 +10,7 @@ import AddCourseToPlanModal from './components/AddCourseToPlanModal';
 import PlanCodeLookup, { PlanCodeDisplay } from './components/PlanCodeLookup';
 import MobileOnboarding from './components/MobileOnboarding';
 import PrivacyNotice from './components/PrivacyNotice';
+import PlanCreatedModal from './components/PlanCreatedModal';
 import { useDarkMode, DarkModeProvider } from './hooks/useDarkMode';
 import api from './services/api';
 
@@ -195,6 +196,12 @@ const App = () => {
   // Plan code lookup state
   const [planLookupModal, setPlanLookupModal] = useState(false);
 
+  // Plan created modal state
+  const [planCreatedModal, setPlanCreatedModal] = useState({
+    isOpen: false,
+    planData: null
+  });
+
   // Load plans and programs for plan selection (now security-aware)
   useEffect(() => {
     if (!showOnboarding) {
@@ -281,12 +288,12 @@ const App = () => {
         setPlans([planData]);
         setSelectedPlanId(planData.id);
         
-        // Show the plan code to the user with security emphasis
+        // Show the plan created modal with copy functionality
         if (planData.plan_code) {
-          setTimeout(() => {
-            const message = `Plan created successfully!\n\nYour plan code: ${planData.plan_code}\n\n• Save this code\n• This code provides full access to your plan\n• Share with trusted advisors`;
-            alert(message);
-          }, 500);
+          setPlanCreatedModal({
+            isOpen: true,
+            planData: planData
+          });
         }
       }
     } catch (error) {
@@ -415,6 +422,8 @@ const App = () => {
         planLookupModal={planLookupModal}
         setPlanLookupModal={setPlanLookupModal}
         handlePlanFoundByCode={handlePlanFoundByCode}
+        planCreatedModal={planCreatedModal}
+        setPlanCreatedModal={setPlanCreatedModal}
       />
       <PrivacyNotice />
     </DarkModeProvider>
@@ -426,7 +435,8 @@ const AppContent = ({
   isModalOpen, setIsModalOpen, handlePlanCreated, plans, selectedPlanId,
   setSelectedPlanId, programs, planRefreshTrigger, handleAddToPlan,
   addCourseModal, setAddCourseModal, handleCoursesAdded, loadPlansAndPrograms,
-  planLookupModal, setPlanLookupModal, handlePlanFoundByCode
+  planLookupModal, setPlanLookupModal, handlePlanFoundByCode,
+  planCreatedModal, setPlanCreatedModal
 }) => {
   const { isDarkMode, toggleDarkMode } = useDarkMode();
 
@@ -591,6 +601,13 @@ const AppContent = ({
           onPlanFound={handlePlanFoundByCode}
         />
       )}
+
+      {/* Plan Created Success Modal */}
+      <PlanCreatedModal
+        isOpen={planCreatedModal.isOpen}
+        onClose={() => setPlanCreatedModal({ isOpen: false, planData: null })}
+        planData={planCreatedModal.planData}
+      />
 
       {/* Plan Delete Button above Footer - Mobile optimized with security */}
       {activeTab === 'plans' && selectedPlanId && (
