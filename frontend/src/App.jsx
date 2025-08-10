@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronRight, ArrowLeft, GraduationCap, Search, FileText, Eye, Users, Target, Plus, Moon, Sun, Key, Shield, AlertTriangle, EyeOff } from 'lucide-react';
 
 // Import your existing components
@@ -8,324 +8,10 @@ import CSVUpload from './components/CSVUpload';
 import CreatePlanModal from './components/CreatePlanModal';
 import AddCourseToPlanModal from './components/AddCourseToPlanModal';
 import PlanCodeLookup, { PlanCodeDisplay } from './components/PlanCodeLookup';
+import MobileOnboarding from './components/MobileOnboarding';
+import PrivacyNotice from './components/PrivacyNotice';
+import { useDarkMode, DarkModeProvider } from './hooks/useDarkMode';
 import api from './services/api';
-
-// Dark Mode Context
-const DarkModeContext = createContext();
-
-export const useDarkMode = () => {
-  const context = useContext(DarkModeContext);
-  if (!context) {
-    throw new Error('useDarkMode must be used within a DarkModeProvider');
-  }
-  return context;
-};
-
-const DarkModeProvider = ({ children }) => {
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    const saved = localStorage.getItem('darkMode');
-    return saved ? JSON.parse(saved) : true; // Default to dark mode
-  });
-
-  useEffect(() => {
-    localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDarkMode]);
-
-  const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
-
-  return (
-    <DarkModeContext.Provider value={{ isDarkMode, toggleDarkMode }}>
-      {children}
-    </DarkModeContext.Provider>
-  );
-};
-
-// Privacy Notice Component
-const PrivacyNotice = () => {
-  const [showNotice, setShowNotice] = useState(() => {
-    return !localStorage.getItem('privacyNoticeAcknowledged');
-  });
-
-  const acknowledgeNotice = () => {
-    localStorage.setItem('privacyNoticeAcknowledged', 'true');
-    setShowNotice(false);
-  };
-
-  if (!showNotice) return null;
-
-  return (
-    <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:max-w-md bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4 shadow-lg z-50">
-      <div className="flex items-start">
-        <Shield className="text-blue-600 dark:text-blue-400 mr-3 mt-0.5 flex-shrink-0" size={20} />
-        <div className="flex-1">
-          <h4 className="font-medium text-blue-800 dark:text-blue-300 mb-1">
-            🔒 Your Privacy Matters
-          </h4>
-          <p className="text-sm text-blue-700 dark:text-blue-400 mb-3">
-            Your academic plans are protected by secure codes. Only you and those you share your code with can access your information.
-          </p>
-          <button
-            onClick={acknowledgeNotice}
-            className="px-3 py-1 bg-blue-600 dark:bg-blue-700 text-white rounded text-sm hover:bg-blue-700 dark:hover:bg-blue-800 transition-colors"
-          >
-            I Understand
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const MobileOnboarding = ({ onComplete }) => {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [answers, setAnswers] = useState({
-    userType: null,
-    goal: null
-  });
-
-  const questions = [
-    {
-      id: 'userType',
-      title: 'Who are you?',
-      subtitle: 'Help us personalize your experience',
-      options: [
-        {
-          value: 'student',
-          label: 'Student',
-          description: 'I am a current or prospective student',
-          icon: <GraduationCap className="w-6 h-6" />,
-          color: 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300'
-        },
-        {
-          value: 'parent',
-          label: 'Parent',
-          description: 'I am helping my child with their education',
-          icon: <Users className="w-6 h-6" />,
-          color: 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300'
-        },
-        {
-          value: 'advisor',
-          label: 'Academic Advisor',
-          description: 'I am an advisor helping students',
-          icon: <Target className="w-6 h-6" />,
-          color: 'bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/30 dark:border-purple-700 dark:text-purple-300'
-        },
-        {
-          value: 'browsing',
-          label: 'Just Browsing',
-          description: 'Exploring options and gathering information',
-          icon: <Eye className="w-6 h-6" />,
-          color: 'bg-gray-50 border-gray-200 text-gray-700 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300'
-        },
-        {
-          value: 'returning',
-          label: 'I Have a Plan Code',
-          description: 'I want to access my existing plan',
-          icon: <Key className="w-6 h-6" />,
-          color: 'bg-yellow-50 border-yellow-200 text-yellow-700 dark:bg-yellow-900/30 dark:border-yellow-700 dark:text-yellow-300'
-        }
-      ]
-    },
-    {
-      id: 'goal',
-      title: 'What would you like to focus on?',
-      subtitle: 'Choose your primary goal today',
-      options: [
-        {
-          value: 'transfer',
-          label: 'Course Transfer Research',
-          description: 'Find courses that transfer between institutions',
-          icon: <Search className="w-6 h-6" />,
-          color: 'bg-orange-50 border-orange-200 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300'
-        },
-        {
-          value: 'planning',
-          label: 'Academic Planning',
-          description: 'Create and track academic plans',
-          icon: <FileText className="w-6 h-6" />,
-          color: 'bg-teal-50 border-teal-200 text-teal-700 dark:bg-teal-900/30 dark:border-teal-700 dark:text-teal-300'
-        }
-      ]
-    }
-  ];
-
-  const handleOptionSelect = (questionId, value) => {
-    const newAnswers = { ...answers, [questionId]: value };
-    setAnswers(newAnswers);
-
-    // If user selected "returning" (has plan code), skip to lookup
-    if (questionId === 'userType' && value === 'returning') {
-      handleComplete({ ...newAnswers, goal: 'lookup' });
-      return;
-    }
-
-    // If this is the last question or user is just browsing, complete onboarding
-    if (currentStep === questions.length - 1 || (questionId === 'userType' && value === 'browsing')) {
-      handleComplete(newAnswers);
-    } else {
-      // Move to next question
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const handleComplete = (finalAnswers) => {
-    // Determine the destination and user mode based on answers
-    let destination = 'search'; // default
-    let userMode = 'student'; // default
-    let showCreatePlan = false;
-
-    // Set user mode based on user type
-    if (finalAnswers.userType === 'advisor') {
-      userMode = 'advisor';
-    } else {
-      userMode = 'student'; // parent, student, and browsing all use student mode
-    }
-
-    // Determine destination based on user type and goal
-    if (finalAnswers.userType === 'browsing') {
-      destination = 'search';
-    } else if (finalAnswers.userType === 'returning' || finalAnswers.goal === 'lookup') {
-      destination = 'lookup';
-    } else if (finalAnswers.goal === 'transfer') {
-      destination = 'search';
-    } else if (finalAnswers.goal === 'planning') {
-      destination = 'plans';
-      // Only show create plan for non-browsing users
-      if (finalAnswers.userType !== 'browsing') {
-        showCreatePlan = true;
-      }
-    }
-
-    // Save session data including destination and userMode for persistence
-    const sessionData = {
-      ...finalAnswers,
-      destination,
-      userMode,
-      timestamp: Date.now()
-    };
-    localStorage.setItem('currentSession', JSON.stringify(sessionData));
-
-    onComplete({
-      destination,
-      userMode,
-      showCreatePlan,
-      userProfile: finalAnswers
-    });
-  };
-
-  const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const currentQuestion = questions[currentStep];
-  const progress = ((currentStep + 1) / questions.length) * 100;
-
-  // Skip second question if user is just browsing or returning
-  if (answers.userType === 'browsing' || answers.userType === 'returning') {
-    return null; // Component will be unmounted as onComplete was called
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-indigo-900 flex flex-col">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            {currentStep > 0 && (
-              <button
-                onClick={handleBack}
-                className="mr-3 p-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-            )}
-            <div className="flex items-center">
-              <GraduationCap className="text-blue-600 dark:text-blue-400 mr-2" size={24} />
-              <h1 className="text-lg font-bold text-gray-900 dark:text-white">Course Transfer System</h1>
-            </div>
-          </div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            {currentStep + 1} of {questions.length}
-          </div>
-        </div>
-        
-        {/* Progress Bar */}
-        <div className="mt-3">
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-            <div 
-              className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all duration-300 ease-out"
-              style={{ width: `${progress}%` }}
-            ></div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 px-4 py-6">
-        <div className="max-w-md mx-auto">
-          {/* Question */}
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              {currentQuestion.title}
-            </h2>
-            <p className="text-gray-600 dark:text-gray-300">
-              {currentQuestion.subtitle}
-            </p>
-          </div>
-
-          {/* Options */}
-          <div className="space-y-4">
-            {currentQuestion.options.map((option) => (
-              <button
-                key={option.value}
-                onClick={() => handleOptionSelect(currentQuestion.id, option.value)}
-                className={`w-full p-6 border-2 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg active:scale-95 ${option.color} border-opacity-50 hover:border-opacity-100`}
-              >
-                <div className="flex items-start text-left">
-                  <div className="mr-4 mt-1 flex-shrink-0">
-                    {option.icon}
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-lg mb-1">
-                      {option.label}
-                    </h3>
-                    <p className="text-sm opacity-80">
-                      {option.description}
-                    </p>
-                  </div>
-                  <ChevronRight className="w-5 h-5 ml-2 mt-1 opacity-60" />
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {/* Help Text */}
-          <div className="mt-8 text-center">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Don't worry, you can always change your path later
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-4">
-        <div className="max-w-md mx-auto text-center">
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Course Transfer System - Helping you navigate your academic journey
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 // Mobile-friendly CourseSearch component wrapper
 const MobileCourseSearch = (props) => {
@@ -343,8 +29,8 @@ const MobileCourseSearch = (props) => {
   );
 };
 
-// Secure Mobile PlanBuilder with privacy controls
-const SecureMobilePlanBuilder = (props) => {
+//Mobile PlanBuilder with privacy controls
+const MobilePlanBuilder = (props) => {
   const { isDarkMode } = useDarkMode();
   
   // Check if user has any plans accessible
@@ -357,7 +43,7 @@ const SecureMobilePlanBuilder = (props) => {
         <div className="flex justify-between items-start mb-4">
           <div className="flex-1">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-1">Academic Plans</h2>
-            <p className="text-gray-600 dark:text-gray-300 text-sm">Secure access to your degree plans</p>
+            <p className="text-gray-600 dark:text-gray-300 text-sm"> Access to your degree plans</p>
             
             {/* Show plan code if a plan is selected */}
             {props.selectedPlanId && props.plans && (
@@ -392,7 +78,7 @@ const SecureMobilePlanBuilder = (props) => {
             ) : (
               <button
                 onClick={async () => {
-                  if (confirm('Clear secure access to your plan?\n\nYou\'ll need to enter your plan code again to access it.')) {
+                  if (confirm('Clear access to your plan?\n\nYou\'ll need to enter your plan code again to access it.')) {
                     await api.clearPlanAccess();
                     props.setSelectedPlanId(null);
                     // Refresh to clear plans list
@@ -419,10 +105,10 @@ const SecureMobilePlanBuilder = (props) => {
             <Shield className="text-blue-600 dark:text-blue-400 mr-3 mt-0.5 flex-shrink-0" size={20} />
             <div>
               <h4 className="font-medium text-blue-800 dark:text-blue-300 mb-1">
-                Secure Plan Access
+                Plan Access
               </h4>
               <p className="text-sm text-blue-700 dark:text-blue-400 mb-2">
-                For your privacy, plans can only be accessed using secure plan codes.
+                For your privacy, plans can only be accessed using plan codes.
               </p>
               <div className="flex flex-col sm:flex-row gap-2">
                 <button
@@ -598,7 +284,7 @@ const App = () => {
         // Show the plan code to the user with security emphasis
         if (planData.plan_code) {
           setTimeout(() => {
-            const message = `Plan created successfully!\n\nYour secure plan code: ${planData.plan_code}\n\n🔒 IMPORTANT SECURITY NOTICE:\n• Save this code securely (password manager recommended)\n• This code provides full access to your plan\n• Only share with trusted advisors\n• Keep it private and secure`;
+            const message = `Plan created successfully!\n\nYour plan code: ${planData.plan_code}\n\n• Save this code\n• This code provides full access to your plan\n• Share with trusted advisors`;
             alert(message);
           }, 500);
         }
@@ -848,7 +534,7 @@ const AppContent = ({
           />
         )}
         {activeTab === 'plans' && (
-          <SecureMobilePlanBuilder
+          <MobilePlanBuilder
             plans={plans}
             selectedPlanId={selectedPlanId}
             setSelectedPlanId={(id) => {
@@ -871,7 +557,7 @@ const AppContent = ({
           <div className="space-y-4">
             <div className="block lg:hidden">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Find Plan</h2>
-              <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">Access your plan using your secure plan code</p>
+              <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">Access your plan using your plan code</p>
             </div>
             <PlanCodeLookup onPlanFound={handlePlanFoundByCode} />
           </div>
@@ -913,7 +599,7 @@ const AppContent = ({
           <button
             className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded-lg hover:bg-yellow-200 dark:hover:bg-yellow-900/50 shadow transition-colors font-medium flex items-center justify-center"
             onClick={async () => {
-              if (confirm('Clear secure access to your plan?\n\nYou\'ll need to enter your plan code again to access it.')) {
+              if (confirm('Clear access to your plan?\n\nYou\'ll need to enter your plan code again to access it.')) {
                 await api.clearPlanAccess();
                 setSelectedPlanId(null);
                 setPlans([]);
@@ -941,7 +627,7 @@ const AppContent = ({
                 setPlans([]);
                 setSelectedPlanId(null);
                 setActiveTab('lookup');
-                alert('Plan permanently deleted. All data has been securely removed.');
+                alert('Plan permanently deleted. All data has been removed.');
               } catch (err) {
                 if (err.message.includes('Access denied')) {
                   alert('Session expired. Plan deletion requires current access.');
@@ -971,7 +657,7 @@ const AppContent = ({
               <span className="hidden sm:inline"> </span>
               Delgado Community College and The University of New Orleans
             </p>
-            <p className="mt-1 text-xs">© 2025 All rights reserved • Student privacy protected by secure plan codes</p>
+            <p className="mt-1 text-xs">© 2025 All rights reserved </p>
           </div>
         </div>
       </footer>
