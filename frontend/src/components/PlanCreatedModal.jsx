@@ -97,13 +97,11 @@ const PlanCreatedModal = ({ isOpen, onClose, planData }) => {
               <Shield className="text-amber-600 dark:text-amber-400 mr-3 mt-0.5 flex-shrink-0" size={20} />
               <div>
                 <h4 className="font-medium text-amber-800 dark:text-amber-300 mb-2">
-                  🔒 Important Security Notice
+                  Some Tips.
                 </h4>
                 <ul className="text-sm text-amber-700 dark:text-amber-400 space-y-1">
-                  <li>• Save this code securely (password manager recommended)</li>
+                  <li>• copy code to clipboard and then save it somewhere safe</li>
                   <li>• This code provides full access to your plan</li>
-                  <li>• Only share with trusted advisors</li>
-                  <li>• Keep it private and secure</li>
                 </ul>
               </div>
             </div>
