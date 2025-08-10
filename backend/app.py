@@ -22,12 +22,18 @@ def create_app(config_name='default'):
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=1)  # 1 hour session timeout
     
-    # CORS with credentials support for sessions
-    CORS(app, supports_credentials=True, origins=[
-        'http://localhost:3000',  # Development frontend
-        'http://localhost:5173',  # Vite dev server
-        'https://yourdomain.com'  # Production domain (update this)
-    ])
+    # CORS with credentials support for sessions - UPDATED
+    CORS(app, 
+         supports_credentials=True, 
+         origins=[
+             'http://localhost:3000',    # Updated to match your vite config
+             'http://localhost:5173',    # Vite dev server default
+             'http://127.0.0.1:3000',    # Local IP version
+             'http://127.0.0.1:5173'     # Local IP version
+         ],
+         allow_headers=['Content-Type', 'Authorization'],
+         methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+    )
     
     db = init_app(app)
     register_routes(app)

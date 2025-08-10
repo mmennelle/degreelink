@@ -1,4 +1,4 @@
-// AppView.jsx - Pure UI components with no business logic
+// Fixed AppView.jsx - Modals component that only shows one modal at a time
 import React from 'react';
 import { Search, FileText, Key, Users, GraduationCap, Moon, Sun, EyeOff, Shield } from 'lucide-react';
 import { useDarkMode } from '../contexts/DarkMode';
@@ -215,18 +215,32 @@ export const AppContent = ({
   </main>
 );
 
-// Modals component
+// FIXED: Modals component that only shows one modal at a time
 export const AppModals = ({
   createPlanModal,
   addCourseModal,
   planLookupModal
-}) => (
-  <>
-    <CreatePlanModal {...createPlanModal} />
-    <AddCourseToPlanModal {...addCourseModal} />
-    {planLookupModal.isOpen && <PlanCodeLookup {...planLookupModal} />}
-  </>
-);
+}) => {
+  // Determine which modal should be shown (priority order)
+  // 1. Plan Lookup Modal (highest priority)
+  // 2. Add Course Modal
+  // 3. Create Plan Modal (lowest priority)
+  
+  if (planLookupModal.isOpen) {
+    return <PlanCodeLookup {...planLookupModal} />;
+  }
+  
+  if (addCourseModal.isOpen) {
+    return <AddCourseToPlanModal {...addCourseModal} />;
+  }
+  
+  if (createPlanModal.isOpen) {
+    return <CreatePlanModal {...createPlanModal} />;
+  }
+  
+  // No modals open
+  return null;
+};
 
 // Footer component
 export const AppFooter = () => (
