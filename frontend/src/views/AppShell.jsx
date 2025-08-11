@@ -37,17 +37,6 @@ export default function AppShell({
                 {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
 
-              {/* Quick plan lookup */}
-              <button
-                onClick={onFindPlan}
-                className="px-3 py-1 text-sm rounded-lg border border-green-600/40 hover:bg-green-50 dark:hover:bg-green-900/30 flex items-center"
-                title="Find plan by code"
-              >
-                <Key className="mr-1" size={14} />
-                <span className="hidden sm:inline">Find Plan</span>
-                <span className="sm:hidden">🔍</span>
-              </button>
-
               {/* Mode toggle */}
               <div className="flex items-center text-sm">
                 <Users className="mr-1" size={16} />

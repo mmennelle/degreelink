@@ -1,5 +1,4 @@
-// src/App.jsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { DarkModeProvider } from './hooks/useDarkMode';
 import useAppController from './controllers/useAppController';
 import AppShell from './views/AppShell';
@@ -17,6 +16,11 @@ import UploadPage from './pages/UploadPage';
 
 export default function App() {
   const c = useAppController();
+
+  useEffect(() => {
+    console.log('planCreatedModal state changed:', c.planCreatedModal);
+  }, [c.planCreatedModal]);
+
 
   if (c.showOnboarding) {
     return (
@@ -52,10 +56,7 @@ export default function App() {
         <PlansPage
           plans={c.plans}
           selectedPlanId={c.selectedPlanId}
-          setSelectedPlanId={(id) => {
-            c.setSelectedPlanId(id);
-            if (id === null) c.loadPlansAndPrograms();
-          }}
+          setSelectedPlanId={c.setSelectedPlanId}   
           onCreatePlan={() => c.setIsModalOpen(true)}
           onClearAccess={c.clearPlanAccess}
           onDeletePlan={async () => {
@@ -85,9 +86,9 @@ export default function App() {
           isOpen={c.isModalOpen}
           onClose={() => c.setIsModalOpen(false)}
           onPlanCreated={c.handlePlanCreated}
+          userMode={c.userMode}
         />
       )}
-
       {c.planLookupModal && (
         <AddCourseToPlanModal
           // if you have a dedicated PlanLookup modal, swap this component
@@ -119,11 +120,11 @@ export default function App() {
           }}
         />
       )}
-
+      
       {c.planCreatedModal.isOpen && (
         <PlanCreatedModal
           isOpen={c.planCreatedModal.isOpen}
-          plan={c.planCreatedModal.planData}
+          planData={c.planCreatedModal.planData}
           onClose={() => c.setPlanCreatedModal({isOpen: false, planData: null})}
         />
       )}

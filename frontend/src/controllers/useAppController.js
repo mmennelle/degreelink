@@ -56,50 +56,32 @@ export default function useAppController() {
     }
   }, []);
 
-  useEffect(() => { loadPlansAndPrograms(); }, [loadPlansAndPrograms, planRefreshTrigger]);
-
-  useEffect(() => {
-    // validate/refresh session on mount if not onboarding
-    if (!showOnboarding) {
-      (async () => {
-        try {
-          const s = await api.getSessionStatus();
-          if (s?.has_access) {
-          setSelectedPlanId(s.plan_id ?? null);
-        }
-        } catch {
-         // localStorage.removeItem('currentSession');
-         // setShowOnboarding(true);
-        }
-      })();
-    }
-  }, [showOnboarding]);
-
-  const handleOnboardingComplete = useCallback(async ({ destination, userMode }) => {
-    // whatever you already do in MobileOnboarding
-  localStorage.setItem('currentSession', JSON.stringify({ destination, userMode }));
-    setShowOnboarding(false);           // hide onboarding immediately
-    setUserMode(userMode);
-    setActiveTab(destination || 'search');
-    setPlanRefreshTrigger(x => x + 1);
-  }, []);
-
   const handlePlanCreated = useCallback(async (maybePlan) => {
-    setIsModalOpen(false);
+    console.log('handlePlanCreated called with:', maybePlan); // DEBUG
+    
     try {
+      // The plan should already be complete from the API response
       let plan = maybePlan;
-     if (!plan) {
-       const s = await api.getSessionStatus();
-       if (s?.has_access) plan = await api.getPlan(s.plan_id);
-     }
-     if (plan) {
-       setPlans([plan]);
-       setSelectedPlanId(plan.id ?? null);
-       if (plan.plan_code) {
-         setPlanCreatedModal({ isOpen: true, planData: plan });
-       }
+      
+      console.log('Plan data received:', plan);
+      
+      if (plan) {
+        // Update the plans list and selected plan
+        setPlans([plan]);
+        setSelectedPlanId(plan.id ?? null);
+        
+        // Close the create modal first
+        setIsModalOpen(false);
+        
+        // Show the success modal
+        console.log('Setting plan created modal to open');
+        setPlanCreatedModal({ isOpen: true, planData: plan });
+      } else {
+        console.log('No plan data provided');
+      }
+    } catch (e) { 
+      console.error('Error in handlePlanCreated:', e); 
     }
-    } catch (e) { console.error(e); }
   }, []);
 
   const handleAddToPlan = useCallback(async (courses) => {
@@ -129,6 +111,35 @@ export default function useAppController() {
     setActiveTab('lookup');
   }, [plans, selectedPlanId]);
 
+  const handleOnboardingComplete = useCallback(async ({ destination, userMode }) => {
+    localStorage.setItem('currentSession', JSON.stringify({ destination, userMode }));
+    setShowOnboarding(false);
+    setUserMode(userMode);
+    setActiveTab(destination || 'search');
+    setPlanRefreshTrigger(x => x + 1);
+  }, []);
+
+  // Load plans and programs on mount and when trigger changes
+  useEffect(() => { 
+    loadPlansAndPrograms(); 
+  }, [loadPlansAndPrograms, planRefreshTrigger]);
+
+  // Validate session on mount if not onboarding
+  useEffect(() => {
+    if (!showOnboarding) {
+      (async () => {
+        try {
+          const s = await api.getSessionStatus();
+          if (s?.has_access) {
+            setSelectedPlanId(s.plan_id ?? null);
+          }
+        } catch {
+          // Handle error silently or redirect to onboarding if needed
+        }
+      })();
+    }
+  }, [showOnboarding]);
+
   const tabs = useMemo(() => ([
     { id: 'search', label: 'Course Search', shortLabel: 'Search', icon: 'Search' },
     { id: 'plans',  label: 'Academic Plans', shortLabel: 'Plans', icon: 'FileText' },
@@ -136,18 +147,40 @@ export default function useAppController() {
     ...(userMode === 'advisor' ? [{ id: 'upload', label: 'CSV Upload', shortLabel: 'Upload', icon: 'Users' }] : []),
   ]), [userMode]);
 
-  return {
+  const returnObject = {
     // state exposed to Views
-    showOnboarding, activeTab, setActiveTab, userMode, setUserMode,
-    tabs, isModalOpen, setIsModalOpen,
-    plans, selectedPlanId, setSelectedPlanId, programs,
-    planLookupModal, setPlanLookupModal,
-    addToPlanModal, setAddToPlanModal,
-    planCreatedModal, setPlanCreatedModal,
+    showOnboarding, 
+    activeTab, 
+    setActiveTab, 
+    userMode, 
+    setUserMode,
+    tabs, 
+    isModalOpen, 
+    setIsModalOpen,
+    plans, 
+    selectedPlanId, 
+    setSelectedPlanId, 
+    programs,
+    planLookupModal, 
+    setPlanLookupModal,
+    addToPlanModal, 
+    setAddToPlanModal,
+    planCreatedModal, 
+    setPlanCreatedModal,
 
     // actions
-    resetToOnboarding, loadPlansAndPrograms,
-    handleOnboardingComplete, handlePlanCreated, handleAddToPlan,
-    clearPlanAccess, deleteActivePlan
-  };
+    resetToOnboarding, 
+    loadPlansAndPrograms,
+    handleOnboardingComplete, 
+    handlePlanCreated, 
+    handleAddToPlan,
+    clearPlanAccess, 
+    deleteActivePlan
+    };
+
+    console.log('useAppController returning:', returnObject);
+    console.log('handlePlanCreated in return object:', returnObject.handlePlanCreated);
+    console.log('handlePlanCreated type:', typeof returnObject.handlePlanCreated);
+
+    return returnObject;
 }

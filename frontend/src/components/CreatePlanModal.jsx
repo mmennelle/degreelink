@@ -44,36 +44,52 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
+  
+  if (!validateForm()) {
+    return;
+  }
+
+  setCreating(true);
+  setErrors({});
+
+  try {
+    const createdPlan = await api.createPlan(formData);
+    console.debug('createdPlan', createdPlan);
+
+    const plan = createdPlan?.plan ?? createdPlan;
+    console.log('🚀 About to call onPlanCreated with:', plan);
+    console.log('🔍 onPlanCreated function exists?', typeof onPlanCreated);
     
-    if (!validateForm()) {
-      return;
+    // Reset form data
+    setFormData({
+      student_name: '',
+      student_email: '',
+      plan_name: '',
+      program_id: 1,
+    });
+    
+    // Call the callback first
+    if (onPlanCreated) {
+      console.log('📞 Calling onPlanCreated...');
+      onPlanCreated(plan);
+      console.log('✅ onPlanCreated called successfully');
     }
-
-    setCreating(true);
-    setErrors({});
-
-    try {
-      const createdPlan = await api.createPlan(formData);
-      
-      setFormData({
-        student_name: '',
-        student_email: '',
-        plan_name: '',
-        program_id: 1,
-      });
-      
-      
+    
+    // Close the modal after a brief delay to allow the success modal to open
+    setTimeout(() => {
       onClose();
-    } catch (error) {
-      console.error('Failed to create plan:', error);
-      setErrors({ 
-        submit: error.message || 'Failed to create plan. Please try again.' 
-      });
-    } finally {
-      setCreating(false);
-    }
-  };
+    }, 100);
+    
+  } catch (error) {
+    console.error('Failed to create plan:', error);
+    setErrors({ 
+      submit: error.message || 'Failed to create plan. Please try again.' 
+    });
+  } finally {
+    setCreating(false);
+  }
+};
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
