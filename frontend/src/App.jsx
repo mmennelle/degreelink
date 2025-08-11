@@ -36,11 +36,13 @@ export default function App() {
       userMode={c.userMode}
       onFindPlan={() => c.setPlanLookupModal(true)}
       onToggleUserMode={() => c.setUserMode(c.userMode === 'advisor' ? 'student' : 'advisor')}
+      onGoHome={c.resetToOnboarding}
     >
       {c.activeTab === 'search' && (
         <SearchPage
           selectedPlanId={c.selectedPlanId}
           programs={c.programs}
+          plans={c.plans}
           onAddToPlan={c.handleAddToPlan}
           setSelectedPlanId={c.setSelectedPlanId}
         />
@@ -122,7 +124,7 @@ export default function App() {
         <PlanCreatedModal
           isOpen={c.planCreatedModal.isOpen}
           plan={c.planCreatedModal.planData}
-          onClose={() => c.setPlanCreatedModal({isOpen:false, planData:null})}
+          onClose={() => c.setPlanCreatedModal({isOpen: false, planData: null})}
         />
       )}
     </AppShell>

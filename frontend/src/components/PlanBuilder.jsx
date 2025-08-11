@@ -301,19 +301,12 @@ const PlanBuilder = ({
       {/* Main Plan Builder */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6 transition-colors">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 gap-3 sm:gap-0">
-          <h2 className="text-lg sm:text-xl font-semibold flex items-center text-gray-900 dark:text-white">
-            <BookOpen className="mr-2" size={20} />
+          <h2 className="text-2xl sm:text-3xl font-semibold mx-auto text-gray-900 dark:text-white">
             Academic Plans
           </h2>
-          {!selectedPlan && (
-            <button
-              onClick={handleCreatePlan}
-              className="w-full sm:w-auto px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 flex items-center justify-center transition-colors"
-            >
-              <Plus className="mr-1" size={16} />
-              Create New Plan
-            </button>
-          )}
+
+
+          
         </div>
 
         {error && (

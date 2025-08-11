@@ -1,11 +1,11 @@
 // src/views/AppShell.jsx
 import React from 'react';
-import { Moon, Sun, Users, Key, FileText, Search, Shield, EyeOff } from 'lucide-react';
+import { Moon, Sun, Users, Key, FileText, Search, Shield, Home } from 'lucide-react';
 import { useDarkMode, DarkModeProvider } from '../hooks/useDarkMode';
 
 export default function AppShell({
   activeTab, setActiveTab, tabs, userMode,
-  children, onFindPlan, onToggleUserMode
+  children, onFindPlan, onToggleUserMode, onGoHome
 }) {
   const { isDarkMode, toggleDarkMode } = useDarkMode();
 
@@ -21,6 +21,13 @@ export default function AppShell({
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4">
+          <button
+            onClick={onGoHome}
+            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+            title="Go to onboarding"
+          >
+            <Home className="w-5 h-5" />
+          </button>
               {/* Dark mode */}
               <button
                 onClick={toggleDarkMode}

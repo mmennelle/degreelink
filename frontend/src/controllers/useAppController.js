@@ -84,18 +84,21 @@ export default function useAppController() {
     setPlanRefreshTrigger(x => x + 1);
   }, []);
 
-  const handlePlanCreated = useCallback(async () => {
+  const handlePlanCreated = useCallback(async (maybePlan) => {
     setIsModalOpen(false);
     try {
-      const s = await api.getSessionStatus();
-      if (s.has_access) {
-        const planData = await api.getPlan(s.plan_id);
-        setPlans([planData]);
-        setSelectedPlanId(planData.id);
-        if (planData.plan_code) {
-          setPlanCreatedModal({ isOpen: true, planData });
-        }
-      }
+      let plan = maybePlan;
+     if (!plan) {
+       const s = await api.getSessionStatus();
+       if (s?.has_access) plan = await api.getPlan(s.plan_id);
+     }
+     if (plan) {
+       setPlans([plan]);
+       setSelectedPlanId(plan.id ?? null);
+       if (plan.plan_code) {
+         setPlanCreatedModal({ isOpen: true, planData: plan });
+       }
+    }
     } catch (e) { console.error(e); }
   }, []);
 

@@ -54,7 +54,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
     setErrors({});
 
     try {
-      await api.createPlan(formData);
+      const createdPlan = await api.createPlan(formData);
       
       setFormData({
         student_name: '',
@@ -63,7 +63,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
         program_id: 1,
       });
       
-      onPlanCreated();
+      
       onClose();
     } catch (error) {
       console.error('Failed to create plan:', error);

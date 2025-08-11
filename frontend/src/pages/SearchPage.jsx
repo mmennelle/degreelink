@@ -1,11 +1,18 @@
 // src/pages/SearchPage.jsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import CourseSearch from '../components/CourseSearch';
 
-export default function SearchPage({ selectedPlanId, programs, onAddToPlan, setSelectedPlanId }) {
-  const selectedProgram = selectedPlanId
-    ? programs.find(p => p.id === (programs.find(pr => pr.id === programs.find(x=>x.id === (programs.find(y=>y.id===selectedPlanId)?.program_id))?.id)?.id))
-    : null; // keep logic consistent with your current lookup (clean up later)
+export default function SearchPage({ selectedPlanId, programs, onAddToPlan, setSelectedPlanId, plans = [] }) {
+  // make sure programs is an array (handles API returning a map/object)
+  const programsArr = Array.isArray(programs) ? programs : Object.values(programs || {});
+
+  // derive the program for the selected plan, if possible
+  const selectedProgram = useMemo(() => {
+    if (!selectedPlanId || !Array.isArray(plans)) return null;
+    const plan = plans.find(p => p.id === selectedPlanId);
+    if (!plan) return null;
+   return programsArr.find(pr => pr.id === plan.program_id) || null;
+  }, [selectedPlanId, plans, programsArr]);
 
   return (
     <div className="space-y-4">

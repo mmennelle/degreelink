@@ -16,40 +16,17 @@ export default function PlansPage({
         <div className="flex justify-between items-start mb-4">
           <div>
             <h2 className="text-xl font-semibold">Academic Plans</h2>
-            <p className="text-gray-600 text-sm">Access to your degree plans</p>
+            <p className="text-gray-600 text-sm">Access an exsisting or create a new plan</p>
             {selectedPlan && (
               <div className="mt-3">
                 <PlanCodeDisplay plan={selectedPlan} compact />
               </div>
             )}
           </div>
-          <div className="flex gap-2">
-            {!hasAccessiblePlans ? (
-              <>
-                <button onClick={() => setPlanLookupModal(true)} className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm">Enter Plan Code</button>
-                <button onClick={onCreatePlan} className="px-3 py-2 border rounded-lg text-sm">Create Plan</button>
-              </>
-            ) : (
-              <>
-                <button onClick={onClearAccess} className="px-3 py-2 border rounded-lg text-sm">Clear Access</button>
-              </>
-            )}
-          </div>
         </div>
       </div>
 
-      {!hasAccessiblePlans && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-          <h4 className="font-medium text-blue-800 mb-1">Plan Access</h4>
-          <p className="text-sm text-blue-700 mb-2">
-            For your privacy, plans can only be accessed using plan codes.
-          </p>
-          <div className="flex gap-2">
-            <button onClick={() => setPlanLookupModal(true)} className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm">Enter Plan Code</button>
-            <button onClick={onCreatePlan} className="px-3 py-2 bg-blue-100 rounded-lg text-sm">Create New Plan</button>
-          </div>
-        </div>
-      )}
+      
 
       <PlanBuilder
         plans={plans}
