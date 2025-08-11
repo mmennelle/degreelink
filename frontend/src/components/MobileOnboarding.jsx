@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { ChevronRight, ArrowLeft, GraduationCap, Search, FileText, Eye, Users, Target, Key } from 'lucide-react';
 
 const MobileOnboarding = ({ onComplete }) => {
@@ -7,6 +7,7 @@ const MobileOnboarding = ({ onComplete }) => {
     userType: null,
     goal: null
   });
+  const completedRef = useRef(false);
 
   const questions = [
     {
@@ -22,18 +23,18 @@ const MobileOnboarding = ({ onComplete }) => {
           color: 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300'
         },
         {
-          value: 'parent',
-          label: 'Parent',
-          description: 'I am helping my child with their education',
-          icon: <Users className="w-6 h-6" />,
-          color: 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300'
-        },
-        {
           value: 'advisor',
           label: 'Academic Advisor',
           description: 'I am an advisor helping students',
           icon: <Target className="w-6 h-6" />,
           color: 'bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/30 dark:border-purple-700 dark:text-purple-300'
+        },
+        {
+          value: 'parent',
+          label: 'Parent',
+          description: 'I am helping my child with their education',
+          icon: <Users className="w-6 h-6" />,
+          color: 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300'
         },
         {
           value: 'browsing',
@@ -94,6 +95,8 @@ const MobileOnboarding = ({ onComplete }) => {
   };
 
   const handleComplete = (finalAnswers) => {
+    if (completedRef.current) return;
+    completedRef.current = true;
     // Determine the destination and user mode based on answers
     let destination = 'search'; // default
     let userMode = 'student'; // default
