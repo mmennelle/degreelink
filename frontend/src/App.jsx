@@ -1,7 +1,7 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { ChevronRight, ArrowLeft, GraduationCap, Search, FileText, Eye, Users, Target, Plus, Moon, Sun, Key } from 'lucide-react';
 
-// Import your existing components
+
 import CourseSearch from './components/CourseSearch';
 import PlanBuilder from './components/PlanBuilder';
 import CSVUpload from './components/CSVUpload';
@@ -10,7 +10,7 @@ import AddCourseToPlanModal from './components/AddCourseToPlanModal';
 import PlanCodeLookup, { PlanCodeDisplay } from './components/PlanCodeLookup';
 import api from './services/api';
 
-// Dark Mode Context
+// Dark Mode 
 const DarkModeContext = createContext();
 
 export const useDarkMode = () => {
