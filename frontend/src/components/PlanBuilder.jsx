@@ -5,6 +5,7 @@ import CourseSearch from './CourseSearch';
 import ProgressTracker from './ProgressTracker';
 import CreatePlanModal from './CreatePlanModal';
 import AddCourseToPlanModal from './AddCourseToPlanModal';
+import handlePlanCreated from '../controllers/useAppController';
 
 const PlanBuilder = ({ 
   onCreatePlan, 
@@ -185,18 +186,12 @@ const PlanBuilder = ({
     setShowCourseSearch(false);
   };
 
-  const handlePlanCreated = () => {
-    setShowCreatePlan(false);
-    if (!externalPlans) {
-      loadPlans();
-    }
-  };
-
+ 
   // Handle both internal and external plan creation triggers
   const handleCreatePlan = () => {
     if (onCreatePlan) {
       // Use the external modal from App.jsx
-      onCreatePlan();
+      CreatePlanModal();
     } else {
       // Use the internal modal
       setShowCreatePlan(true);
@@ -481,15 +476,7 @@ const PlanBuilder = ({
         </div>
       )}
 
-      {/* Internal Create Plan Modal - only show if external modal not provided */}
-      {!onCreatePlan && (
-        <CreatePlanModal
-          isOpen={showCreatePlan}
-          onClose={() => setShowCreatePlan(false)}
-          onPlanCreated={handlePlanCreated}
-          userMode={userMode}
-        />
-      )}
+    
       
       {/* Internal Add Course Modal - only show if external handler not provided */}
       {!onAddToPlan && (

@@ -58,8 +58,8 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
     console.debug('createdPlan', createdPlan);
 
     const plan = createdPlan?.plan ?? createdPlan;
-    console.log('🚀 About to call onPlanCreated with:', plan);
-    console.log('🔍 onPlanCreated function exists?', typeof onPlanCreated);
+    console.log('About to call onPlanCreated with:', plan);
+    console.log('onPlanCreated function exists?', typeof onPlanCreated);
     
     // Reset form data
     setFormData({
@@ -71,9 +71,9 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
     
     // Call the callback first
     if (onPlanCreated) {
-      console.log('📞 Calling onPlanCreated...');
-      onPlanCreated(plan);
-      console.log('✅ onPlanCreated called successfully');
+      console.log('Calling onPlanCreated...');
+      onPlanCreated();
+      console.log('onPlanCreated called successfully');
     }
     
     // Close the modal after a brief delay to allow the success modal to open

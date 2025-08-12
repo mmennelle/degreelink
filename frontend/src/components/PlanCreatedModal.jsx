@@ -29,6 +29,7 @@ const PlanCreatedModal = ({ isOpen, onClose, planData }) => {
   if (!isOpen || !planData) return null;
 
   return (
+    
     <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full overflow-hidden shadow-xl">
         {/* Header */}
@@ -131,5 +132,5 @@ const PlanCreatedModal = ({ isOpen, onClose, planData }) => {
     </div>
   );
 };
-
+console.log('PLANCREATEDMODAL RAN!');
 export default PlanCreatedModal;

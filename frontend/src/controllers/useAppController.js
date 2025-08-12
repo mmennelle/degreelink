@@ -56,33 +56,41 @@ export default function useAppController() {
     }
   }, []);
 
-  const handlePlanCreated = useCallback(async (maybePlan) => {
-    console.log('handlePlanCreated called with:', maybePlan); // DEBUG
-    
-    try {
-      // The plan should already be complete from the API response
-      let plan = maybePlan;
+
+
+    const handlePlanCreated = async () => {
+      console.log('CONTROLLER: handlePlanCreated called');
       
-      console.log('Plan data received:', plan);
+      setIsModalOpen(false);
       
-      if (plan) {
-        // Update the plans list and selected plan
-        setPlans([plan]);
-        setSelectedPlanId(plan.id ?? null);
+      try {
+        console.log('CONTROLLER: Checking session status');
+        const sessionStatus = await api.getSessionStatus();
         
-        // Close the create modal first
-        setIsModalOpen(false);
-        
-        // Show the success modal
-        console.log('Setting plan created modal to open');
-        setPlanCreatedModal({ isOpen: true, planData: plan });
-      } else {
-        console.log('No plan data provided');
+        if (sessionStatus.has_access) {
+          console.log(' CONTROLLER: Session has access, loading plan:', sessionStatus.plan_id);
+          const planData = await api.getPlan(sessionStatus.plan_id);
+          
+          console.log('CONTROLLER: Plan data loaded:', planData);
+          setPlans([planData]);
+          setSelectedPlanId(planData.id);
+          
+          // Show the plan created modal with copy functionality
+          if (planData.plan_code) {
+            console.log('CONTROLLER: Setting planCreatedModal to open');
+            setPlanCreatedModal({
+              isOpen: true,
+              planData: planData
+            });
+          }
+        }
+      } catch (error) {
+        console.error(' CONTROLLER: Failed to load created plan:', error);
+        // Fallback to manual reload
+        await loadPlansAndPrograms();
       }
-    } catch (e) { 
-      console.error('Error in handlePlanCreated:', e); 
-    }
-  }, []);
+    };
+
 
   const handleAddToPlan = useCallback(async (courses) => {
     if (!selectedPlanId) { 
@@ -147,40 +155,44 @@ export default function useAppController() {
     ...(userMode === 'advisor' ? [{ id: 'upload', label: 'CSV Upload', shortLabel: 'Upload', icon: 'Users' }] : []),
   ]), [userMode]);
 
-  const returnObject = {
-    // state exposed to Views
-    showOnboarding, 
-    activeTab, 
-    setActiveTab, 
-    userMode, 
-    setUserMode,
-    tabs, 
-    isModalOpen, 
-    setIsModalOpen,
-    plans, 
-    selectedPlanId, 
-    setSelectedPlanId, 
-    programs,
-    planLookupModal, 
-    setPlanLookupModal,
-    addToPlanModal, 
-    setAddToPlanModal,
-    planCreatedModal, 
-    setPlanCreatedModal,
+  // Make sure your return object in useAppController includes:
+const returnObject = {
+  // existing state
+  showOnboarding, 
+  activeTab, 
+  setActiveTab, 
+  userMode, 
+  setUserMode,
+  tabs, 
+  isModalOpen, 
+  setIsModalOpen,
+  plans, 
+  selectedPlanId, 
+  setSelectedPlanId, 
+  programs,
+  planLookupModal, 
+  setPlanLookupModal,
+  addToPlanModal, 
+  setAddToPlanModal,
+  planCreatedModal, 
+  setPlanCreatedModal,
+  
+  // ADD THIS LINE if it's missing:
+  //pendingCreatedPlan, // <- Make sure this is here
 
-    // actions
-    resetToOnboarding, 
-    loadPlansAndPrograms,
-    handleOnboardingComplete, 
-    handlePlanCreated, 
-    handleAddToPlan,
-    clearPlanAccess, 
-    deleteActivePlan
-    };
+  // actions
+  resetToOnboarding, 
+  loadPlansAndPrograms,
+  handleOnboardingComplete, 
+  handlePlanCreated, 
+  handleAddToPlan,
+  clearPlanAccess, 
+  deleteActivePlan
+};
 
-    console.log('useAppController returning:', returnObject);
-    console.log('handlePlanCreated in return object:', returnObject.handlePlanCreated);
-    console.log('handlePlanCreated type:', typeof returnObject.handlePlanCreated);
+console.log('RETURN: useAppController returning:', returnObject);
+console.log('RETURN: handlePlanCreated in return object:', returnObject.handlePlanCreated);
+console.log('RETURN: planCreatedModal in return object:', returnObject.planCreatedModal);
 
-    return returnObject;
+return returnObject;
 }
