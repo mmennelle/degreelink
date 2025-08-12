@@ -33,6 +33,7 @@ export default function PlansPage({
         selectedPlanId={selectedPlanId}
         setSelectedPlanId={setSelectedPlanId}
         userMode={userMode}
+        onCreatePlan={onCreatePlan}
       />
 
       {hasAccessiblePlans && (

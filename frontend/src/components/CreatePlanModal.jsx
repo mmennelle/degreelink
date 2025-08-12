@@ -69,12 +69,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
       program_id: 1,
     });
     
-    // Call the callback first
-    if (onPlanCreated) {
-      console.log('Calling onPlanCreated...');
-      onPlanCreated();
-      console.log('onPlanCreated called successfully');
-    }
+    onPlanCreated?.(plan);
     
     // Close the modal after a brief delay to allow the success modal to open
     setTimeout(() => {

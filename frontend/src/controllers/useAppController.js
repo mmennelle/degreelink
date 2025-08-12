@@ -58,38 +58,38 @@ export default function useAppController() {
 
 
 
-    const handlePlanCreated = async () => {
-      console.log('CONTROLLER: handlePlanCreated called');
-      
+    const handlePlanCreated = async (newPlan) => {
       setIsModalOpen(false);
-      
+
+      if (newPlan) {
+        setPlans([newPlan]);
+        setSelectedPlanId(newPlan.id);
+        // open copy-code modal immediately if available
+        if (newPlan.plan_code) {
+          setPlanCreatedModal({ isOpen: true, planData: newPlan });
+        }
+        return;
+      }
+
+      // fallback: existing session-based reload
       try {
-        console.log('CONTROLLER: Checking session status');
         const sessionStatus = await api.getSessionStatus();
-        
         if (sessionStatus.has_access) {
-          console.log(' CONTROLLER: Session has access, loading plan:', sessionStatus.plan_id);
           const planData = await api.getPlan(sessionStatus.plan_id);
-          
-          console.log('CONTROLLER: Plan data loaded:', planData);
           setPlans([planData]);
           setSelectedPlanId(planData.id);
-          
-          // Show the plan created modal with copy functionality
           if (planData.plan_code) {
-            console.log('CONTROLLER: Setting planCreatedModal to open');
-            setPlanCreatedModal({
-              isOpen: true,
-              planData: planData
-            });
+            setPlanCreatedModal({ isOpen: true, planData: planData });
           }
+        } else {
+          await loadPlansAndPrograms();
         }
-      } catch (error) {
-        console.error(' CONTROLLER: Failed to load created plan:', error);
-        // Fallback to manual reload
+      } catch (e) {
+        console.error('Failed to load created plan:', e);
         await loadPlansAndPrograms();
       }
     };
+
 
 
   const handleAddToPlan = useCallback(async (courses) => {
