@@ -1,0 +1,166 @@
+from_course_code,from_institution,to_course_code,to_institution,equivalency_type,notes,approved_by,from_title,from_institution_courses,from_credits,to_title,to_institution_courses,to_credits
+ASLS 101,Delgado Community College,EDSP 1001,University of New Orleans,direct,,Transfer Office,AMERICAN SIGN LANGUAGE I,Delgado Community College,3,BASIC SIGN LANGUAGE I,University of New Orleans,3
+ENGL 101,Delgado Community College,ENGL 1157,University of New Orleans,direct,,Transfer Office,ENGLISH COMPOSITION I,Delgado Community College,3,ENGLISH COMPOSITION,University of New Orleans,3
+ENGL 102,Delgado Community College,ENGL 1158,University of New Orleans,direct,,Transfer Office,ENGLISH COMPOSITION II,Delgado Community College,3,ENGLISH COMPOSITION,University of New Orleans,3
+ENGL 110,Delgado Community College,ENGL 1157,University of New Orleans,direct,,Transfer Office,INTENSIVE ENGLISH COMPOSITION I,Delgado Community College,5,ENGLISH COMPOSITION,University of New Orleans,3
+ENGL 112,Delgado Community College,ENGL 2152,University of New Orleans,direct,,Transfer Office,WRITING FOR BUSINESS AND INDUSTRY,Delgado Community College,3,TECHNICAL WRITING,University of New Orleans,3
+ENGL 205,Delgado Community College,ENGL 2238,University of New Orleans,direct,,Transfer Office,INTRODUCTION TO SHORT STORY AND NOVEL,Delgado Community College,3,READING FICTION,University of New Orleans,3
+ENGL 205,Delgado Community College,ENGL 2238,University of New Orleans,direct,,Transfer Office,INTRODUCTION TO SHORT STORY AND NOVEL,Delgado Community College,3,Reading Drama,University of New Orleans,
+ENGL 206,Delgado Community College,ENGL 2208,University of New Orleans,direct,,Transfer Office,INTRODUCTION TO POETRY AND DRAMA,Delgado Community College,3,READING DRAMA,University of New Orleans,3
+ENGL 206,Delgado Community College,ENGL 2208,University of New Orleans,direct,,Transfer Office,INTRODUCTION TO POETRY AND DRAMA,Delgado Community College,3,Reading Drama,University of New Orleans,
+ENGL 211,Delgado Community College,ENGL 2031,University of New Orleans,direct,,Transfer Office,AMERICAN LITERATURE TO 1865,Delgado Community College,3,SURVEY OF AMERICAN LITERATURE BEFORE THE CIVIL WAR,University of New Orleans,3
+ENGL 211,Delgado Community College,ENGL 2031,University of New Orleans,direct,,Transfer Office,AMERICAN LITERATURE TO 1865,Delgado Community College,3,SURVEY OF AMERICAN LITERATURE BEFORE THE CIVIL WAR,University of New Orleans,
+ENGL 211,Delgado Community College,ENGL 2031,University of New Orleans,direct,,Transfer Office,AMERICAN LITERATURE TO 1865,Delgado Community College,,SURVEY OF AMERICAN LITERATURE BEFORE THE CIVIL WAR,University of New Orleans,3
+ENGL 211,Delgado Community College,ENGL 2031,University of New Orleans,direct,,Transfer Office,AMERICAN LITERATURE TO 1865,Delgado Community College,,SURVEY OF AMERICAN LITERATURE BEFORE THE CIVIL WAR,University of New Orleans,
+ENGL 212,Delgado Community College,ENGL 2032,University of New Orleans,direct,,Transfer Office,AMERICAN LITERATURE AFTER 1865,Delgado Community College,3,SURVEY OF AMERICAN LITERATURE AFTER THE CIVIL WAR,University of New Orleans,3
+ENGL 212,Delgado Community College,ENGL 2032,University of New Orleans,direct,,Transfer Office,AMERICAN LITERATURE AFTER 1865,Delgado Community College,3,SURVEY OF AMERICAN LITERATURE AFTER THE CIVIL WAR,University of New Orleans,
+ENGL 212,Delgado Community College,ENGL 2032,University of New Orleans,direct,,Transfer Office,AMERICAN LITERATURE AFTER 1865,Delgado Community College,,SURVEY OF AMERICAN LITERATURE AFTER THE CIVIL WAR,University of New Orleans,3
+ENGL 212,Delgado Community College,ENGL 2032,University of New Orleans,direct,,Transfer Office,AMERICAN LITERATURE AFTER 1865,Delgado Community College,,SURVEY OF AMERICAN LITERATURE AFTER THE CIVIL WAR,University of New Orleans,
+ENGL 221,Delgado Community College,ENGL 2341,University of New Orleans,direct,,Transfer Office,BRITISH LITERATURE TO 1798,Delgado Community College,3,A SURVEY OF BRITISH LITERATURE FROM THE BEGINNING TO THE LATER EIGHTEENTH CENTURY,University of New Orleans,3
+ENGL 222,Delgado Community College,ENGL 2342,University of New Orleans,direct,,Transfer Office,BRITISH LITERATURE AFTER 1798,Delgado Community College,3,A SURVEY OF BRITISH LITERATURE FROM THE ROMANTICS TO THE PRESENT,University of New Orleans,3
+ENGL 222,Delgado Community College,ENGL 2342,University of New Orleans,direct,,Transfer Office,BRITISH LITERATURE TO 1798,Delgado Community College,,A SURVEY OF BRITISH LITERATURE FROM THE ROMANTICS TO THE PRESENT,University of New Orleans,3
+ENGL 231,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,WORLD LITERATURE I,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+ENGL 231,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,WORLD LITERATURE I,Delgado Community College,3,No Equivalent,University of New Orleans,
+ENGL 231,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,WORLD LITERATURE I,Delgado Community College,3,No Equivalent,Delgado Community College,
+ENGL 232,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,WORLD LITERATURE II,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+ENGL 232,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,WORLD LITERATURE II,Delgado Community College,3,No Equivalent,University of New Orleans,
+ENGL 232,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,WORLD LITERATURE II,Delgado Community College,3,No Equivalent,Delgado Community College,
+ENGL 240,Delgado Community College,ENGL 2398,University of New Orleans,direct,,Transfer Office,CURRENT TOPICS IN LITERATURE,Delgado Community College,3,SPECIAL STUDIES IN LITERATURE AND LANGUAGE,University of New Orleans,3
+ENGL 241,Delgado Community College,ENGL 2398,University of New Orleans,direct,,Transfer Office,CURRENT TOPICS IN LITERATURE,Delgado Community College,3,SPECIAL STUDIES IN LITERATURE AND LANGUAGE,University of New Orleans,3
+ENGL 243,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,ETHNIC LITERATURE,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+ENGL 243,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,ETHNIC LITERATURE,Delgado Community College,3,No Equivalent,University of New Orleans,
+ENGL 243,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,ETHNIC LITERATURE,Delgado Community College,3,No Equivalent,Delgado Community College,
+ENGL 244,Delgado Community College,ENGL 2071,University of New Orleans,direct,,Transfer Office,AFRICAN-AMERICAN WRITERS,Delgado Community College,3,AFRICAN-AMERICAN LITERATURE I,University of New Orleans,3
+ENGL 251,Delgado Community College,ENGL 2160,University of New Orleans,direct,,Transfer Office,CREATIVE WRITING,Delgado Community College,3,INTRODUCTION TO CREATIVE WRITING,University of New Orleans,3
+ENGL 253,Delgado Community College,ENGL 2377,University of New Orleans,direct,,Transfer Office,THE BIBLE AS LITERATURE,Delgado Community College,3,THE BIBLE AS LITERATURE,University of New Orleans,3
+CMST 130,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,FUNDAMENTALS OF COMMUNICATION,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+CMST 130,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,FUNDAMENTALS OF COMMUNICATION,Delgado Community College,3,No Equivalent,University of New Orleans,
+CMST 130,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,FUNDAMENTALS OF COMMUNICATION,Delgado Community College,3,No Equivalent,Delgado Community College,
+CMST 130,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,FUNDAMENTALS OF COMMUNICATION,University of New Orleans,,NO Equivalent,University of New Orleans,1
+CMST 130,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,FUNDAMENTALS OF COMMUNICATION,University of New Orleans,,No Equivalent,University of New Orleans,
+CMST 130,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,FUNDAMENTALS OF COMMUNICATION,University of New Orleans,,No Equivalent,Delgado Community College,
+CMST 230,Delgado Community College,FTA 2650,University of New Orleans,direct,,Transfer Office,PUBLIC SPEAKING,Delgado Community College,3,ORAL COMMUNICATIONS,University of New Orleans,3
+CMST 230,Delgado Community College,FTA 2650,University of New Orleans,direct,,Transfer Office,PUBLIC SPEAKING,University of New Orleans,,ORAL COMMUNICATIONS,University of New Orleans,3
+FNAR 120,Delgado Community College,FA 1010,University of New Orleans,direct,,Transfer Office,ART APPRECIATION,Delgado Community College,3,ART APPRECIATION,University of New Orleans,3
+FNAR 125,Delgado Community College,FA 2201,University of New Orleans,direct,,Transfer Office,ART HISTORY SURVEY I,Delgado Community College,3,HISTORICAL SURVEY OF THE ARTS,University of New Orleans,3
+FNAR 126,Delgado Community College,FA 2202,University of New Orleans,direct,,Transfer Office,ART HISTORY SURVEY II,Delgado Community College,3,HISTORICAL SURVEY OF THE ARTS,University of New Orleans,3
+FNAR 127,Delgado Community College,FA 2264,University of New Orleans,direct,,Transfer Office,CONTEMPORARY ART,Delgado Community College,3,ART OF THE TWENTIETH CENTURY,University of New Orleans,3
+FNAR 158,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,THREE-DIMENSIONAL DESIGN,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+FNAR 158,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,THREE-DIMENSIONAL DESIGN,Delgado Community College,3,No Equivalent,University of New Orleans,
+FNAR 158,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,THREE-DIMENSIONAL DESIGN,Delgado Community College,3,No Equivalent,Delgado Community College,
+MUSC 105,Delgado Community College,MUS 1000,University of New Orleans,direct,,Transfer Office,MUSIC APPRECIATION,Delgado Community College,3,MUSIC APPRECIATION,University of New Orleans,3
+MUSC 137,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,JAZZ APPRECIATION,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+MUSC 137,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,JAZZ APPRECIATION,Delgado Community College,3,No Equivalent,University of New Orleans,
+MUSC 137,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,JAZZ APPRECIATION,Delgado Community College,3,No Equivalent,Delgado Community College,
+THEA 101,Delgado Community College,FTCA 1005,University of New Orleans,direct,,Transfer Office,INTRODUCTION TO THE THEATRE,Delgado Community College,3,INTRODUCTION TO THEATRE ARTS,University of New Orleans,3
+THEA 207,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,CLASSICAL THEATRE,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+THEA 207,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,CLASSICAL THEATRE,Delgado Community College,3,No Equivalent,University of New Orleans,
+THEA 207,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,CLASSICAL THEATRE,Delgado Community College,3,No Equivalent,Delgado Community College,
+ARCH 180,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,HISTORY AND THEORY OF ARCHITECTURE,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+ARCH 180,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,HISTORY AND THEORY OF ARCHITECTURE,Delgado Community College,3,No Equivalent,University of New Orleans,
+ARCH 180,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,HISTORY AND THEORY OF ARCHITECTURE,Delgado Community College,3,No Equivalent,Delgado Community College,
+FREN 101,Delgado Community College,FREN 1001,University of New Orleans,direct,,Transfer Office,ELEMENTARY FRENCH I,Delgado Community College,3,BASIC FRENCH I,University of New Orleans,3
+FREN 102,Delgado Community College,FREN 1002,University of New Orleans,direct,,Transfer Office,ELEMENTARY FRENCH II,Delgado Community College,3,BASIC FRENCH II,University of New Orleans,3
+FREN 125,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,FRENCH CULTURE AROUND THE WORLD,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+FREN 125,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,FRENCH CULTURE AROUND THE WORLD,Delgado Community College,3,No Equivalent,University of New Orleans,
+FREN 125,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,FRENCH CULTURE AROUND THE WORLD,Delgado Community College,3,No Equivalent,Delgado Community College,
+FREN 201,Delgado Community College,FREN 2001,University of New Orleans,direct,,Transfer Office,INTERMEDIATE FRENCH I,Delgado Community College,3,INTERMEDIATE FRENCH I,University of New Orleans,3
+FREN 202,Delgado Community College,FREN 2002,University of New Orleans,direct,,Transfer Office,INTERMEDIATE FRENCH II,Delgado Community College,3,INTERMEDIATE FRENCH II,University of New Orleans,3
+FREN 225,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,PERSPECTIVES ON CONTEMPORARY FRENCH CULTURE,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+FREN 225,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,PERSPECTIVES ON CONTEMPORARY FRENCH CULTURE,Delgado Community College,3,No Equivalent,University of New Orleans,
+FREN 225,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,PERSPECTIVES ON CONTEMPORARY FRENCH CULTURE,Delgado Community College,3,No Equivalent,Delgado Community College,
+HIST 101,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,EARLY WESTERN CIVILIZATION,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+HIST 101,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,EARLY WESTERN CIVILIZATION,Delgado Community College,3,No Equivalent,University of New Orleans,
+HIST 101,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,EARLY WESTERN CIVILIZATION,Delgado Community College,3,No Equivalent,Delgado Community College,
+HIST 102,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,MODERN WESTERN CIVILIZATION,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+HIST 102,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,MODERN WESTERN CIVILIZATION,Delgado Community College,3,No Equivalent,University of New Orleans,
+HIST 102,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,MODERN WESTERN CIVILIZATION,Delgado Community College,3,No Equivalent,Delgado Community College,
+HIST 103,Delgado Community College,HIST 1001,University of New Orleans,direct,,Transfer Office,WORLD HISTORY I,Delgado Community College,3,WORLD HISTORY TO 1600,University of New Orleans,3
+HIST 105,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,WORLD HISTORY II,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+HIST 105,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,WORLD HISTORY II,Delgado Community College,3,No Equivalent,University of New Orleans,
+HIST 105,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,WORLD HISTORY II,Delgado Community College,3,No Equivalent,Delgado Community College,
+HIST 141,Delgado Community College,HIST 1010,University of New Orleans,direct,,Transfer Office,AFRICAN-AMERICAN HISTORY,Delgado Community College,3,INTRODUCTION TO AFRICAN-AMERICAN HISTORY,University of New Orleans,3
+HIST 205,Delgado Community College,HIST 2501,University of New Orleans,direct,,Transfer Office,AMERICAN HISTORY TO 1865,Delgado Community College,3,U.S. HISTORY I,University of New Orleans,3
+HIST 206,Delgado Community College,HIST 2502,University of New Orleans,direct,,Transfer Office,AMERICAN HISTORY AFTER 1865,Delgado Community College,3,U.S. HISTORY II,University of New Orleans,3
+HIST 240,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,SPECIAL TOPICS IN HISTORY,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+HIST 240,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,SPECIAL TOPICS IN HISTORY,Delgado Community College,3,No Equivalent,University of New Orleans,
+HIST 240,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,SPECIAL TOPICS IN HISTORY,Delgado Community College,3,No Equivalent,Delgado Community College,
+HIST 241,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,SPECIAL TOPICS IN HISTORY,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+HIST 241,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,SPECIAL TOPICS IN HISTORY,Delgado Community College,3,No Equivalent,University of New Orleans,
+HIST 241,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,SPECIAL TOPICS IN HISTORY,Delgado Community College,3,No Equivalent,Delgado Community College,
+HIST 260,Delgado Community College,HIST 2601,University of New Orleans,direct,,Transfer Office,LOUISIANA HISTORY,Delgado Community College,3,HISTORY OF LOUISIANA,University of New Orleans,3
+HUMA 105,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,HUMANITIES THROUGH THE ARTS,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+HUMA 105,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,HUMANITIES THROUGH THE ARTS,Delgado Community College,3,No Equivalent,University of New Orleans,
+HUMA 105,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,HUMANITIES THROUGH THE ARTS,Delgado Community College,3,No Equivalent,Delgado Community College,
+HUMA 150,Delgado Community College,HUMS 1119,University of New Orleans,direct,,Transfer Office,STRUCTURE OF WESTERN THOUGHT: ANCIENT GREECE,Delgado Community College,3,Not sure just some humanities class,University Of New Orleans,3
+HUMA 150,Delgado Community College,HUMS 1119,University of New Orleans,direct,,Transfer Office,STRUCTURE OF WESTERN THOUGHT: ANCIENT GREECE,Delgado Community College,3, Some humanities class,University of New Orleans,
+HUMA 220,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,MODERNISM IN THE ARTS,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+HUMA 220,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,MODERNISM IN THE ARTS,Delgado Community College,3,No Equivalent,University of New Orleans,
+HUMA 220,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,MODERNISM IN THE ARTS,Delgado Community College,3,No Equivalent,Delgado Community College,
+HUMA 260,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,ACTIVISM AND CHANGE,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+HUMA 260,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,ACTIVISM AND CHANGE,Delgado Community College,3,No Equivalent,University of New Orleans,
+HUMA 260,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,ACTIVISM AND CHANGE,Delgado Community College,3,No Equivalent,Delgado Community College,
+PHIL 101,Delgado Community College,PHIL 1000,University of New Orleans,direct,,Transfer Office,INTRODUCTION TO PHILOSOPHY,Delgado Community College,3,INTRODUCTION TO PHILOSOPHY,University of New Orleans,3
+PHIL 175,Delgado Community College,PHIL 1200,University of New Orleans,direct,,Transfer Office,SOCIAL ETHICS,Delgado Community College,3,SOCIAL ETHICS,University of New Orleans,3
+SPAN 101,Delgado Community College,SPAN 1001,University of New Orleans,direct,,Transfer Office,ELEMENTARY SPANISH I,Delgado Community College,3,BASIC SPANISH I,University of New Orleans,3
+SPAN 102,Delgado Community College,SPAN 1002,University of New Orleans,direct,,Transfer Office,ELEMENTARY SPANISH II,Delgado Community College,3,BASIC SPANISH II,University of New Orleans,3
+SPAN 201,Delgado Community College,SPAN 2001,University of New Orleans,direct,,Transfer Office,INTERMEDIATE SPANISH I,Delgado Community College,3,INTERMEDIATE SPANISH I,University of New Orleans,3
+SPAN 202,Delgado Community College,SPAN 2002,University of New Orleans,direct,,Transfer Office,INTERMEDIATE SPANISH II,Delgado Community College,3,INTERMEDIATE SPANISH II,University of New Orleans,3
+SPAN 204,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,CIVILIZATION AND CULTURES OF HISPANOAMERICA,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+SPAN 204,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,CIVILIZATION AND CULTURES OF HISPANOAMERICA,Delgado Community College,3,No Equivalent,University of New Orleans,
+SPAN 204,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,CIVILIZATION AND CULTURES OF HISPANOAMERICA,Delgado Community College,3,No Equivalent,Delgado Community College,
+ANTH 160,Delgado Community College,ANTH 2052,University of New Orleans,direct,,Transfer Office,CULTURAL ANTHROPOLOGY,Delgado Community College,3,CULTURAL ANTHROPOLOGY,University of New Orleans,3
+ANTH 165,Delgado Community College,ANTH 2051,University of New Orleans,direct,,Transfer Office,PHYSICAL ANTHROPOLOGY,Delgado Community College,3,HUMAN ORIGINS,University of New Orleans,3
+ANTH 181,Delgado Community College,GEOG 1001,University of New Orleans,direct,,Transfer Office,GEOGRAPHY,Delgado Community College,3,WORLD REGIONAL GEOGRAPHY,University of New Orleans,3
+ANTH 200,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,MUSIC AS CULTURE,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+ANTH 200,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,MUSIC AS CULTURE,Delgado Community College,3,No Equivalent,University of New Orleans,
+ANTH 200,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,MUSIC AS CULTURE,Delgado Community College,3,No Equivalent,Delgado Community College,
+ANTH 205,Delgado Community College,GEOG 2151,University of New Orleans,direct,,Transfer Office,PHYSICAL GEOGRAPHY,Delgado Community College,3,ELEMENTS OF PHYSICAL GEOGRAPHY,University of New Orleans,3
+ECON 201,Delgado Community College,ECON 1204,University of New Orleans,direct,,Transfer Office,MACROECONOMICS,Delgado Community College,3,PRINCIPLES OF MACROECONOMICS,University of New Orleans,3
+ECON 202,Delgado Community College,ECON 1203,University of New Orleans,direct,,Transfer Office,MICROECONOMICS,Delgado Community College,3,PRINCIPLES OF MICROECONOMICS,University of New Orleans,3
+POLI 180,Delgado Community College,POLI 2151,University of New Orleans,direct,,Transfer Office,AMERICAN GOVERNMENT,Delgado Community College,3,AMERICAN GOVERNMENT,University of New Orleans,3
+PSYC 112,Delgado Community College,PSYC 1520,University of New Orleans,direct,,Transfer Office,HUMAN SEXUALITY,Delgado Community College,3,HUMAN SEXUAL BEHAVIOR,University of New Orleans,3
+PSYC 127,Delgado Community College,PSYC 1000,University of New Orleans,direct,,Transfer Office,GENERAL PSYCHOLOGY,Delgado Community College,3,GENERAL PSYCHOLOGY,University of New Orleans,3
+PSYC 217,Delgado Community College,PSYC 1500,University of New Orleans,direct,,Transfer Office,PSYCHOLOGY OF ADJUSTMENT,Delgado Community College,3,THE PSYCHOLOGY OF PERSONAL ADJUSTMENT,University of New Orleans,3
+PSYC 225,Delgado Community College,PSYC 2110,University of New Orleans,direct,,Transfer Office,CHILD PSYCHOLOGY,Delgado Community College,3,CHILD PSYCHOLOGY,University of New Orleans,3
+PSYC 226,Delgado Community College,PSYC 2100,University of New Orleans,direct,,Transfer Office,HUMAN GROWTH AND DEVELOPMENT,Delgado Community College,3,FOUNDATIONS OF DEVELOPMENTAL PSYCHOLOGY,University of New Orleans,3
+PSYC 235,Delgado Community College,PSYC 2200,University of New Orleans,direct,,Transfer Office,EDUCATIONAL PSYCHOLOGY,Delgado Community College,3,EDUCATIONAL PSYCHOLOGY,University of New Orleans,3
+PSYC 240,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,ABNORMAL PSYCHOLOGY,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+PSYC 240,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,ABNORMAL PSYCHOLOGY,Delgado Community College,3,No Equivalent,University of New Orleans,
+PSYC 240,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,ABNORMAL PSYCHOLOGY,Delgado Community College,3,No Equivalent,Delgado Community College,
+PSYC 245,Delgado Community College,PSYC 2400,University of New Orleans,direct,,Transfer Office,SOCIAL PSYCHOLOGY,Delgado Community College,3,SOCIAL PSYCHOLOGY,University of New Orleans,3
+SOCI 151,Delgado Community College,SOC 1051,University of New Orleans,direct,,Transfer Office,INTRODUCTORY SOCIOLOGY,Delgado Community College,3,INTRODUCTORY SOCIOLOGY,University of New Orleans,3
+SOCI 153,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,INTRODUCTION TO SOCIAL WELFARE,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+SOCI 153,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,INTRODUCTION TO SOCIAL WELFARE,Delgado Community College,3,No Equivalent,University of New Orleans,
+SOCI 153,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,INTRODUCTION TO SOCIAL WELFARE,Delgado Community College,3,No Equivalent,Delgado Community College,
+SOCI 250,Delgado Community College,SOC 2994,University of New Orleans,direct,,Transfer Office,STUDIES IN CULTURAL DIVERSITY,Delgado Community College,3,MULTICULTURALISM AND DIVERSITY IN U.S. SOCIETY,University of New Orleans,3
+SOCI 255,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,MARRIAGE AND THE FAMILY,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+SOCI 255,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,MARRIAGE AND THE FAMILY,Delgado Community College,3,No Equivalent,University of New Orleans,
+SOCI 255,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,MARRIAGE AND THE FAMILY,Delgado Community College,3,No Equivalent,Delgado Community College,
+SOCI 257,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,SOCIAL GERONTOLOGY: AGING AND THE LIFE CYCLE,Delgado Community College,3,NO Equivalent,University of New Orleans,1
+SOCI 257,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,SOCIAL GERONTOLOGY: AGING AND THE LIFE CYCLE,Delgado Community College,3,No Equivalent,University of New Orleans,
+SOCI 257,Delgado Community College,1000NE,University of New Orleans,none,,Transfer Office,SOCIAL GERONTOLOGY: AGING AND THE LIFE CYCLE,Delgado Community College,3,No Equivalent,Delgado Community College,
+MATH 130,Delgado Community College,MATH 1125,University of New Orleans,direct,College Algebra equivalent,Transfer Office,College Algebra,Delgado Community College,3,College Algebra,University of New Orleans,3
+MATH 131,Delgado Community College,MATH 1126,University of New Orleans,direct,Trigonometry equivalent,Transfer Office,Trigonometry,Delgado Community College,3,Trigonometry,University of New Orleans,3
+MATH 203,Delgado Community College,MATH 2314,University of New Orleans,direct,Calculus I equivalent,Transfer Office,Calculus I,Delgado Community College,4,Calculus III,University of New Orleans,4
+MATH 221,Delgado Community College,MATH 2114,University of New Orleans,direct,Calculus II equivalent,Transfer Office,Calculus II,Delgado Community College,4,Calculus II,University of New Orleans,4
+BIOL 141,Delgado Community College,BIOS 1083,University of New Orleans,direct,General Biology I equivalent,Transfer Office,General Biology I,Delgado Community College,4,General Biology II,University of New Orleans,3
+BIOL 142,Delgado Community College,BIOS 1073,University of New Orleans,direct,General Biology II equivalent,Transfer Office,General Biology II,Delgado Community College,4,General Biology I,University of New Orleans,3
+BIOL 143,Delgado Community College,BIOS 1081,University of New Orleans,direct,Biology Lab I equivalent,Transfer Office,General Biology I Lab,Delgado Community College,1,General Biology II Lab,University of New Orleans,1
+BIOL 144,Delgado Community College,BIOS 1071,University of New Orleans,direct,Biology Lab II equivalent,Transfer Office,General Biology II Lab,Delgado Community College,1,General Biology I Lab,University of New Orleans,1
+BIOL 114,Delgado Community College,BIOS 2313,University of New Orleans,direct,Environmental Biology equivalent,Transfer Office,Environmental Biology,Delgado Community College,3,Plant Biology,University of New Orleans,3
+BIOL 210,Delgado Community College,BIOS 2743,University of New Orleans,direct,Anatomy and Physiology I equivalent,Transfer Office,Anatomy and Physiology I,Delgado Community College,4,Human Anatomy and Physiology II,University of New Orleans,4
+BIOL 211,Delgado Community College,BIOS 2743,University of New Orleans,direct,Anatomy and Physiology II equivalent,Transfer Office,Anatomy and Physiology II,Delgado Community College,4,Human Anatomy and Physiology II,University of New Orleans,4
+BIOL 252,Delgado Community College,BIOS 1313,University of New Orleans,direct,Microbiology equivalent,Transfer Office,Microbiology,Delgado Community College,4,Human Biology,University of New Orleans,3
+BIOL 265,Delgado Community College,BIOS 2114,University of New Orleans,direct,Genetics equivalent,Transfer Office,Genetics,Delgado Community College,3,Genetics,University of New Orleans,4
+BIOL 266,Delgado Community College,BIOS 2114,University of New Orleans,direct,Genetics Lab equivalent,Transfer Office,Genetics Lab,Delgado Community College,1,Genetics,University of New Orleans,4
+BIOL 211,Delgado Community College,BIOS 2741,University of New Orleans,direct,Marine Biology equivalent,Transfer Office,Anatomy and Physiology II,Delgado Community College,4,Human Anatomy and Physiology I,University of New Orleans,4
+BIOL 252,Delgado Community College,BIOS 1303,University of New Orleans,direct,Botany equivalent,Transfer Office,Microbiology,Delgado Community College,4,Environmental Biology,University of New Orleans,3
+CHEM 141,Delgado Community College,CHEM 1017,University of New Orleans,direct,General Chemistry I equivalent,Transfer Office,General Chemistry I,Delgado Community College,4,General Chemistry I,University of New Orleans,4
+CHEM 142,Delgado Community College,CHEM 1018,University of New Orleans,direct,General Chemistry II equivalent,Transfer Office,General Chemistry II,Delgado Community College,4,General Chemistry II,University of New Orleans,4
+CHEM 144,Delgado Community College,CHEM 1008,University of New Orleans,direct,Chemistry Lab equivalent,Transfer Office,General Chemistry II Lab,Delgado Community College,1,General Chemistry II Lab,University of New Orleans,1
+CHEM 221,Delgado Community College,CHEM 2217,University of New Orleans,direct,Organic Chemistry I equivalent,Transfer Office,Organic Chemistry I,Delgado Community College,4,Organic Chemistry II,University of New Orleans,4
+CHEM 223,Delgado Community College,CHEM 2017,University of New Orleans,direct,Organic Chemistry II equivalent,Transfer Office,Organic Chemistry II,Delgado Community College,4,Organic Chemistry I,University of New Orleans,4
+PHYS 141,Delgado Community College,PHYS 1031,University of New Orleans,direct,General Physics I equivalent,Transfer Office,General Physics I,Delgado Community College,4,General Physics I,University of New Orleans,4
+PHYS 142,Delgado Community College,PHYS 1032,University of New Orleans,direct,General Physics II equivalent,Transfer Office,General Physics II,Delgado Community College,4,General Physics II,University of New Orleans,4
+PHYS 221,Delgado Community College,PHYS 1061,University of New Orleans,direct,Physics for Scientists I equivalent,Transfer Office,Physics for Scientists I,Delgado Community College,4,Physics for Scientists I,University of New Orleans,4
