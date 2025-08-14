@@ -3,6 +3,7 @@ import { BookOpen, Plus, ChevronRight, ChevronLeft, Target } from 'lucide-react'
 import api from '../services/api';
 import CourseSearch from './CourseSearch';
 import ProgressTracker from './ProgressTracker';
+import CreatePlanModal from './CreatePlanModal';
 import AddCourseToPlanModal from './AddCourseToPlanModal';
 
 const PlanBuilder = ({ 
@@ -25,7 +26,7 @@ const PlanBuilder = ({
   const setSelectedPlanId = externalSetSelectedPlanId || setInternalSelectedPlanId;
   
   const [selectedPlan, setSelectedPlan] = useState(null);
-  
+  const [showCreatePlan, setShowCreatePlan] = useState(false);
   const [showCourseSearch, setShowCourseSearch] = useState(false);
   const [internalPrograms, setInternalPrograms] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -185,14 +186,23 @@ const PlanBuilder = ({
     setShowCourseSearch(false);
   };
 
-  const handleCreatePlan = () => {
-    
-      onCreatePlan?.();
-    
-      // Use the internal modal
-      
+  const handlePlanCreated = () => {
+    setShowCreatePlan(false);
+    if (!externalPlans) {
+      loadPlans();
     }
-  
+  };
+
+  // Handle both internal and external plan creation triggers
+  const handleCreatePlan = () => {
+    if (onCreatePlan) {
+      // Use the external modal from App.jsx
+      onCreatePlan();
+    } else {
+      // Use the internal modal
+      setShowCreatePlan(true);
+    }
+  };
 
   const updateCourseStatus = async (planCourseId, newStatus) => {
     if (!selectedPlan) return;
@@ -472,7 +482,15 @@ const PlanBuilder = ({
         </div>
       )}
 
-      
+      {/* Internal Create Plan Modal - only show if external modal not provided */}
+      {!onCreatePlan && (
+        <CreatePlanModal
+          isOpen={showCreatePlan}
+          onClose={() => setShowCreatePlan(false)}
+          onPlanCreated={handlePlanCreated}
+          userMode={userMode}
+        />
+      )}
       
       {/* Internal Add Course Modal - only show if external handler not provided */}
       {!onAddToPlan && (
