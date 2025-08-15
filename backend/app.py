@@ -100,8 +100,9 @@ def create_app(config_name='default'):
     
     return app
 
+app = create_app()
+
 if __name__ == '__main__':
-    app = create_app()
     
     # Development vs Production settings
     if os.environ.get('FLASK_ENV') == 'production':

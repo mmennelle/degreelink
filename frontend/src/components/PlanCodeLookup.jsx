@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Key, Search, AlertCircle, CheckCircle, Copy, Share2, X, Eye, User, Calendar, GraduationCap } from 'lucide-react';
 
-const PlanCodeLookup = ({ onPlanFound = null, onClose = null, showAsModal = false }) => {
+
+const PlanCodeLookup = ({ onPlanFound = null, onClose = null, showAsModal = false, onOpenPlan = null }) => {
   const [planCode, setPlanCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -250,6 +251,18 @@ const PlanCodeLookup = ({ onPlanFound = null, onClose = null, showAsModal = fals
             </div>
 
             {/* Action Buttons */}
+             <button
+                type="button"
+                title="Open plan"
+                disabled={!foundPlan}
+                onClick={() => {
+                  if (!foundPlan?.id || !onOpenPlan) return;
+                  onOpenPlan(foundPlan.id);
+                }}
+                className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors disabled:opacity-50"
+              >
+                <Eye size={16} />
+              </button>
             <div className="flex flex-col gap-2 ml-4">
               <button
                 onClick={copyPlanCode}

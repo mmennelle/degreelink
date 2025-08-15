@@ -71,10 +71,14 @@ export default function App() {
       {c.activeTab === 'lookup' && (
         <LookupPage
           onSuccess={() => {
-            c.setActiveTab('plans');
-            c.loadPlansAndPrograms();
+            // keep whatever you do on success; do NOT auto-switch tabs
           }}
-          onCreatePlan={() => c.setIsModalOpen(true)}
+          onOpenPlan={(planId) => {
+            if (!planId) return;
+            c.setSelectedPlanId(planId);
+            c.setActiveTab('plans');
+            c.loadPlansAndPrograms?.();
+          }}
         />
       )}
 
