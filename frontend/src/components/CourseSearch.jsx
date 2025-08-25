@@ -260,7 +260,7 @@ const CourseSearch = ({
                 </label>
                 <input
                   type="text"
-                  placeholder="Filter by institution"
+                  placeholder="Filter by institution or abbreviation"
                   value={institution}
                   onChange={(e) => setInstitution(e.target.value)}
                   onKeyDown={handleKeyPress}

@@ -6,7 +6,15 @@ export default {
     ],
     darkMode: 'class', // Enable dark mode support
     theme: {
-      extend: {},
+      extend: {
+        colors:{
+          surface:{
+            light: '#7f9fbf77',
+            dark: '#0d1520ff',
+          },
+
+        },
+      },
     },
     plugins: [],
   }

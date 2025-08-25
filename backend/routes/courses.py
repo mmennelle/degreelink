@@ -6,22 +6,7 @@ bp = Blueprint('courses', __name__, url_prefix='/api/courses')
 
 @bp.route('', methods=['GET'])
 def get_courses():
-    """
-    Retrieve a paginated list of courses.  Clients may pass optional
-    query parameters to filter the results:
-
-    - search: full‑text search across code, subject, number, title and
-      description fields (case‑insensitive).
-    - institution: filter courses by institution (partial match).
-    - department: filter courses by department (partial match).
-    - subject: filter by subject prefix (exact match, case insensitive).
-    - level: integer representing the thousand‑level (e.g. 1000, 2000).
-      Courses with a course_level equal to the provided level will be
-      returned.  Courses whose numeric part is below 1000 will have
-      course_level = 0.
-    - page/per_page: pagination controls.
-    """
-
+   
     search = request.args.get('search', '')
     institution = request.args.get('institution', '')
     department = request.args.get('department', '')

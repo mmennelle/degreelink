@@ -2,20 +2,7 @@ from . import db
 from datetime import datetime
 
 class Course(db.Model):
-    """
-    Course model representing an individual course offering.
-
-    Historically the application stored the entire course code (e.g. "BIOL 104")
-    in a single column.  In order to support searching and grouping courses by
-    subject and level (e.g. 1000‑, 2000‑level) the code has been split into
-    two components: a subject prefix and a course number.  A derived
-    numeric level is also stored to make range queries efficient.
-
-    The original `code` column is still maintained for backwards
-    compatibility and is kept in sync with `subject_code` and
-    `course_number`.
-    """
-
+    
     __tablename__ = 'courses'
 
     # Surrogate primary key.  Keeping this allows foreign keys in other
@@ -244,5 +231,3 @@ def _before_update(mapper, connection, target):
     """
     if isinstance(target, Course):
         target.sync_composite_fields()
-
-    # Note: do not define methods within this listener; see the Course class for validation logic.
