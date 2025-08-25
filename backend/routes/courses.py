@@ -6,35 +6,50 @@ bp = Blueprint('courses', __name__, url_prefix='/api/courses')
 
 @bp.route('', methods=['GET'])
 def get_courses():
-    
+
     search = request.args.get('search', '')
     institution = request.args.get('institution', '')
     department = request.args.get('department', '')
+    subject = request.args.get('subject', '')
+    level = request.args.get('level', type=int)
     page = request.args.get('page', 1, type=int)
     per_page = min(request.args.get('per_page', 20, type=int), 100)
-    
+
     query = Course.query
-    
-    
+
+    # Full‑text search across multiple fields.  Includes legacy `code`
+    # field as well as subject_code and course_number to allow users to
+    # search for partial codes like "BIOL" or "1583".
     if search:
+        term = f"%{search}%"
         query = query.filter(
             or_(
-                Course.code.ilike(f'%{search}%'),
-                Course.title.ilike(f'%{search}%'),
-                Course.description.ilike(f'%{search}%')
+                Course.code.ilike(term),
+                Course.subject_code.ilike(term),
+                Course.course_number.ilike(term),
+                Course.title.ilike(term),
+                Course.description.ilike(term)
             )
         )
-    
+
     if institution:
         query = query.filter(Course.institution.ilike(f'%{institution}%'))
-    
+
     if department:
         query = query.filter(Course.department.ilike(f'%{department}%'))
-    
-    
-    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    if subject:
+        query = query.filter(Course.subject_code.ilike(subject.strip().upper()))
+
+    if level is not None:
+        # Only apply filter if level is a non‑negative integer
+        if level < 0:
+            return jsonify({'error': 'Level must be non‑negative'}), 400
+        query = query.filter(Course.course_level == level)
+
+    pagination = query.order_by(Course.subject_code, Course.course_number).paginate(page=page, per_page=per_page, error_out=False)
     courses = pagination.items
-    
+
     return jsonify({
         'courses': [course.to_dict() for course in courses],
         'pagination': {
@@ -106,11 +121,18 @@ def get_course(course_id):
 
 @bp.route('', methods=['POST'])
 def create_course():
-    
-    data = request.get_json()
-    
+    data = request.get_json() or {}
+    # Extract fields from JSON.  Accept both the legacy `code` and the
+    # new `subject_code`/`course_number` combinations.  The Course
+    # instance will normalise them via sync_composite_fields().
+    code = data.get('code')
+    subject_code = data.get('subject_code')
+    course_number = data.get('course_number')
+
     course = Course(
-        code=data.get('code'),
+        code=code or '',
+        subject_code=subject_code or '',
+        course_number=course_number or '',
         title=data.get('title'),
         description=data.get('description', ''),
         credits=data.get('credits'),
@@ -118,44 +140,52 @@ def create_course():
         department=data.get('department', ''),
         prerequisites=data.get('prerequisites', '')
     )
-    
-    
+    # Ensure composite fields and code are synchronised before validation
+    course.sync_composite_fields()
+
     errors = course.validate()
     if errors:
         return jsonify({'errors': errors}), 400
-    
+
     try:
         db.session.add(course)
         db.session.commit()
         return jsonify(course.to_dict()), 201
-    except Exception as e:
+    except Exception:
         db.session.rollback()
         return jsonify({'error': 'Failed to create course'}), 500
 
 @bp.route('/<int:course_id>', methods=['PUT'])
 def update_course(course_id):
-    
     course = Course.query.get_or_404(course_id)
-    data = request.get_json()
-    
-    
-    course.code = data.get('code', course.code)
+    data = request.get_json() or {}
+
+    # Update legacy code or new composite fields if provided
+    if 'code' in data:
+        course.code = data['code'] or ''
+    if 'subject_code' in data:
+        course.subject_code = data['subject_code'] or ''
+    if 'course_number' in data:
+        course.course_number = data['course_number'] or ''
+
+    # Synchronise code/subject/number/numeric/level
+    course.sync_composite_fields()
+
     course.title = data.get('title', course.title)
     course.description = data.get('description', course.description)
     course.credits = data.get('credits', course.credits)
     course.institution = data.get('institution', course.institution)
     course.department = data.get('department', course.department)
     course.prerequisites = data.get('prerequisites', course.prerequisites)
-    
-    
+
     errors = course.validate()
     if errors:
         return jsonify({'errors': errors}), 400
-    
+
     try:
         db.session.commit()
         return jsonify(course.to_dict())
-    except Exception as e:
+    except Exception:
         db.session.rollback()
         return jsonify({'error': 'Failed to update course'}), 500
 

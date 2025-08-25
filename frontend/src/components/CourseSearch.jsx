@@ -59,11 +59,21 @@ const CourseSearch = ({
     setError(null);
     
     try {
-      const params = { search: searchTerm };
+      const params = {};
+      const trimmedSearch = searchTerm.trim();
+      const numericLevel = /^[0-9]{4}$/.test(trimmedSearch) ? parseInt(trimmedSearch, 10) : null;
+      // If the user enters a four‑digit number divisible by 1000 (e.g. "2000"),
+      // treat it as a request for all courses at that level rather than a
+      // textual search.  Otherwise fall back to a standard substring search.
+      if (numericLevel && numericLevel % 1000 === 0) {
+        params.level = numericLevel;
+      } else if (trimmedSearch) {
+        params.search = trimmedSearch;
+      }
       if (institution.trim()) {
         params.institution = institution;
       }
-      
+
       const response = await api.searchCourses(params);
       const searchResults = response.courses || [];
       setCourses(searchResults);
