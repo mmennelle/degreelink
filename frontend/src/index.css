@@ -1,8 +1,44 @@
+/* index.css */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Scrollbar utilities */
+/* Define CSS variables for light mode */
+:root {
+  --tw-gradient-from: theme('colors.blue.100');
+  --tw-gradient-via: theme('colors.gray.50');
+  --tw-gradient-to: theme('colors.green.50');
+}
+
+.dark {
+  --tw-gradient-from: theme('colors.gray.900');
+  --tw-gradient-via: theme('colors.gray.800');
+  --tw-gradient-to: theme('colors.indigo.900');
+}
+
+body {
+  background-image: linear-gradient(
+    to right,
+    var(--tw-gradient-from),
+    var(--tw-gradient-via),
+    var(--tw-gradient-to)
+  );
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+
+
+/* Optional: Smooth transitions for theme switching */
+* {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Your scrollbar utilities remain unchanged */
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -11,7 +47,6 @@
   display: none;
 }
 
-/* Optional: Better scrollbars for dark mode */
 .scrollbar-thin {
   scrollbar-width: thin;
 }
@@ -34,23 +69,3 @@
 .dark .scrollbar-thin::-webkit-scrollbar-thumb {
   background-color: theme('colors.gray.600');
 }
-
-
-/* Optional: Smooth transitions for theme switching */
-* {
-  transition-property: background-color, border-color, color, fill, stroke;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 150ms;
-}
-
-body {
-  /* light mode */
-  background-color: theme('colors.gray.50'); /* equivalent to bg-gray-50 */
-}
-
-.dark body {
-  /* dark mode */
-  background-color: theme('colors.gray.900'); /* equivalent to bg-gray-900 */
-}
-
-
