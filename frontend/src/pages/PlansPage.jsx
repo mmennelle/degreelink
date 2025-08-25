@@ -37,9 +37,8 @@ export default function PlansPage({
       />
 
       {hasAccessiblePlans && (
-        <div className="flex flex-col sm:flex-row gap-3 mt-4">
+        <div className="flex flex-col med:flex-row gap-3 mt-4">
           <button onClick={onClearAccess} className="px-4 py-2 border rounded-lg">Clear Plan Access</button>
-          <button onClick={onDeletePlan} className="px-4 py-2 bg-red-600 text-white rounded-lg">Delete Plan</button>
         </div>
       )}
     </div>
