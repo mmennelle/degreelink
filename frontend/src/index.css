@@ -6,15 +6,15 @@
 
 /* Define CSS variables for light mode */
 :root {
-  --tw-gradient-from: theme('colors.blue.100');
+  --tw-gradient-from: theme('colors.blue.50');
   --tw-gradient-via: theme('colors.gray.50');
-  --tw-gradient-to: theme('colors.green.50');
+  --tw-gradient-to: theme('colors.purple.50');
 }
 
 .dark {
   --tw-gradient-from: theme('colors.gray.900');
   --tw-gradient-via: theme('colors.gray.800');
-  --tw-gradient-to: theme('colors.indigo.900');
+  --tw-gradient-to: theme('colors.indigo.950');
 }
 
 body {
