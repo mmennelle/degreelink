@@ -11,7 +11,7 @@ def create_app(config_name='default'):
     app = Flask(__name__)
     
     # Security configurations
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key')
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///course_transfer.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  
