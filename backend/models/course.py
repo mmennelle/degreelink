@@ -2,7 +2,20 @@ from . import db
 from datetime import datetime
 
 class Course(db.Model):
-   
+    """
+    Course model representing an individual course offering.
+
+    Historically the application stored the entire course code (e.g. "BIOL 104")
+    in a single column.  In order to support searching and grouping courses by
+    subject and level (e.g. 1000‑, 2000‑level) the code has been split into
+    two components: a subject prefix and a course number.  A derived
+    numeric level is also stored to make range queries efficient.
+
+    The original `code` column is still maintained for backwards
+    compatibility and is kept in sync with `subject_code` and
+    `course_number`.
+    """
+
     __tablename__ = 'courses'
 
     # Surrogate primary key.  Keeping this allows foreign keys in other
@@ -99,22 +112,30 @@ class Course(db.Model):
     def _calculate_level(numeric: int | None) -> int | None:
         """
         Determine a course's level based on the leading digit of its numeric
-        identifier. The level is derived by multiplying the first digit by 1000.
-        For example:
-        * 1583 → 1×1000 = 1000
-        * 6500 → 6×1000 = 6000
-        * 101  → 1×1000 = 1000
-        * 250  → 2×1000 = 2000
-        Returns None if the numeric part is missing.
+        identifier.  The level is derived by multiplying the first digit of
+        the course number by 1000, regardless of the total number of
+        digits.  For example:
+
+          * 1583 → 1×1000 = 1000
+          * 6500 → 6×1000 = 6000
+          * 101 → 1×1000 = 1000
+          * 250 → 2×1000 = 2000
+
+        If the numeric part is missing or does not start with a digit in
+        the range 1–9, the level cannot be determined and None is returned.
         """
         if numeric is None:
             return None
+        # Convert to string to inspect the first digit
         numeric_str = str(numeric).lstrip()
         if not numeric_str:
             return None
         first_char = numeric_str[0]
         if first_char.isdigit():
             first_digit = int(first_char)
+            # Only return meaningful levels for digits 1–9.  Levels below 1000
+            # (e.g. a leading 0) will yield None so that such courses can be
+            # handled separately if needed.
             if 1 <= first_digit <= 9:
                 return first_digit * 1000
         return None
