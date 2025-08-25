@@ -1,6 +1,6 @@
 // src/views/AppShell.jsx
 import React from 'react';
-import { Moon, Sun, Users, Key, FileText, Search, Shield, Home } from 'lucide-react';
+import { Moon, Sun, Users, Key, FileText, Search, Shield, Home, GraduationCap } from 'lucide-react';
 import { useDarkMode, DarkModeProvider } from '../hooks/useDarkMode';
 
 export default function AppShell({
@@ -16,7 +16,7 @@ export default function AppShell({
         <nav className="border-b border-gray-200 dark:border-gray-800 bg-surface-light/60 dark:bg-gray-900/60 backdrop-blur sticky top-0 z-40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Shield size={20} className="text-indigo-600 dark:text-indigo-400" />
+              <GraduationCap size={30} className="text-indigo-600 dark:text-indigo-400" />
               <span className="font-semibold tracking-tight">Course Equivalency</span>
             </div>
 
