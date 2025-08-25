@@ -40,6 +40,9 @@ const PlanBuilder = ({
     program: null
   });
 
+  // Override for the user's current institution. If null, it will be detected automatically.
+  const [currentInstitutionOverride, setCurrentInstitutionOverride] = useState(null);
+
   // Toggle display of the courses list in the plan detail view.
   const [showCourses, setShowCourses] = useState(false);
 
@@ -278,15 +281,74 @@ const PlanBuilder = ({
     return programsList.find(p => p.id === selectedPlan.program_id);
   };
 
-  // Determine progress percentages for the current program and transfer equivalencies.
+  // Determine progress percentages for the current program and transfer program.
+  // "Current" progress counts credits from the student's home institution only.
+  // "Transfer" progress counts credits from the target institution and any courses with an equivalency to the target.
   const getVerticalProgressData = (plan) => {
-    if (!plan || !plan.progress) return { current: 0, transfer: 0 };
+    if (!plan || !plan.progress || !plan.courses) return { current: 0, transfer: 0 };
     const progress = plan.progress;
-    const currentCompletion = Math.min(progress.completion_percentage || 0, 100);
-    const totalReq = progress.total_credits_required || 0;
-    const transferCredits = progress.transfer_analysis?.total_transfer_credits || 0;
-    const transferCompletion = totalReq > 0 ? Math.min((transferCredits / totalReq) * 100, 100) : 0;
-    return { current: currentCompletion, transfer: transferCompletion };
+    const totalRequired = progress.total_credits_required || 0;
+    if (totalRequired <= 0) return { current: 0, transfer: 0 };
+    // Identify the target institution from the selected program
+    const targetInstitution = getProgram()?.institution;
+    // Build a set of course codes that have transfer equivalencies to the target institution
+    const eqToTarget = new Set();
+    if (progress.transfer_analysis && progress.transfer_analysis.transfer_courses) {
+      progress.transfer_analysis.transfer_courses.forEach(eq => {
+        if (eq.to_institution === targetInstitution) {
+          // eq.from_course contains the course code of the original course
+          eqToTarget.add(eq.from_course);
+        }
+      });
+    }
+    // Sum credits by institution for completed courses
+    const completedCourses = plan.courses.filter(pc => pc.status === 'completed');
+    const creditsByInstitution = {};
+    completedCourses.forEach(pc => {
+      const inst = pc.course?.institution;
+      const credits = pc.credits || (pc.course?.credits ?? 0);
+      if (!inst) return;
+      creditsByInstitution[inst] = (creditsByInstitution[inst] || 0) + credits;
+    });
+    // Determine the current (home) institution.
+    // If the user provided an override, use it; otherwise, use the non-target with the most credits.
+    let currentInstitution = currentInstitutionOverride || null;
+    if (!currentInstitution) {
+      let maxCredits = 0;
+      Object.entries(creditsByInstitution).forEach(([inst, creds]) => {
+        if (inst !== targetInstitution && creds > maxCredits) {
+          currentInstitution = inst;
+          maxCredits = creds;
+        }
+      });
+    }
+    let currentCredits = 0;
+    let transferCredits = 0;
+    // Distribute credits: courses at current institution always count toward current; courses at target count toward transfer;
+    // courses with equivalency to target count toward transfer in addition to current if applicable.
+    completedCourses.forEach(pc => {
+      const inst = pc.course?.institution;
+      const code = pc.course?.code;
+      const credits = pc.credits || (pc.course?.credits ?? 0);
+      if (!inst || credits <= 0) return;
+      if (inst === targetInstitution) {
+        // Course is from the target institution; counts only toward transfer
+        transferCredits += credits;
+      } else {
+        // Course is from another institution
+        if (inst === currentInstitution) {
+          // Count toward current progress
+          currentCredits += credits;
+        }
+        // If there is an equivalency to the target institution, also count toward transfer
+        if (eqToTarget.has(code)) {
+          transferCredits += credits;
+        }
+      }
+    });
+    const currentPercentage = Math.min((currentCredits / totalRequired) * 100, 100);
+    const transferPercentage = Math.min((transferCredits / totalRequired) * 100, 100);
+    return { current: currentPercentage, transfer: transferPercentage };
   };
 
   // Utility to select a gradient based on completion percentage (similar to ProgressTracker)
@@ -441,14 +503,22 @@ const PlanBuilder = ({
                 </button>
               )}
             </div>
-            {/* Basic information */}
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
-                {selectedPlan.plan_name}
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-300 truncate">
-                {selectedPlan.student_name}
-              </p>
+            {/* Basic information and current institution selector */}
+            <div className="mb-4 space-y-2">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
+                  {selectedPlan.plan_name}
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300 truncate">
+                  {selectedPlan.student_name}
+                </p>
+              </div>
+              {/* Current institution selection */}
+              {(() => {
+                // Build list of unique institutions from the plan's courses, excluding the target (it may still be selectable if user wants)
+                const courseInstitutions = Array.from(new Set((selectedPlan.courses || []).map(pc => pc.course?.institution).filter(Boolean)));
+                if (courseInstitutions.length === 0) return null
+              })()}
             </div>
             {/* Centered vertical progress bars */}
             <div className="flex justify-center gap-12 my-6">
@@ -466,44 +536,16 @@ const PlanBuilder = ({
             <div className="flex flex-col sm:flex-row justify-center gap-2 mb-4">
               <button
                 onClick={() => setShowCourseSearch(true)}
-                className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 flex items-center justify-center transition-colors text-sm"
+                className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-green-800 dark:hover:bg-green-800 flex items-center justify-center transition-colors text-sm"
               >
                 <Plus className="mr-1" size={16} />
                 Add Course
               </button>
               <button
                 onClick={() => setShowCourses(prev => !prev)}
-                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center justify-center transition-colors text-sm"
+                className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white dark:text-gray-200 rounded-md hover:bg-green-800 dark:hover:bg-green-800 flex items-center justify-center transition-colors text-sm"
               >
                 {showCourses ? 'Hide Courses' : 'View Courses'}
-              </button>
-              <button
-                onClick={async () => {
-                  if (!confirm(`Are you sure you want to delete "${selectedPlan.plan_name}"? This action cannot be undone.`)) {
-                    return;
-                  }
-                  
-                  try {
-                    await api.deletePlan(selectedPlan.id);
-                    // Update plans list
-                    if (externalPlans && externalSetSelectedPlanId) {
-                      // If using external state, let parent handle the update
-                      externalSetSelectedPlanId(null);
-                    } else {
-                      // Update internal state
-                      setInternalPlans(plans => plans.filter(p => p.id !== selectedPlan.id));
-                      setInternalSelectedPlanId(null);
-                      setSelectedPlan(null);
-                    }
-                    alert('Plan deleted successfully.');
-                  } catch (error) {
-                    console.error('Failed to delete plan:', error);
-                    alert(`Failed to delete plan: ${error.message}`);
-                  }
-                }}
-                className="px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded-md hover:bg-red-700 dark:hover:bg-red-800 flex items-center justify-center transition-colors text-sm"
-              >
-                Delete
               </button>
             </div>
             {/* Conditionally render courses list when requested */}

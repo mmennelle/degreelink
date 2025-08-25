@@ -9,10 +9,9 @@ export default {
       extend: {
         colors:{
           surface:{
-            light: '#7f9fbf77',
+            light: '#e6e7e6fb',
             dark: '#0d1520ff',
           },
-
         },
       },
     },
