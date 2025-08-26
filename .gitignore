@@ -1,10 +1,10 @@
 # Top-level ignores
 __pycache__/
 *.pyc
-*.db
+#*.db
 .env
 venv
-backend/instance
+# backend/instance
 
 # Node modules
 
