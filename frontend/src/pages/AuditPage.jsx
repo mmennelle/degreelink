@@ -9,7 +9,7 @@ export default function AuditPage({ selectedPlanId, plans }) {
 
   // Determine plan from props if planId not provided directly
   const planId = selectedPlanId || (plans && plans.length > 0 ? plans[0].id : null);
-
+  const plan = plans.find(p => p.id === planId);
   useEffect(() => {
     if (!planId) return;
     (async () => {
@@ -33,7 +33,7 @@ export default function AuditPage({ selectedPlanId, plans }) {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'degree_audit.csv';
+      a.download = plan +'_degree_audit.csv';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
