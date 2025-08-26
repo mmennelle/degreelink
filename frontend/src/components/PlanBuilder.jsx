@@ -474,7 +474,7 @@ const PlanBuilder = ({
             )}
           </div>
         ) : (
-          /* Plan Details View - simplified for mobile */
+          /* Plan Details View */
           <div>
             {/* Top row: back button and copyable plan code */}
             <div className="flex items-center justify-between mb-2">
