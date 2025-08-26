@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { BookOpen, Plus, ChevronRight, ChevronLeft, Target } from 'lucide-react';
 import api from '../services/api';
 import CourseSearch from './CourseSearch';
-import ProgressTracker from './ProgressTracker';
+// Remove the old ProgressTracker for this simplified mobile design
+// import ProgressTracker from './ProgressTracker';
 import AddCourseToPlanModal from './AddCourseToPlanModal';
 
 const PlanBuilder = ({ 
@@ -38,6 +39,12 @@ const PlanBuilder = ({
     plan: null,
     program: null
   });
+
+  // Override for the user's current institution. If null, it will be detected automatically.
+  const [currentInstitutionOverride, setCurrentInstitutionOverride] = useState(null);
+
+  // Toggle display of the courses list in the plan detail view.
+  const [showCourses, setShowCourses] = useState(false);
 
   // Use external programs if provided, otherwise use internal
   const programsList = programs.length > 0 ? programs : internalPrograms;
@@ -274,6 +281,108 @@ const PlanBuilder = ({
     return programsList.find(p => p.id === selectedPlan.program_id);
   };
 
+  // Determine progress percentages for the current program and transfer program.
+  // "Current" progress counts credits from the student's home institution only.
+  // "Transfer" progress counts credits from the target institution and any courses with an equivalency to the target.
+  const getVerticalProgressData = (plan) => {
+    if (!plan || !plan.progress || !plan.courses) return { current: 0, transfer: 0 };
+    const progress = plan.progress;
+    const totalRequired = progress.total_credits_required || 0;
+    if (totalRequired <= 0) return { current: 0, transfer: 0 };
+    // Identify the target institution from the selected program
+    const targetInstitution = getProgram()?.institution;
+    // Build a set of course codes that have transfer equivalencies to the target institution
+    const eqToTarget = new Set();
+    if (progress.transfer_analysis && progress.transfer_analysis.transfer_courses) {
+      progress.transfer_analysis.transfer_courses.forEach(eq => {
+        if (eq.to_institution === targetInstitution) {
+          // eq.from_course contains the course code of the original course
+          eqToTarget.add(eq.from_course);
+        }
+      });
+    }
+    // Sum credits by institution for completed courses
+    const completedCourses = plan.courses.filter(pc => pc.status === 'completed');
+    const creditsByInstitution = {};
+    completedCourses.forEach(pc => {
+      const inst = pc.course?.institution;
+      const credits = pc.credits || (pc.course?.credits ?? 0);
+      if (!inst) return;
+      creditsByInstitution[inst] = (creditsByInstitution[inst] || 0) + credits;
+    });
+    // Determine the current (home) institution.
+    // If the user provided an override, use it; otherwise, use the non-target with the most credits.
+    let currentInstitution = currentInstitutionOverride || null;
+    if (!currentInstitution) {
+      let maxCredits = 0;
+      Object.entries(creditsByInstitution).forEach(([inst, creds]) => {
+        if (inst !== targetInstitution && creds > maxCredits) {
+          currentInstitution = inst;
+          maxCredits = creds;
+        }
+      });
+    }
+    let currentCredits = 0;
+    let transferCredits = 0;
+    // Distribute credits: courses at current institution always count toward current; courses at target count toward transfer;
+    // courses with equivalency to target count toward transfer in addition to current if applicable.
+    completedCourses.forEach(pc => {
+      const inst = pc.course?.institution;
+      const code = pc.course?.code;
+      const credits = pc.credits || (pc.course?.credits ?? 0);
+      if (!inst || credits <= 0) return;
+      if (inst === targetInstitution) {
+        // Course is from the target institution; counts only toward transfer
+        transferCredits += credits;
+      } else {
+        // Course is from another institution
+        if (inst === currentInstitution) {
+          // Count toward current progress
+          currentCredits += credits;
+        }
+        // If there is an equivalency to the target institution, also count toward transfer
+        if (eqToTarget.has(code)) {
+          transferCredits += credits;
+        }
+      }
+    });
+    const currentPercentage = Math.min((currentCredits / totalRequired) * 100, 100);
+    const transferPercentage = Math.min((transferCredits / totalRequired) * 100, 100);
+    return { current: currentPercentage, transfer: transferPercentage };
+  };
+
+  // Utility to select a gradient based on completion percentage (similar to ProgressTracker)
+  const getProgressColor = (percentage) => {
+    if (percentage >= 100) return 'from-green-500 to-emerald-500';
+    if (percentage >= 75) return 'from-blue-500 to-green-500';
+    if (percentage >= 50) return 'from-yellow-500 to-blue-500';
+    if (percentage >= 25) return 'from-orange-500 to-yellow-500';
+    return 'from-red-500 to-orange-500';
+  };
+
+  // Component for a vertical progress bar that fills from the bottom up. Sized larger for easier mobile viewing.
+  const VerticalProgressBar = ({ percentage, label }) => {
+    const colorClass = getProgressColor(percentage);
+    // Clamp percentage between 0 and 100 for styling
+    const clamped = Math.max(0, Math.min(percentage, 100));
+    return (
+      <div className="flex flex-col items-center">
+        <div className="relative h-64 w-8 bg-gray-200 dark:bg-gray-700 rounded-lg overflow-hidden">
+          <div
+            className={`absolute bottom-0 left-0 w-full bg-gradient-to-t ${colorClass}`}
+            style={{ height: `${clamped}%` }}
+          />
+        </div>
+        <div className="mt-2 text-center">
+          <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+            {label}
+          </p>
+          <p className="text-xs text-gray-600 dark:text-gray-400">{clamped.toFixed(1)}%</p>
+        </div>
+      </div>
+    );
+  };
+
   // Debug early return conditions
   if (loading && plans.length === 0) {
     return (
@@ -367,82 +476,97 @@ const PlanBuilder = ({
         ) : (
           /* Plan Details View */
           <div>
-            <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start mb-4 sm:mb-6 gap-3 lg:gap-0">
-              <div className="flex-1">
+            {/* Top row: back button and copyable plan code */}
+            <div className="flex items-center justify-between mb-2">
+              <button
+                onClick={() => setSelectedPlanId(null)}
+                className="flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+              >
+                <ChevronLeft className="mr-1" size={16} />
+                Back to Plans
+              </button>
+              {selectedPlan.plan_code && (
                 <button
-                  onClick={() => setSelectedPlanId(null)}
-                  className="flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 mb-2 transition-colors"
-                >
-                  <ChevronLeft className="mr-1" size={16} />
-                  Back to Plans
-                </button>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{selectedPlan.plan_name}</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-300">{selectedPlan.student_name}</p>
-                {selectedPlan.student_email && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{selectedPlan.student_email}</p>
-                )}
-                {getProgram() && (
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                    Target: {getProgram().name} ({getProgram().degree_type}) - {getProgram().institution}
-                  </p>
-                )}
-              </div>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <button
-                  onClick={() => setShowCourseSearch(true)}
-                  className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 flex items-center justify-center transition-colors"
-                >
-                  <Plus className="mr-1" size={16} />
-                  Add Course
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!confirm(`Are you sure you want to delete "${selectedPlan.plan_name}"? This action cannot be undone.`)) {
-                      return;
-                    }
-                    
-                    try {
-                      await api.deletePlan(selectedPlan.id);
-                      // Update plans list
-                      if (externalPlans && externalSetSelectedPlanId) {
-                        // If using external state, let parent handle the update
-                        externalSetSelectedPlanId(null);
-                      } else {
-                        // Update internal state
-                        setInternalPlans(plans => plans.filter(p => p.id !== selectedPlan.id));
-                        setInternalSelectedPlanId(null);
-                        setSelectedPlan(null);
-                      }
-                      alert('Plan deleted successfully.');
-                    } catch (error) {
-                      console.error('Failed to delete plan:', error);
-                      alert(`Failed to delete plan: ${error.message}`);
+                  onClick={() => {
+                    if (navigator && navigator.clipboard) {
+                      navigator.clipboard.writeText(selectedPlan.plan_code).then(() => {
+                        alert('Plan code copied to clipboard');
+                      }).catch(() => {
+                        alert('Failed to copy plan code');
+                      });
                     }
                   }}
-                  className="px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded-md hover:bg-red-700 dark:hover:bg-red-800 flex items-center justify-center transition-colors"
+                  className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                  title="Click to copy plan code"
                 >
-                  Delete Plan
+                  {selectedPlan.plan_code}
                 </button>
-              </div>
+              )}
             </div>
-
-            {/* Courses by Requirement Category (Collapsible) */}
-            <CoursesByRequirementCollapsible
-              selectedPlan={selectedPlan}
-              groupCoursesByRequirement={groupCoursesByRequirement}
-              updateCourseStatus={updateCourseStatus}
-              updateCourseRequirement={updateCourseRequirement}
-              removeCourseFromPlan={removeCourseFromPlan}
-              getStatusColor={getStatusColor}
-              getProgram={getProgram}
-              setShowCourseSearch={setShowCourseSearch}
-            />
+            {/* Basic information and current institution selector */}
+            <div className="mb-4 space-y-2">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
+                  {selectedPlan.plan_name}
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300 truncate">
+                  {selectedPlan.student_name}
+                </p>
+              </div>
+              {/* Current institution selection */}
+              {(() => {
+                // Build list of unique institutions from the plan's courses, excluding the target (it may still be selectable if user wants)
+                const courseInstitutions = Array.from(new Set((selectedPlan.courses || []).map(pc => pc.course?.institution).filter(Boolean)));
+                if (courseInstitutions.length === 0) return null
+              })()}
+            </div>
+            {/* Centered vertical progress bars */}
+            <div className="flex justify-center gap-12 my-6">
+              {(() => {
+                const { current, transfer } = getVerticalProgressData(selectedPlan);
+                return (
+                  <>
+                    <VerticalProgressBar percentage={current} label="Current Progress" />
+                    <VerticalProgressBar percentage={transfer} label="Transfer Progress" />
+                  </>
+                );
+              })()}
+            </div>
+            {/* Plan control buttons below progress bars */}
+            <div className="flex flex-col sm:flex-row justify-center gap-2 mb-4">
+              <button
+                onClick={() => setShowCourseSearch(true)}
+                className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-green-800 dark:hover:bg-green-800 flex items-center justify-center transition-colors text-sm"
+              >
+                <Plus className="mr-1" size={16} />
+                Add Course
+              </button>
+              <button
+                onClick={() => setShowCourses(prev => !prev)}
+                className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white dark:text-gray-200 rounded-md hover:bg-green-800 dark:hover:bg-green-800 flex items-center justify-center transition-colors text-sm"
+              >
+                {showCourses ? 'Hide Courses' : 'View Courses'}
+              </button>
+            </div>
+            {/* Conditionally render courses list when requested */}
+            {showCourses && (
+              <CoursesByRequirementCollapsible
+                selectedPlan={selectedPlan}
+                groupCoursesByRequirement={groupCoursesByRequirement}
+                updateCourseStatus={updateCourseStatus}
+                updateCourseRequirement={updateCourseRequirement}
+                removeCourseFromPlan={removeCourseFromPlan}
+                getStatusColor={getStatusColor}
+                getProgram={getProgram}
+                setShowCourseSearch={setShowCourseSearch}
+              />
+            )}
           </div>
         )}
       </div>
 
-      {/* Progress Tracker - Only show when a plan is selected */}
-      {selectedPlan && <ProgressTracker plan={selectedPlan} />}
+      {/* Remove ProgressTracker from main view since vertical bars replace it */}
+      {/* selectedPlan && <ProgressTracker plan={selectedPlan} /> */}
 
       {/* Course Search Modal */}
       {showCourseSearch && (

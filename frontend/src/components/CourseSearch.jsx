@@ -12,6 +12,7 @@ const CourseSearch = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [institution, setInstitution] = useState('');
+  const [levelFilter, setLevelFilter] = useState('');
   const [courses, setCourses] = useState([]);
   const [filteredCourses, setFilteredCourses] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -59,11 +60,27 @@ const CourseSearch = ({
     setError(null);
     
     try {
-      const params = { search: searchTerm };
+      const params = {};
+      const trimmedSearch = searchTerm.trim();
+      // If a level has been selected via the filter dropdown, use it.  Otherwise
+      // fall back to the legacy behaviour of interpreting a four‑digit search
+      // term divisible by 1000 as a level search.  When no level is detected
+      // the search term is treated as free‑text.
+      if (levelFilter) {
+        params.level = parseInt(levelFilter, 10);
+      } else {
+        const numericLevel = /^[0-9]{4}$/.test(trimmedSearch) ? parseInt(trimmedSearch, 10) : null;
+        if (numericLevel && numericLevel % 1000 === 0) {
+          params.level = numericLevel;
+        }
+        if (trimmedSearch && (!numericLevel || numericLevel % 1000 !== 0)) {
+          params.search = trimmedSearch;
+        }
+      }
       if (institution.trim()) {
         params.institution = institution;
       }
-      
+
       const response = await api.searchCourses(params);
       const searchResults = response.courses || [];
       setCourses(searchResults);
@@ -243,12 +260,32 @@ const CourseSearch = ({
                 </label>
                 <input
                   type="text"
-                  placeholder="Filter by institution"
+                  placeholder="Filter by School"
                   value={institution}
                   onChange={(e) => setInstitution(e.target.value)}
                   onKeyDown={handleKeyPress}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Course Level
+                </label>
+                <select
+                  value={levelFilter}
+                  onChange={(e) => setLevelFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+                >
+                  <option value="">All Levels</option>
+                  <option value="1000">1000</option>
+                  <option value="2000">2000</option>
+                  <option value="3000">3000</option>
+                  <option value="4000">4000</option>
+                  <option value="5000">5000</option>
+                  <option value="6000">6000</option>
+                  <option value="7000">7000</option>
+                </select>
               </div>
 
             

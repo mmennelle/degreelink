@@ -118,7 +118,7 @@ const PlanCodeLookup = ({ onPlanFound = null, onClose = null, showAsModal = fals
       {/* Header */}
       <div className="text-center">
         <div className="flex justify-center mb-4">
-          <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+          <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-full">
             <Key className="w-8 h-8 text-blue-600 dark:text-blue-400" />
           </div>
         </div>
@@ -344,7 +344,7 @@ const PlanCodeLookup = ({ onPlanFound = null, onClose = null, showAsModal = fals
   if (showAsModal) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
-        <div className="bg-white dark:bg-gray-800 rounded-t-lg sm:rounded-lg w-full sm:max-w-md h-[90vh] sm:h-auto overflow-y-auto">
+        <div className="bg-white dark:bg-gray-900 rounded-t-lg sm:rounded-lg w-full sm:max-w-md h-[90vh] sm:h-auto overflow-y-auto">
           {/* Modal Header */}
           <div className="sticky top-0 bg-white dark:bg-gray-800 px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700 rounded-t-lg">
             <div className="flex justify-between items-center">

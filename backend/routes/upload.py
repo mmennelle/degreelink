@@ -40,9 +40,18 @@ def upload_courses():
                     continue
                 
                 
-                existing_course = Course.query.filter_by(
-                    code=code,
-                    institution=row.get('institution', '').strip()
+                # Look up an existing course using the normalised composite
+                # key rather than the raw code.  This prevents duplicate
+                # records when the incoming CSV uses different casing or
+                # separators (e.g. "BIOL104" vs "BIOL 104").  We
+                # intentionally use Course._split_code here to parse the
+                # subject and number from whatever format the CSV provides.
+                subj, num = Course._split_code(code)
+                inst = row.get('institution', '').strip()
+                existing_course = Course.query.filter(
+                    Course.subject_code == subj,
+                    Course.course_number == num,
+                    Course.institution.ilike(inst)
                 ).first()
                 
                 if existing_course:
@@ -127,19 +136,40 @@ def upload_equivalencies():
                     continue
                 
                 
-                from_course = Course.query.filter_by(code=from_code, institution=from_institution).first()
-                to_course = Course.query.filter_by(code=to_code, institution=to_institution).first()
+                # Normalize codes to match composite course keys.  Use the
+                # Course._split_code helper to break the code into subject and
+                # course number, then search on those fields.  This makes
+                # equivalency uploads tolerant of differences in spacing,
+                # hyphenation or case in the CSV.
+                from_subj, from_num = Course._split_code(from_code)
+                to_subj, to_num = Course._split_code(to_code)
+                # Find the originating course.  Match on subject, number and
+                # institution using case‑insensitive institution comparison.
+                from_course = Course.query.filter(
+                    Course.subject_code == from_subj,
+                    Course.course_number == from_num,
+                    Course.institution.ilike(from_institution)
+                ).first()
+                # Determine the target course.  Handle the special "1000NE"
+                # code for "no equivalent" as before; otherwise search by
+                # composite fields.
+                if to_code == '1000NE':
+                    # Handle special "no equivalent" case
+                    to_course = get_no_equivalent_course()
+                else:
+                    to_course = Course.query.filter(
+                        Course.subject_code == to_subj,
+                        Course.course_number == to_num,
+                        Course.institution.ilike(to_institution)
+                    ).first()
                 
                 if not from_course:
                     errors.append(f"Row {row_num}: From course {from_code} at {from_institution} not found")
                     continue
                 
-                if to_code == '1000NE':
-                    # Handle special "no equivalent" case
-                    to_course = get_no_equivalent_course()
-                else:
-                    to_course = Course.query.filter_by(code=to_code, institution=to_institution).first()
-                    
+                # At this point `to_course` has been determined by the
+                # composite key search above (or by get_no_equivalent_course())
+                # If the course could not be found, record an error.
                 if not to_course:
                     errors.append(f"Row {row_num}: To course {to_code} at {to_institution} not found")
                     continue
@@ -210,6 +240,11 @@ def upload_requirements():
         requirements_created = 0
         groups_created = 0
         options_created = 0
+        # Track how many programs are auto‑created when they are not
+        # already present in the database.  Without initialising this
+        # counter the first attempt to increment it will raise a
+        # NameError, causing confusing row‑level errors.
+        programs_created = 0
         errors = []
         
         current_requirement = None
@@ -232,7 +267,14 @@ def upload_requirements():
                         ('institution', 'Institution for course option')
                     ]
                     for field, label in group_fields:
-                        if not row.get(field, '').strip():
+                        value = row.get(field, '').strip()
+                        # For the course option field we treat sentinel values
+                        # like 'nan' or 'N/A' as missing.  Without this check
+                        # spreadsheets containing these placeholders would
+                        # trigger spurious validation errors.
+                        if field == 'course_option' and value.lower() in ('nan', 'na', 'n/a'):
+                            value = ''
+                        if not value:
                             errors.append(f"Row {row_num}: {label} is required for grouped/conditional requirements")
 
                 if not program_name or not category:
@@ -285,16 +327,23 @@ def upload_requirements():
                             db.session.add(current_group)
                             groups_created += 1
 
-                course_option = row.get('course_option', '').strip()
-                if course_option:
+                raw_course_option = row.get('course_option', '').strip()
+                # Treat sentinel values like 'NAN', 'NA', 'N/A' as missing
+                # course codes.  These often appear in exported spreadsheets
+                # but should not be interpreted as literal course codes.
+                if raw_course_option and raw_course_option.lower() not in ('nan', 'na', 'n/a'):
+                    # Normalise the course code to match how courses are stored
+                    # (uppercase and with hyphens replaced by spaces).  This
+                    # helps later comparisons to Course.code.
+                    normalised_code = raw_course_option.upper().replace('-', ' ').strip()
                     existing_option = GroupCourseOption.query.filter_by(
                         group_id=current_group.id,
-                        course_code=course_option
+                        course_code=normalised_code
                     ).first()
                     if not existing_option:
                         option = GroupCourseOption(
                             group_id=current_group.id,
-                            course_code=course_option,
+                            course_code=normalised_code,
                             institution=row.get('institution', '').strip() or None,
                             is_preferred=row.get('is_preferred', '').lower() == 'true',
                             notes=row.get('option_notes', '').strip()
@@ -312,6 +361,7 @@ def upload_requirements():
         
         return jsonify({
             'message': 'Requirements upload completed',
+            'programs_created': programs_created,
             'requirements_created': requirements_created,
             'groups_created': groups_created,
             'options_created': options_created,
