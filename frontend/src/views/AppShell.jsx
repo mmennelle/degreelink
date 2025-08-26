@@ -58,7 +58,9 @@ export default function AppShell({
           <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
             <div className="flex gap-2 overflow-x-auto pb-2">
               {tabs.map(t => {
-                const Icon = {Search, FileText, Key, Users}[t.icon] || Search;
+                // Map the string name from tab.icon to an imported Lucide icon.
+                // Shield is included here to support the audit tab.
+                const Icon = {Search, FileText, Key, Users, Shield}[t.icon] || Search;
                 const active = t.id === activeTab;
                 return (
                   <button

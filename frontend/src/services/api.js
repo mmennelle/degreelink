@@ -91,8 +91,14 @@ class ApiService {
     }
     
     // Existing methods...
-    async getPrograms() {
-      return this.request('/programs');
+    async getPrograms(params = {}) {
+      // Supports optional params: include_all (bool), semester, year
+      const query = new URLSearchParams();
+      if (params.include_all) query.set('include_all', 'true');
+      if (params.semester) query.set('semester', params.semester);
+      if (params.year) query.set('year', params.year);
+      const qs = query.toString();
+      return this.request(`/programs${qs ? `?${qs}` : ''}`);
     }
     
     async getProgram(id) {
@@ -115,6 +121,41 @@ class ApiService {
         headers: {}, 
         body: formData
       });
+    }
+
+    // Program version management
+    async getProgramVersions(programId) {
+      return this.request(`/programs/${programId}/versions`);
+    }
+
+    async setCurrentVersion(programId, semester, year) {
+      return this.request(`/programs/${programId}/versions/set-current`, {
+        method: 'PUT',
+        body: JSON.stringify({ semester, year })
+      });
+    }
+
+    async updateRequirement(programId, requirementId, data) {
+      return this.request(`/programs/${programId}/requirements/${requirementId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data)
+      });
+    }
+
+    // Degree audit
+    async getPlanAudit(planId) {
+      return this.request(`/plans/${planId}/audit`);
+    }
+
+    async downloadPlanAudit(planId, format = 'csv') {
+      const endpoint = `/plans/${planId}/degree-audit?format=${format}`;
+      const response = await fetch(`${this.baseURL}${endpoint}`);
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({ error: 'Download failed' }));
+        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+      const blob = await response.blob();
+      return blob;
     }
   
     async healthCheck() {

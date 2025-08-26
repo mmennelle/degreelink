@@ -40,7 +40,8 @@ export default function useAppController() {
       if (sessionStatus.has_access) {
         const [planData, prog] = await Promise.all([
           api.getPlan(sessionStatus.plan_id),
-          api.getPrograms()
+          // Advisors should see all program versions; students get only current requirements
+          api.getPrograms({ include_all: userMode === 'advisor' })
         ]);
         setPlans([planData]);
         setSelectedPlanId(planData.id);
@@ -48,13 +49,13 @@ export default function useAppController() {
       } else {
         setPlans([]);
         setSelectedPlanId(null);
-        const prog = await api.getPrograms();
+        const prog = await api.getPrograms({ include_all: userMode === 'advisor' });
         setPrograms(prog || []);
       }
     } catch (e) {
       console.error(e);
     }
-  }, []);
+  }, [userMode]);
 
 
 
@@ -152,7 +153,9 @@ export default function useAppController() {
     { id: 'search', label: 'Course Search', shortLabel: 'Search', icon: 'Search' },
     { id: 'plans',  label: 'Academic Plans', shortLabel: 'Plans', icon: 'FileText' },
     { id: 'lookup', label: 'Find Plan', shortLabel: 'Find', icon: 'Key' },
+    // Include upload tab only for advisors and always include audit tab
     ...(userMode === 'advisor' ? [{ id: 'upload', label: 'CSV Upload', shortLabel: 'Upload', icon: 'Users' }] : []),
+    { id: 'audit', label: 'Degree Audit', shortLabel: 'Audit', icon: 'Shield' }
   ]), [userMode]);
 
   // Make sure your return object in useAppController includes:
