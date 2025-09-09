@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Upload, FileText, AlertCircle, CheckCircle, Download, Settings } from 'lucide-react';
 import api from '../services/api';
 
@@ -7,6 +7,29 @@ const CSVUpload = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
   const [dragActive, setDragActive] = useState(false);
+
+  // Program versions state for requirements management
+  const [programVersions, setProgramVersions] = useState([]);
+
+  const loadProgramVersions = async () => {
+    try {
+      // Fetch all programs with all versions
+      const progData = await api.getPrograms({ include_all: true });
+      const programs = progData.programs || [];
+      // For each program, fetch its version summaries
+      const versionsList = await Promise.all(programs.map(async (p) => {
+        try {
+          const res = await api.getProgramVersions(p.id);
+          return { program: p, versions: res.versions || [] };
+        } catch {
+          return { program: p, versions: [] };
+        }
+      }));
+      setProgramVersions(versionsList);
+    } catch (e) {
+      console.error('Failed to load program versions', e);
+    }
+  };
 
   const handleFileUpload = async (file) => {
     if (!file) return;
@@ -47,6 +70,11 @@ const CSVUpload = () => {
       }
       
       setUploadResult(result);
+
+      // After uploading requirements, refresh versions listing
+      if (uploadType === 'requirements') {
+        await loadProgramVersions();
+      }
     } catch (error) {
       console.error('Upload failed:', error);
       setUploadResult({ error: error.message });
@@ -105,19 +133,20 @@ const CSVUpload = () => {
 "CHEM 111","Community College","CHEM 1210","State University","direct","Laboratory component included","Dr. Davis"`;
       filename = 'sample_equivalencies.csv';
     } else if (type === 'requirements') {
-      csvContent = `program_name,category,credits_required,requirement_type,group_name,courses_required,credits_required_group,course_option,institution,is_preferred,description,group_description,option_notes
-"Biology Major","Humanities",9,"grouped","Literature & Writing",2,6,"ENG 201","State University","true","Liberal arts breadth requirement","Choose 2 literature/writing courses","Advanced composition"
-"Biology Major","Humanities",9,"grouped","Literature & Writing",2,6,"ENG 205","State University","false","Liberal arts breadth requirement","Choose 2 literature/writing courses","Creative writing"
-"Biology Major","Humanities",9,"grouped","Literature & Writing",2,6,"LIT 101","Community College","false","Liberal arts breadth requirement","Choose 2 literature/writing courses","Introduction to literature"
-"Biology Major","Humanities",9,"grouped","Philosophy & Ethics",1,3,"PHIL 101","State University","true","Liberal arts breadth requirement","Choose 1 philosophy course","Introduction to philosophy"
-"Biology Major","Humanities",9,"grouped","Philosophy & Ethics",1,3,"PHIL 201","State University","false","Liberal arts breadth requirement","Choose 1 philosophy course","Ethics and moral philosophy"
-"Biology Major","Science Electives",12,"grouped","Upper Biology",2,8,"BIO 301","State University","true","Advanced biology courses","Choose 2 upper-division biology","Cell biology"
-"Biology Major","Science Electives",12,"grouped","Upper Biology",2,8,"BIO 305","State University","true","Advanced biology courses","Choose 2 upper-division biology","Genetics"
-"Biology Major","Science Electives",12,"grouped","Upper Biology",2,8,"BIO 401","State University","false","Advanced biology courses","Choose 2 upper-division biology","Molecular biology"
-"Biology Major","Science Electives",12,"grouped","Chemistry Option",1,4,"CHEM 301","State University","true","Advanced chemistry requirement","Choose 1 advanced chemistry","Organic chemistry"
-"Biology Major","Science Electives",12,"grouped","Chemistry Option",1,4,"CHEM 310","State University","false","Advanced chemistry requirement","Choose 1 advanced chemistry","Biochemistry"
-"Biology Major","Core Biology",32,"simple","","","","","","","Required biology courses for the major","",""
-"Biology Major","Mathematics",12,"simple","","","","","","","Calculus and statistics requirements","",""`;
+      // Updated sample to include versioning fields: semester, year, is_current
+      csvContent = `program_name,category,credits_required,requirement_type,semester,year,is_current,group_name,courses_required,credits_required_group,course_option,institution,is_preferred,description,group_description,option_notes
+"Biology Major","Humanities",9,"grouped","Fall",2025,true,"Literature & Writing",2,6,"ENG 201","State University",true,"Liberal arts breadth requirement","Choose 2 literature/writing courses","Advanced composition"
+"Biology Major","Humanities",9,"grouped","Fall",2025,true,"Literature & Writing",2,6,"ENG 205","State University",false,"Liberal arts breadth requirement","Choose 2 literature/writing courses","Creative writing"
+"Biology Major","Humanities",9,"grouped","Fall",2025,true,"Literature & Writing",2,6,"LIT 101","Community College",false,"Liberal arts breadth requirement","Choose 2 literature/writing courses","Introduction to literature"
+"Biology Major","Humanities",9,"grouped","Fall",2025,true,"Philosophy & Ethics",1,3,"PHIL 101","State University",true,"Liberal arts breadth requirement","Choose 1 philosophy course","Introduction to philosophy"
+"Biology Major","Humanities",9,"grouped","Fall",2025,true,"Philosophy & Ethics",1,3,"PHIL 201","State University",false,"Liberal arts breadth requirement","Choose 1 philosophy course","Ethics and moral philosophy"
+"Biology Major","Science Electives",12,"grouped","Fall",2025,true,"Upper Biology",2,8,"BIO 301","State University",true,"Advanced biology courses","Choose 2 upper-division biology","Cell biology"
+"Biology Major","Science Electives",12,"grouped","Fall",2025,true,"Upper Biology",2,8,"BIO 305","State University",true,"Advanced biology courses","Choose 2 upper-division biology","Genetics"
+"Biology Major","Science Electives",12,"grouped","Fall",2025,true,"Upper Biology",2,8,"BIO 401","State University",false,"Advanced biology courses","Choose 2 upper-division biology","Molecular biology"
+"Biology Major","Science Electives",12,"grouped","Fall",2025,true,"Chemistry Option",1,4,"CHEM 301","State University",true,"Advanced chemistry requirement","Choose 1 advanced chemistry","Organic chemistry"
+"Biology Major","Science Electives",12,"grouped","Fall",2025,true,"Chemistry Option",1,4,"CHEM 310","State University",false,"Advanced chemistry requirement","Choose 1 advanced chemistry","Biochemistry"
+"Biology Major","Core Biology",32,"simple","Fall",2025,true,"","","","","","Required biology courses for the major","",""
+"Biology Major","Mathematics",12,"simple","Fall",2025,true,"","","","","","Calculus and statistics requirements","",""`;
       filename = 'sample_program_requirements.csv';
     }
 
@@ -170,6 +199,9 @@ const CSVUpload = () => {
           { name: 'category', description: 'Requirement category (e.g., "Humanities")', required: true },
           { name: 'credits_required', description: 'Total credits for this category', required: true },
           { name: 'requirement_type', description: 'Type: simple, grouped, conditional', required: true },
+          { name: 'semester', description: 'Notes about course option', required: true },
+          { name: 'year', description: 'Notes about course option', required: true },
+          { name: 'is_current', description: 'Is this the current version? (true/false)', required: true },
           { name: 'group_name', description: 'Sub-group name (required for grouped/conditional types)', required: row => ["grouped","conditional"].includes(row.requirement_type) },
           { name: 'courses_required', description: 'Number of courses needed from group (required for grouped/conditional types)', required: row => ["grouped","conditional"].includes(row.requirement_type) },
           { name: 'credits_required_group', description: 'Credits needed from group (required for grouped/conditional types)', required: row => ["grouped","conditional"].includes(row.requirement_type) },
@@ -179,6 +211,7 @@ const CSVUpload = () => {
           { name: 'description', description: 'Category description', required: false },
           { name: 'group_description', description: 'Group description', required: false },
           { name: 'option_notes', description: 'Notes about course option', required: false }
+          
         ]
       };
     }
@@ -225,6 +258,13 @@ const CSVUpload = () => {
         return null;
     }
   };
+
+  // Load program versions when component mounts or when uploadType switches to requirements
+  useEffect(() => {
+    if (uploadType === 'requirements') {
+      loadProgramVersions();
+    }
+  }, [uploadType]);
 
   return (
     <div className="space-y-6">
@@ -495,6 +535,69 @@ const CSVUpload = () => {
                 <strong>Multiple Groups in One Category:</strong>
                 <p className="text-xs">Use the same category but different group_name values for complex requirements like "Choose 2 from Group A AND 1 from Group B"</p>
               </div>
+            </div>
+          </div>
+        )}
+        {/* Program Versions Management for Requirements */}
+        {uploadType === 'requirements' && programVersions.length > 0 && (
+          <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+            <h3 className="text-lg font-semibold mb-4 flex items-center">
+              <Settings className="mr-2" size={18} /> Manage Program Requirement Versions
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+              View and select which version of requirements should be active for each program.  Only the current version will be used in student plans and course search.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium">Program</th>
+                    <th className="px-3 py-2 text-left font-medium">Semester</th>
+                    <th className="px-3 py-2 text-left font-medium">Year</th>
+                    <th className="px-3 py-2 text-left font-medium">Requirements</th>
+                    <th className="px-3 py-2 text-left font-medium">Current?</th>
+                    <th className="px-3 py-2 text-left font-medium">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {programVersions.map(({ program, versions }) => (
+                    versions.map((v, idx) => (
+                      <tr key={`${program.id}-${idx}`} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        {idx === 0 ? (
+                          <td className="px-3 py-2 font-medium" rowSpan={versions.length}>{program.name}</td>
+                        ) : null}
+                        <td className="px-3 py-2">{v.semester || 'N/A'}</td>
+                        <td className="px-3 py-2">{v.year || 'N/A'}</td>
+                        <td className="px-3 py-2">{v.requirement_count}</td>
+                        <td className="px-3 py-2">
+                          {v.is_current ? (
+                            <span className="text-green-600 dark:text-green-400">Yes</span>
+                          ) : (
+                            <span className="text-gray-500 dark:text-gray-400">No</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          {!v.is_current && (
+                            <button
+                              className="px-2 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                              onClick={async () => {
+                                try {
+                                  await api.setCurrentVersion(program.id, v.semester, v.year);
+                                  await loadProgramVersions();
+                                } catch (e) {
+                                  alert('Failed to set current version: ' + e.message);
+                                }
+                              }}
+                            >
+                              Set Current
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}

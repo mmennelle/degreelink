@@ -46,6 +46,15 @@ class ProgramRequirement(db.Model):
     requirement_type = db.Column(db.String(50), default='simple')  
     is_flexible = db.Column(db.Boolean, default=False)  
     priority_order = db.Column(db.Integer, default=0)  
+
+    # --- Versioning fields ---
+    # Term (e.g. "Fall", "Spring") when this requirement applies.  Optional.
+    semester = db.Column(db.String(50))
+    # Calendar year when this requirement applies.  Optional.
+    year = db.Column(db.Integer)
+    # Whether this requirement version is the currently active set of requirements
+    # for the program.  Only one version per program should be marked current.
+    is_current = db.Column(db.Boolean, default=False)
     
     
     groups = db.relationship('RequirementGroup', backref='requirement', cascade='all, delete-orphan')
@@ -60,6 +69,9 @@ class ProgramRequirement(db.Model):
             'requirement_type': self.requirement_type,
             'is_flexible': self.is_flexible,
             'priority_order': self.priority_order,
+            'semester': self.semester,
+            'year': self.year,
+            'is_current': self.is_current,
             'groups': [group.to_dict() for group in self.groups]
         }
     

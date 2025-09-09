@@ -397,6 +397,91 @@ def remove_course_from_plan(plan_id, plan_course_id):
         db.session.rollback()
         return jsonify({'error': 'Failed to remove course'}), 500
 
+@bp.route('/<int:plan_id>/audit', methods=['GET'])
+def get_degree_audit(plan_id):
+    """
+    Return a degree audit summary for a given plan.
+
+    This endpoint computes high‑level progress metrics using
+    ``Plan.calculate_progress()`` and lists unmet requirements via
+    ``Plan.get_unmet_requirements()``.  The response JSON contains:
+
+      * ``plan_id`` – the ID of the plan.
+      * ``progress`` – a dictionary of progress metrics (total credits, requirement completion,
+        category breakdown etc.).
+      * ``unmet_requirements`` – a list of outstanding requirement categories with credits still needed.
+
+    Access to this endpoint is guarded by ``check_plan_access()`` to ensure that only
+    authorized sessions (students who have entered a plan code or advisors) can view
+    the audit.  If access is denied a 403 response is returned.
+    """
+    if not check_plan_access(plan_id):
+        return jsonify({'error': 'Access denied. Use plan code to access this plan.'}), 403
+
+    plan = Plan.query.get_or_404(plan_id)
+    progress = plan.calculate_progress()
+    unmet = plan.get_unmet_requirements()
+    return jsonify({'plan_id': plan_id, 'progress': progress, 'unmet_requirements': unmet})
+
+
+@bp.route('/<int:plan_id>/degree-audit', methods=['GET'])
+def download_degree_audit(plan_id):
+    """
+    Download a degree audit report for a plan in CSV format.
+
+    The CSV summarises each program requirement's completion status.  Columns include
+    ``category``, ``credits_required``, ``credits_completed``, ``credits_remaining``, and
+    ``is_complete`` ("yes" or "no").  Only CSV output is supported; if the
+    ``format`` query parameter is provided with a value other than ``csv``, a 400
+    response will be returned.
+
+    Access control matches that of other plan operations: a 403 response will be
+    returned if the user has not been granted access via plan code or advisor
+    session.
+    """
+    if not check_plan_access(plan_id):
+        return jsonify({'error': 'Access denied. Use plan code to access this plan.'}), 403
+
+    fmt = request.args.get('format', 'csv').lower()
+    if fmt != 'csv':
+        return jsonify({'error': 'Unsupported format'}), 400
+
+    plan = Plan.query.get_or_404(plan_id)
+    progress = plan.calculate_progress()
+    requirements = progress.get('requirement_progress', [])
+
+    import io
+    import csv
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    # Write header
+    writer.writerow([
+        'category', 'credits_required', 'credits_completed',
+        'credits_remaining', 'is_complete'
+    ])
+    # Write each requirement row
+    for r in requirements:
+        writer.writerow([
+            r.get('category', ''),
+            r.get('credits_required', 0),
+            r.get('credits_completed', 0),
+            r.get('credits_remaining', 0),
+            'yes' if r.get('is_complete') else 'no'
+        ])
+    csv_data = output.getvalue()
+    output.close()
+
+    from flask import Response
+    response = Response(
+        csv_data,
+        mimetype='text/csv',
+        headers={
+            'Content-Disposition': f'attachment; filename=degree_audit_{plan_id}.csv'
+        }
+    )
+    return response
+
 @bp.route('/<int:plan_id>/progress', methods=['GET'])
 def get_plan_progress(plan_id):
     """Get plan progress - requires prior code access"""

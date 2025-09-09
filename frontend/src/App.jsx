@@ -13,6 +13,7 @@ import SearchPage from './pages/SearchPage';
 import PlansPage from './pages/PlansPage';
 import LookupPage from './pages/LookupPage';
 import UploadPage from './pages/UploadPage';
+import AuditPage from './pages/AuditPage';
 
 export default function App() {
   const c = useAppController();
@@ -84,6 +85,13 @@ export default function App() {
           )}
 
           {c.activeTab === 'upload' && <UploadPage />}
+
+          {c.activeTab === 'audit' && (
+            <AuditPage
+              selectedPlanId={c.selectedPlanId}
+              plans={c.plans}
+            />
+          )}
 
           {/* Modals */}
           {c.isModalOpen && (

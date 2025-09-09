@@ -231,134 +231,184 @@ def upload_requirements():
         return jsonify({'error': 'File must be a CSV'}), 400
     
     try:
+        # Deferred import to avoid circular dependency
         from models.program import Program, ProgramRequirement, RequirementGroup, GroupCourseOption
-        
-        
+
+        # Read CSV as text and parse with DictReader
         stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
         csv_reader = csv.DictReader(stream)
-        
+
+        # Track created counts
+        programs_created = 0
         requirements_created = 0
         groups_created = 0
         options_created = 0
-        # Track how many programs are auto‑created when they are not
-        # already present in the database.  Without initialising this
-        # counter the first attempt to increment it will raise a
-        # NameError, causing confusing row‑level errors.
-        programs_created = 0
-        errors = []
-        
-        current_requirement = None
+        errors: list[str] = []
+
+        # Caches to reuse requirement and group objects when subsequent rows
+        # pertain to the same category or group.  These help ensure that
+        # grouped requirement rows accumulate options correctly without
+        # repeatedly querying the database.
         current_requirement = None
         current_group = None
 
         for row_num, row in enumerate(csv_reader, start=2):
             try:
-                program_name = row.get('program_name', '').strip()
-                category = row.get('category', '').strip()
-                requirement_type = row.get('requirement_type', 'simple').strip().lower()
+                # Normalise and extract fields
+                program_name = (row.get('program_name') or '').strip()
+                category = (row.get('category') or '').strip()
+                requirement_type = (row.get('requirement_type') or 'simple').strip().lower()
+                semester = (row.get('semester') or '').strip() or None
+                # Year may be empty or not an integer
+                year_raw = (row.get('year') or '').strip()
+                year = None
+                if year_raw:
+                    try:
+                        year = int(year_raw)
+                    except ValueError:
+                        errors.append(f"Row {row_num}: Invalid year '{year_raw}'")
 
-                # Validate required fields for grouped/conditional
+                is_current_str = (row.get('is_current') or '').strip().lower()
+                is_current = True if is_current_str in ('true', '1', 'yes') else False
+
+                # Validate base fields
+                if not program_name or not category:
+                    errors.append(f"Row {row_num}: Missing program_name or category")
+                    continue
+
+                # Ensure grouped/conditional rows have required group fields
                 if requirement_type in ['grouped', 'conditional']:
-                    group_fields = [
+                    required_group_fields = [
                         ('group_name', 'Group name'),
                         ('courses_required', 'Courses required'),
                         ('credits_required_group', 'Credits required for group'),
                         ('course_option', 'Course option'),
                         ('institution', 'Institution for course option')
                     ]
-                    for field, label in group_fields:
-                        value = row.get(field, '').strip()
-                        # For the course option field we treat sentinel values
-                        # like 'nan' or 'N/A' as missing.  Without this check
-                        # spreadsheets containing these placeholders would
-                        # trigger spurious validation errors.
+                    for field, label in required_group_fields:
+                        value = (row.get(field) or '').strip()
+                        # Accept sentinel values for course_option
                         if field == 'course_option' and value.lower() in ('nan', 'na', 'n/a'):
                             value = ''
                         if not value:
                             errors.append(f"Row {row_num}: {label} is required for grouped/conditional requirements")
-
-                if not program_name or not category:
-                    errors.append(f"Row {row_num}: Missing program_name or category")
-                    continue
-
+                # Find or create program
                 program = Program.query.filter_by(name=program_name).first()
                 if not program:
                     program = Program(
                         name=program_name,
                         degree_type='BS',
-                        institution='University of New Orleans',
-                        total_credits_required=120,
-                        description=f'Auto-created program: {program_name}'
+                        institution=row.get('program_institution', '') or 'University of New Orleans',
+                        total_credits_required=int(row.get('program_total_credits', 120) or 0),
+                        description=row.get('program_description', '') or f'Imported program: {program_name}'
                     )
                     db.session.add(program)
                     db.session.commit()
                     programs_created += 1
-                    continue
 
-                requirement_credits = int(row.get('credits_required', 0))
-                if not current_requirement or current_requirement.category != category:
+                # Determine requirement credits
+                try:
+                    req_credits = int(row.get('credits_required') or 0)
+                except ValueError:
+                    errors.append(f"Row {row_num}: Invalid credits_required value")
+                    req_credits = 0
+
+                # Retrieve or create requirement for program/semester/year/category
+                # Reset cache if category changes
+                if (not current_requirement or current_requirement.category != category or
+                        current_requirement.semester != semester or current_requirement.year != year or
+                        current_requirement.program_id != program.id):
+                    # Attempt to load existing requirement
                     current_requirement = ProgramRequirement.query.filter_by(
                         program_id=program.id,
-                        category=category
+                        category=category,
+                        semester=semester,
+                        year=year
                     ).first()
-                    if not current_requirement:
-                        current_requirement = ProgramRequirement(
-                            program_id=program.id,
-                            category=category,
-                            credits_required=requirement_credits,
-                            requirement_type=requirement_type,
-                            description=row.get('description', '').strip()
+                if not current_requirement:
+                    current_requirement = ProgramRequirement(
+                        program_id=program.id,
+                        category=category,
+                        credits_required=req_credits,
+                        requirement_type=requirement_type,
+                        description=(row.get('description') or '').strip(),
+                        semester=semester,
+                        year=year,
+                        is_current=is_current
+                    )
+                    db.session.add(current_requirement)
+                    requirements_created += 1
+
+                # If this row marks the requirement version as current, clear other versions for the program
+                if is_current:
+                    # Set all other requirements for this program to not current
+                    ProgramRequirement.query.filter(
+                        ProgramRequirement.program_id == program.id,
+                        ProgramRequirement.id != current_requirement.id
+                    ).update({ProgramRequirement.is_current: False})
+                    # Mark current requirement's version as current
+                    current_requirement.is_current = True
+
+                # Handle grouped/conditional requirement groups
+                group_name = (row.get('group_name') or '').strip()
+                if requirement_type in ['grouped', 'conditional'] and group_name:
+                    # Reset group cache if group_name changes or requirement changes
+                    if (not current_group or current_group.group_name != group_name or
+                            current_group.requirement_id != current_requirement.id):
+                        current_group = RequirementGroup.query.filter_by(
+                            requirement_id=current_requirement.id,
+                            group_name=group_name
+                        ).first()
+                    if not current_group:
+                        try:
+                            courses_required = int(row.get('courses_required') or 0)
+                        except ValueError:
+                            errors.append(f"Row {row_num}: Invalid courses_required value")
+                            courses_required = 0
+                        # credits_required_group may be blank
+                        crg_raw = (row.get('credits_required_group') or '').strip()
+                        credits_required_group = None
+                        if crg_raw:
+                            try:
+                                credits_required_group = int(crg_raw)
+                            except ValueError:
+                                errors.append(f"Row {row_num}: Invalid credits_required_group value")
+                        current_group = RequirementGroup(
+                            requirement_id=current_requirement.id,
+                            group_name=group_name,
+                            courses_required=courses_required,
+                            credits_required=credits_required_group,
+                            description=(row.get('group_description') or '').strip()
                         )
-                        db.session.add(current_requirement)
-                        requirements_created += 1
+                        db.session.add(current_group)
+                        groups_created += 1
 
-                group_name = row.get('group_name', '').strip()
-                if group_name and requirement_type == 'grouped':
-                    if not current_group or current_group.group_name != group_name:
-                        current_group = RequirementGroup.query.filter_by(requirement_id=current_requirement.id, group_name=group_name).first()
-                        if not current_group:
-                            current_group = RequirementGroup(
-                                requirement_id=current_requirement.id,
-                                group_name=group_name,
-                                courses_required=int(row.get('courses_required', 0)),
-                                credits_required=int(row.get('credits_required_group', 0)) if row.get('credits_required_group') else None,
-                                description=row.get('group_description', '').strip()
-                            )
-                            db.session.add(current_group)
-                            groups_created += 1
-
-                raw_course_option = row.get('course_option', '').strip()
-                # Treat sentinel values like 'NAN', 'NA', 'N/A' as missing
-                # course codes.  These often appear in exported spreadsheets
-                # but should not be interpreted as literal course codes.
-                if raw_course_option and raw_course_option.lower() not in ('nan', 'na', 'n/a'):
-                    # Normalise the course code to match how courses are stored
-                    # (uppercase and with hyphens replaced by spaces).  This
-                    # helps later comparisons to Course.code.
-                    normalised_code = raw_course_option.upper().replace('-', ' ').strip()
-                    existing_option = GroupCourseOption.query.filter_by(
-                        group_id=current_group.id,
-                        course_code=normalised_code
-                    ).first()
-                    if not existing_option:
-                        option = GroupCourseOption(
+                    # Process course options
+                    raw_course_option = (row.get('course_option') or '').strip()
+                    # Skip sentinel values indicating missing options
+                    if raw_course_option and raw_course_option.lower() not in ('nan', 'na', 'n/a'):
+                        normalised_code = raw_course_option.upper().replace('-', ' ').strip()
+                        existing_option = GroupCourseOption.query.filter_by(
                             group_id=current_group.id,
-                            course_code=normalised_code,
-                            institution=row.get('institution', '').strip() or None,
-                            is_preferred=row.get('is_preferred', '').lower() == 'true',
-                            notes=row.get('option_notes', '').strip()
-                        )
-                        db.session.add(option)
-                        options_created += 1
-            except ValueError as e:
-                errors.append(f"Row {row_num}: Invalid data format - {str(e)}")
+                            course_code=normalised_code
+                        ).first()
+                        if not existing_option:
+                            option = GroupCourseOption(
+                                group_id=current_group.id,
+                                course_code=normalised_code,
+                                institution=(row.get('institution') or '').strip() or None,
+                                is_preferred=((row.get('is_preferred') or '').strip().lower() in ('true', '1', 'yes')),
+                                notes=(row.get('option_notes') or '').strip()
+                            )
+                            db.session.add(option)
+                            options_created += 1
             except Exception as e:
                 errors.append(f"Row {row_num}: {str(e)}")
-            # removed stray .first() line
-        
-        if requirements_created > 0 or groups_created > 0 or options_created > 0:
+
+        # Commit all creations in a single transaction
+        if programs_created or requirements_created or groups_created or options_created:
             db.session.commit()
-        
+
         return jsonify({
             'message': 'Requirements upload completed',
             'programs_created': programs_created,
@@ -367,7 +417,7 @@ def upload_requirements():
             'options_created': options_created,
             'errors': errors
         })
-        
+
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'Failed to process file: {str(e)}'}), 500
