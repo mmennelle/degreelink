@@ -1,7 +1,7 @@
 // src/views/AppShell.jsx
 import React from 'react';
 import { Moon, Sun, Users, Key, FileText, Search, Shield, Home, GraduationCap } from 'lucide-react';
-import { useDarkMode, DarkModeProvider } from '../hooks/useDarkMode';
+import { useDarkMode } from '../hooks/useDarkMode';
 
 export default function AppShell({
   activeTab, setActiveTab, tabs, userMode,
@@ -10,7 +10,7 @@ export default function AppShell({
   const { isDarkMode, toggleDarkMode } = useDarkMode();
 
   return (
-    <DarkModeProvider>
+    
       <div className="min-h-screen text-gray-900 dark:text-gray-100 flex flex-col">
         {/* Top nav */}
         <nav className="border-b-4 boarder-solid border-gray-300 dark:border-gray-800 bg-surface-light dark:bg-gray-900/60 backdrop-blur sticky top-0 z-40">
@@ -97,6 +97,5 @@ export default function AppShell({
           </div>
         </footer>
       </div>
-    </DarkModeProvider>
   );
 }
