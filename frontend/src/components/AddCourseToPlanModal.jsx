@@ -62,7 +62,11 @@ const AddCourseToPlanModal = ({
       return acc;
     }, {});
   });
-  
+  // Close when clicking the backdrop (outside the dialog)
+    const onBackdrop = useCallback((e) => {
+      if (e.target === e.currentTarget) onClose?.();
+    }, [onClose]);
+
   // Global settings for bulk operations
   const [applyToAll, setApplyToAll] = useState({
     semester: false,
@@ -300,14 +304,16 @@ useEffect(() => {
     for (const data of courseData) {
       try {
         await onCoursesAdded([{
-          course_id: data.course.id,
-          semester: data.semester,
-          year: parseInt(data.year),
-          status: data.status,
-          requirement_category: data.requirement_category,
-          grade: data.grade || undefined,
-          notes: data.notes || undefined
-        }]);
+        course_id: data.course.id,
+        semester: data.semester,
+        year: Number(data.year),
+        status: data.status,
+        requirement_category: data.requirement_category,
+        requirement_group_id: data.requirement_group_id || undefined, // 👈 grouped reqs
+        credits: data.course?.credits ?? undefined,                    // 👈 backend often wants this
+        grade: data.grade || undefined,
+        notes: data.notes || undefined
+      }]);
       } catch (error) {
         newErrors.push({
           course: data.course,
@@ -345,15 +351,15 @@ useEffect(() => {
       ref={dialogRef}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="create-plan-title"
-      aria-describedby="create-plan-description"
+      aria-labelledby="add-course-title"
+      aria-describedby="add-course-description"
       tabIndex={-1}
       className="bg-white dark:bg-gray-800 rounded-t-lg sm:rounded-lg w-full sm:max-w-md h-[90vh] sm:h-auto overflow-y-auto outline-none transition-colors"
     >
         {/* Header */}
         <div className="px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
           <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            <h3 id="add-course-title" className="text-lg font-semibold text-gray-900 dark:text-white">
               Add {isBulkMode ? `${courses.length} Courses` : 'Course'} to Plan
             </h3>
             <button
@@ -372,7 +378,7 @@ useEffect(() => {
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div id="add-course-description" className="flex-1 overflow-y-auto p-4 sm:p-6">
           {/* Bulk Options */}
           {isBulkMode && (
             <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
