@@ -733,26 +733,7 @@ const PlanBuilder = ({
                 <Plus className="mr-1" size={16} />
                 Add Course
               </button>
-              <button
-                onClick={() => setShowCourses(prev => !prev)}
-                className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white dark:text-gray-200 rounded-md hover:bg-green-800 dark:hover:bg-green-800 flex items-center justify-center transition-colors text-sm"
-              >
-                {showCourses ? 'Hide Courses' : 'View Courses'}
-              </button>
             </div>
-            {/* Conditionally render courses list when requested */}
-            {showCourses && (
-              <CoursesByRequirementCollapsible
-                selectedPlan={selectedPlan}
-                groupCoursesByRequirement={groupCoursesByRequirement}
-                updateCourseStatus={updateCourseStatus}
-                updateCourseRequirement={updateCourseRequirement}
-                removeCourseFromPlan={removeCourseFromPlan}
-                getStatusColor={getStatusColor}
-                getProgram={getProgram}
-                setShowCourseSearch={setShowCourseSearch}
-              />
-            )}
           </div>
         )}
       </div>

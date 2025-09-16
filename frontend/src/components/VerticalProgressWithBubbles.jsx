@@ -95,8 +95,8 @@ export default function VerticalProgressWithBubbles({
       'physics': 'PH',
       'history': 'HI',
       'science': 'SC',
-      'social science': 'SS',
-      'social sciences': 'SS',
+      'social science': 'SO',
+      'social sciences': 'SO',
       'liberal arts': 'LA',
       'fine arts': 'FA',
       'core': 'CO',
@@ -249,11 +249,11 @@ function RequirementBubble({
     }
   };
 
-  // Position bubble on left or right side of the progress bar - closer to bar
+  // Position bubble on left or right side of the progress bar - very close to bar
   const bubbleStyle = {
     bottom: `${y}%`,
     [side === 'left' ? 'right' : 'left']: '100%',
-    [side === 'left' ? 'marginRight' : 'marginLeft']: '1px' // Reduced from 8px to 2px
+    [side === 'left' ? 'marginRight' : 'marginLeft']: '1px' // Moved even closer - 1px gap
   };
 
   // Position popover on opposite side of bubble
@@ -277,7 +277,7 @@ function RequirementBubble({
         <span className="select-none">{initials}</span>
       </button>
 
-      {/* Connection line from bubble to progress bar - shorter line */}
+      {/* Connection line from bubble to progress bar - longer line */}
       <div 
         className={`absolute top-1/2 -translate-y-1/2 h-0.5 w-3 bg-gray-400 dark:bg-gray-500 ${
           side === 'left' ? 'left-full' : 'right-full'
@@ -305,6 +305,7 @@ function RequirementBubble({
 
 function RequirementDetails({ requirement, onClose, onAddCourse, plan }) {
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showCourses, setShowCourses] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
@@ -320,6 +321,14 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan }) {
 
   const ratio = totalCredits ? `${completedCredits ?? 0}/${totalCredits}` : null;
   const creditsNeeded = Math.max(0, totalCredits - completedCredits);
+
+  // Get courses from the plan that satisfy this requirement
+  const requirementCourses = useMemo(() => {
+    if (!plan?.courses) return [];
+    return plan.courses.filter(planCourse => 
+      (planCourse.requirement_category || 'Uncategorized') === name
+    );
+  }, [plan?.courses, name]);
 
   // Real course suggestions integration with your existing backend logic
   const generateSuggestions = useCallback(async () => {
@@ -458,6 +467,19 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan }) {
     }
   };
 
+  const getStatusColor2 = (status) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 border-green-200 dark:border-green-700';
+      case 'in_progress':
+        return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-700';
+      case 'planned':
+        return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-700';
+      default:
+        return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-600';
+    }
+  };
+
   return (
     <div className="p-4 max-h-96 overflow-y-auto">
       {/* Header */}
@@ -510,25 +532,47 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan }) {
         </div>
       )}
 
-      {/* Applied Courses */}
-      {courses.length > 0 && (
+      {/* View Current Courses Button */}
+      {requirementCourses.length > 0 && (
         <div className="mb-4">
-          <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
-            <BookOpen size={14} className="mr-1" />
-            Applied Courses ({courses.length})
-          </h5>
-          <ul className="space-y-1">
-            {courses.slice(0, 3).map((course, index) => (
-              <li key={index} className="text-xs bg-gray-50 dark:bg-gray-700 rounded px-2 py-1 text-gray-700 dark:text-gray-300">
-                {typeof course === 'string' ? course : `${course.code || course.title || 'Unknown Course'}`}
-              </li>
-            ))}
-            {courses.length > 3 && (
-              <li className="text-xs text-gray-500 dark:text-gray-400 px-2">
-                ...and {courses.length - 3} more
-              </li>
-            )}
-          </ul>
+          <button
+            onClick={() => setShowCourses(!showCourses)}
+            className="w-full flex items-center justify-between text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+          >
+            <span className="flex items-center">
+              <BookOpen size={14} className="mr-1" />
+              Current Courses ({requirementCourses.length})
+            </span>
+            {showCourses ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+
+          {showCourses && (
+            <div className="mt-3 space-y-2 max-h-32 overflow-y-auto">
+              {requirementCourses.map((planCourse) => (
+                <div key={planCourse.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <h6 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {planCourse.course.code}: {planCourse.course.title}
+                      </h6>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        {planCourse.credits || planCourse.course.credits} credits • {planCourse.course.institution}
+                      </p>
+                      {planCourse.semester && planCourse.year && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {planCourse.semester} {planCourse.year}
+                        </p>
+                      )}
+                    </div>
+                    <span className={`px-2 py-1 text-xs rounded border ${getStatusColor2(planCourse.status)}`}>
+                      {planCourse.status === 'in_progress' ? 'In Progress' : 
+                       planCourse.status === 'completed' ? 'Completed' : 'Planned'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
