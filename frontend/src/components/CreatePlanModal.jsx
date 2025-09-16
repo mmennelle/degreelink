@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Mail, BookOpen, X } from 'lucide-react';
 import api from '../services/api';
 
@@ -9,6 +9,71 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
     plan_name: '',
     program_id: 1, 
   });
+
+  const dialogRef = useRef(null);
+  const restoreFocusRef = useRef(null);
+
+  const focusFirst = useCallback(() => {
+    const root = dialogRef.current;
+    if (!root) return;
+    const tabbables = root.querySelectorAll(
+      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+    );
+    (tabbables[0] || root).focus();
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    restoreFocusRef.current = document.activeElement;
+    const t = setTimeout(focusFirst, 0);
+
+    const onKeyDown = (e) => {
+      if (!dialogRef.current) return;
+
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose?.();
+        return;
+      }
+
+      if (e.key === 'Tab') {
+        const tabbables = dialogRef.current.querySelectorAll(
+          'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+        );
+        if (tabbables.length === 0) {
+          e.preventDefault();
+          dialogRef.current.focus();
+          return;
+        }
+        const first = tabbables[0];
+        const last = tabbables[tabbables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('keydown', onKeyDown, true);
+    };
+  }, [isOpen, focusFirst, onClose]);
+
+  useEffect(() => {
+    if (!isOpen && restoreFocusRef.current instanceof HTMLElement) {
+      restoreFocusRef.current.focus();
+    }
+  }, [isOpen]);
+
+  const onBackdrop = (e) => {
+    if (e.target === e.currentTarget) onClose?.();
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -110,8 +175,19 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-t-lg sm:rounded-lg w-full sm:max-w-md h-[90vh] sm:h-auto overflow-y-auto transition-colors">
+    <div
+    className="fixed inset-0 bg-black/50 dark:bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+    onMouseDown={onBackdrop}
+  >
+    <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-plan-title"
+      aria-describedby="create-plan-description"
+      tabIndex={-1}
+      className="bg-white dark:bg-gray-800 rounded-t-lg sm:rounded-lg w-full sm:max-w-md h-[90vh] sm:h-auto overflow-y-auto outline-none transition-colors"
+    >
         {/* Header */}
         <div className="sticky top-0 bg-white dark:bg-gray-800 px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700 rounded-t-lg">
           <div className="flex justify-between items-center">
