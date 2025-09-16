@@ -78,7 +78,57 @@ export default function VerticalProgressWithBubbles({
     }));
   }, [requirements, program]);
 
-  // Position bubbles evenly along the bar, but ensure all are visible
+  // Helper function to generate initials from requirement names
+  const getRequirementInitials = (name) => {
+    if (!name) return 'XX';
+    
+    // Handle common requirement categories with specific abbreviations
+    const abbreviations = {
+      'mathematics': 'MA',
+      'math': 'MA',
+      'english': 'EN',
+      'composition': 'EN',
+      'literature': 'LI',
+      'humanities': 'HU',
+      'biology': 'BI',
+      'chemistry': 'CH',
+      'physics': 'PH',
+      'history': 'HI',
+      'science': 'SC',
+      'social science': 'SS',
+      'social sciences': 'SS',
+      'liberal arts': 'LA',
+      'fine arts': 'FA',
+      'core': 'CO',
+      'elective': 'EL',
+      'free elective': 'FE',
+      'general education': 'GE'
+    };
+    
+    const nameLower = name.toLowerCase();
+    
+    // Check for exact matches first
+    if (abbreviations[nameLower]) {
+      return abbreviations[nameLower];
+    }
+    
+    // Check for partial matches
+    for (const [key, abbrev] of Object.entries(abbreviations)) {
+      if (nameLower.includes(key)) {
+        return abbrev;
+      }
+    }
+    
+    // Fall back to first two letters of each word, up to 2 letters total
+    const words = name.trim().split(/\s+/);
+    if (words.length === 1) {
+      return words[0].substring(0, 2).toUpperCase();
+    } else {
+      return words.slice(0, 2).map(w => w.charAt(0)).join('').toUpperCase();
+    }
+  };
+
+  // Position bubbles evenly along the bar with alternating sides
   const positioned = useMemo(() => {
     const n = bubbleReqs.length;
     if (n === 0) return [];
@@ -87,14 +137,24 @@ export default function VerticalProgressWithBubbles({
     if (n <= 3) {
       return bubbleReqs.map((r, i) => {
         const positions = n === 1 ? [50] : n === 2 ? [30, 70] : [20, 50, 80];
-        return { ...r, y: positions[i] };
+        return { 
+          ...r, 
+          y: positions[i],
+          side: i % 2 === 0 ? 'left' : 'right', // Alternate sides
+          initials: getRequirementInitials(r.name)
+        };
       });
     }
     
-    // For more bubbles, distribute evenly with padding
+    // For more bubbles, distribute evenly with padding and alternate sides
     return bubbleReqs.map((r, i) => {
       const pct = (i + 1) / (n + 1);
-      return { ...r, y: clamp(pct * 100, 12, 88) };
+      return { 
+        ...r, 
+        y: clamp(pct * 100, 12, 88),
+        side: i % 2 === 0 ? 'left' : 'right', // Alternate sides
+        initials: getRequirementInitials(r.name)
+      };
     });
   }, [bubbleReqs]);
 
@@ -122,7 +182,7 @@ export default function VerticalProgressWithBubbles({
     <section className="flex flex-col items-center gap-3">
       <h3 className={`text-sm font-semibold text-center ${titleColor}`}>{title}</h3>
 
-      <div className="relative h-64 w-12" ref={barRef} aria-label={`${title} progress`} role="img">
+      <div className="relative h-64 w-16 mx-2" ref={barRef} aria-label={`${title} progress`} role="img">
         {/* Track */}
         <div 
           className={`absolute left-1/2 -translate-x-1/2 rounded-full ${trackColor}`} 
@@ -149,6 +209,8 @@ export default function VerticalProgressWithBubbles({
             key={req.id}
             requirement={req}
             y={req.y}
+            side={req.side}
+            initials={req.initials}
             colorScheme={c}
             open={openBubbleId === req.id}
             onToggle={() => setOpenBubbleId(openBubbleId === req.id ? null : req.id)}
@@ -170,6 +232,8 @@ export default function VerticalProgressWithBubbles({
 function RequirementBubble({ 
   requirement, 
   y, 
+  side, 
+  initials,
   colorScheme, 
   open, 
   onToggle, 
@@ -185,38 +249,47 @@ function RequirementBubble({
     }
   };
 
-  const getBubbleIcon = (status) => {
-    switch (status) {
-      case 'met': return <CheckCircle2 size={12} />;
-      case 'part': return <AlertCircle size={12} />;
-      default: return <Target size={12} />;
-    }
+  // Position bubble on left or right side of the progress bar - closer to bar
+  const bubbleStyle = {
+    bottom: `${y}%`,
+    [side === 'left' ? 'right' : 'left']: '100%',
+    [side === 'left' ? 'marginRight' : 'marginLeft']: '1px' // Reduced from 8px to 2px
   };
+
+  // Position popover on opposite side of bubble
+  const popoverPositionClass = side === 'left' 
+    ? 'right-full mr-2' 
+    : 'left-full ml-2';
 
   return (
     <div 
-      className="absolute left-1/2 -translate-x-1/2 z-10" 
-      style={{ bottom: `${y}%` }}
+      className="absolute z-10" 
+      style={bubbleStyle}
     >
-      {/* Bubble button */}
+      {/* Bubble button with initials */}
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open ? 'true' : 'false'}
         aria-label={`${requirement.name} requirement (${requirement.status})`}
-        className={`relative h-7 w-7 rounded-full ring-2 shadow-md transition-all duration-200 focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2 ${getBubbleColor(requirement.status)}`}
+        className={`relative h-8 w-8 rounded-full ring-2 shadow-md transition-all duration-200 focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2 text-xs font-bold ${getBubbleColor(requirement.status)}`}
       >
-        <div className="flex items-center justify-center">
-          {getBubbleIcon(requirement.status)}
-        </div>
+        <span className="select-none">{initials}</span>
       </button>
+
+      {/* Connection line from bubble to progress bar - shorter line */}
+      <div 
+        className={`absolute top-1/2 -translate-y-1/2 h-0.5 w-3 bg-gray-400 dark:bg-gray-500 ${
+          side === 'left' ? 'left-full' : 'right-full'
+        }`}
+      />
 
       {/* Popover */}
       {open && (
         <div
           role="dialog"
           aria-modal="false"
-          className="absolute left-8 top-1/2 -translate-y-1/2 z-30 w-80 max-w-[85vw] rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl animate-in slide-in-from-left-2 duration-200"
+          className={`absolute top-1/2 -translate-y-1/2 z-30 w-80 max-w-[85vw] rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl animate-in slide-in-from-${side}-2 duration-200 ${popoverPositionClass}`}
         >
           <RequirementDetails 
             requirement={requirement}
@@ -248,63 +321,116 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan }) {
   const ratio = totalCredits ? `${completedCredits ?? 0}/${totalCredits}` : null;
   const creditsNeeded = Math.max(0, totalCredits - completedCredits);
 
-  // Mock course suggestions based on requirement (integrate with your existing logic)
+  // Real course suggestions integration with your existing backend logic
   const generateSuggestions = useCallback(async () => {
-    if (!programRequirement || loadingSuggestions) return;
+    if (!programRequirement || loadingSuggestions || !plan) return;
     
     setLoadingSuggestions(true);
     try {
-      // This would integrate with your existing suggestion logic
-      // For now, showing the structure you'd need
-      const mockSuggestions = [];
+      const suggestions = [];
       
       if (programRequirement.requirement_type === 'grouped' && programRequirement.groups) {
-        programRequirement.groups.forEach(group => {
+        // Process grouped requirements - get actual course data
+        for (const group of programRequirement.groups) {
           if (group.course_options) {
-            group.course_options.forEach(option => {
-              mockSuggestions.push({
-                id: `${group.id}-${option.course_code}`,
-                code: option.course_code,
-                title: `Sample Course Title for ${option.course_code}`,
-                credits: 3,
-                institution: option.institution || programRequirement.institution || 'University',
-                group_name: group.group_name,
-                is_preferred: option.is_preferred,
-                notes: option.notes,
-                requirement_category: name
-              });
-            });
+            for (const option of group.course_options) {
+              try {
+                // Search for the actual course by code
+                const courseSearchResponse = await fetch(`/api/courses?search=${encodeURIComponent(option.course_code)}&institution=${encodeURIComponent(option.institution || '')}`);
+                if (courseSearchResponse.ok) {
+                  const courseData = await courseSearchResponse.json();
+                  const course = courseData.courses && courseData.courses.length > 0 ? courseData.courses[0] : null;
+                  
+                  if (course) {
+                    suggestions.push({
+                      id: course.id,
+                      code: course.code,
+                      title: course.title,
+                      credits: course.credits,
+                      institution: course.institution,
+                      description: course.description,
+                      group_name: group.group_name,
+                      is_preferred: option.is_preferred,
+                      notes: option.notes,
+                      requirement_category: name,
+                      detectedCategory: name
+                    });
+                  }
+                }
+              } catch (err) {
+                console.warn(`Failed to fetch course ${option.course_code}:`, err);
+              }
+            }
           }
-        });
+        }
       } else {
-        // Generate suggestions for simple requirements
-        // You'd integrate your existing course search/suggestion logic here
-        const sampleCourses = [
-          { code: 'ENG 101', title: 'English Composition I', credits: 3 },
-          { code: 'ENG 102', title: 'English Composition II', credits: 3 },
-          { code: 'LIT 201', title: 'Introduction to Literature', credits: 3 }
-        ].filter(course => 
-          name.toLowerCase().includes('english') || 
-          name.toLowerCase().includes('composition') ||
-          name.toLowerCase().includes('literature')
-        );
-
-        mockSuggestions.push(...sampleCourses.map(course => ({
-          ...course,
-          id: course.code,
-          institution: 'University of New Orleans',
-          requirement_category: name,
-          is_preferred: false
-        })));
+        // For simple requirements, use course search with department/subject matching
+        const searchTerms = [];
+        
+        // Map requirement categories to likely search terms
+        const categoryMappings = {
+          'english': ['ENG', 'ENGL', 'composition', 'writing'],
+          'composition': ['ENG', 'ENGL', 'composition', 'writing'],
+          'literature': ['ENG', 'ENGL', 'LIT', 'literature'],
+          'mathematics': ['MATH', 'mathematics', 'calculus', 'algebra'],
+          'math': ['MATH', 'mathematics', 'calculus', 'algebra'],
+          'biology': ['BIOL', 'BIO', 'biology', 'life science'],
+          'chemistry': ['CHEM', 'chemistry'],
+          'physics': ['PHYS', 'physics'],
+          'history': ['HIST', 'history'],
+          'science': ['BIOL', 'CHEM', 'PHYS', 'science'],
+          'social': ['SOC', 'PSY', 'POLI', 'social'],
+          'humanities': ['ENG', 'HIST', 'PHIL', 'ART', 'humanities']
+        };
+        
+        // Find matching search terms
+        const nameLower = name.toLowerCase();
+        for (const [key, terms] of Object.entries(categoryMappings)) {
+          if (nameLower.includes(key)) {
+            searchTerms.push(...terms);
+            break;
+          }
+        }
+        
+        // If no specific mapping, use the requirement name itself
+        if (searchTerms.length === 0) {
+          searchTerms.push(name);
+        }
+        
+        // Search for courses using the first search term
+        try {
+          const searchResponse = await fetch(`/api/courses?search=${encodeURIComponent(searchTerms[0])}&per_page=8`);
+          if (searchResponse.ok) {
+            const searchData = await searchResponse.json();
+            if (searchData.courses) {
+              searchData.courses.forEach(course => {
+                suggestions.push({
+                  id: course.id,
+                  code: course.code,
+                  title: course.title,
+                  credits: course.credits,
+                  institution: course.institution,
+                  description: course.description,
+                  requirement_category: name,
+                  is_preferred: false,
+                  detectedCategory: name
+                });
+              });
+            }
+          }
+        } catch (err) {
+          console.warn(`Failed to search courses for ${name}:`, err);
+        }
       }
       
-      setSuggestions(mockSuggestions);
+      setSuggestions(suggestions);
     } catch (error) {
       console.error('Failed to load suggestions:', error);
+      setSuggestions([]);
     } finally {
       setLoadingSuggestions(false);
     }
-  }, [programRequirement, loadingSuggestions, name]);
+  }, [programRequirement, loadingSuggestions, name, plan]);
 
   const handleShowSuggestions = () => {
     if (!showSuggestions && suggestions.length === 0) {
