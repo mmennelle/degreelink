@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { BookOpen, Plus, ChevronRight, ChevronLeft, Target } from 'lucide-react';
 import api from '../services/api';
 import CourseSearch from './CourseSearch';
+import VerticalProgressWithBubbles from './VerticalProgressWithBubbles';
+
 // Remove the old ProgressTracker for this simplified mobile design
 // import ProgressTracker from './ProgressTracker';
 import AddCourseToPlanModal from './AddCourseToPlanModal';
@@ -24,9 +26,9 @@ const PlanBuilder = ({
   const plans = externalPlans !== undefined ? externalPlans : internalPlans;
   const selectedPlanId = externalSelectedPlanId !== undefined ? externalSelectedPlanId : internalSelectedPlanId;
   const setSelectedPlanId = externalSetSelectedPlanId || setInternalSelectedPlanId;
-  
   const [selectedPlan, setSelectedPlan] = useState(null);
-  
+  const [progress, setProgress] = useState(null);
+  const [progressLoading, setProgressLoading] = useState(false);
   const [showCourseSearch, setShowCourseSearch] = useState(false);
   const [internalPrograms, setInternalPrograms] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -57,6 +59,70 @@ const PlanBuilder = ({
       loadPrograms();
     }
   }, []); // Empty dependency array for initial load only
+
+    useEffect(() => {
+  let alive = true;
+  async function loadProgress() {
+    if (!selectedPlanId) { setProgress(null); return; }
+    setProgressLoading(true);
+    try {
+      const p = await api.getPlanProgress(selectedPlanId);
+
+      // Also load plan details we already keep in state
+      const localPercents = selectedPlan ? getVerticalProgressData(selectedPlan) : { current: 0, transfer: 0 };
+      const program = getProgram();
+
+      const normalize = (side) => ({
+        percent: Math.round(side?.percent ?? 0),
+        requirements: (side?.requirements ?? []).map(r => ({
+          id: r.id || r.code || r.name,
+          name: r.name,
+          status: r.status,
+          completedCredits: r.completedCredits,
+          totalCredits: r.totalCredits,
+          courses: r.courses || r.applied || [],
+        })),
+      });
+
+      const apiCurrent = normalize(p?.current || {});
+      const apiTransfer = normalize(p?.transfer || {});
+
+      // Fallback percents if API returned 0 but local says otherwise
+      if (!apiCurrent.percent && localPercents.current) {
+        apiCurrent.percent = Math.round(localPercents.current);
+      }
+      if (!apiTransfer.percent && localPercents.transfer) {
+        apiTransfer.percent = Math.round(localPercents.transfer);
+      }
+
+      // Fallback requirements if API has none
+      if (!apiCurrent.requirements?.length || !apiTransfer.requirements?.length) {
+        const reqs = buildRequirementStatuses(selectedPlan, program);
+        if (!apiCurrent.requirements?.length) apiCurrent.requirements = reqs;
+        if (!apiTransfer.requirements?.length) apiTransfer.requirements = reqs;
+      }
+
+      if (alive) setProgress({ current: apiCurrent, transfer: apiTransfer });
+    } catch (e) {
+      console.error('getPlanProgress failed', e);
+      // pure fallback
+      const localPercents = selectedPlan ? getVerticalProgressData(selectedPlan) : { current: 0, transfer: 0 };
+      const program = getProgram();
+      const reqs = buildRequirementStatuses(selectedPlan, program);
+      if (alive) {
+        setProgress({
+          current: { percent: Math.round(localPercents.current), requirements: reqs },
+          transfer: { percent: Math.round(localPercents.transfer), requirements: reqs },
+        });
+      }
+    } finally {
+      if (alive) setProgressLoading(false);
+    }
+  }
+  loadProgress();
+  return () => { alive = false; };
+}, [selectedPlanId, selectedPlan]); // include selectedPlan so fallback updates
+
 
   useEffect(() => {
     // When selectedPlanId changes or refreshTrigger updates, load the plan details
@@ -382,6 +448,37 @@ const PlanBuilder = ({
       </div>
     );
   };
+  const buildRequirementStatuses = (plan, program) => {
+  if (!plan || !program?.requirements) return [];
+
+  const byCat = {};
+  (plan.courses || []).forEach(pc => {
+    if (pc.status !== 'completed') return;
+    const cat = pc.requirement_category || 'Uncategorized';
+    const credits = pc.credits || pc.course?.credits || 0;
+    byCat[cat] = (byCat[cat] || 0) + credits;
+  });
+
+  return (program.requirements || []).map(req => {
+    const got = byCat[req.category] || 0;
+    const need = req.credits || 0;            // or req.courses if that’s your rule
+    let status = 'none';
+    if (need > 0) {
+      status = got >= need ? 'met' : (got > 0 ? 'part' : 'none');
+    }
+    return {
+      id: req.category,
+      name: req.category,
+      status,
+      completedCredits: got,
+      totalCredits: need,
+      courses: (plan.courses || [])
+        .filter(pc => pc.status === 'completed' && (pc.requirement_category || 'Uncategorized') === req.category)
+        .map(pc => pc.course?.code || pc.course?.title || `Course ${pc.id}`)
+    };
+  });
+};
+
 
   // Debug early return conditions
   if (loading && plans.length === 0) {
@@ -520,17 +617,39 @@ const PlanBuilder = ({
                 if (courseInstitutions.length === 0) return null
               })()}
             </div>
-            {/* Centered vertical progress bars */}
-            <div className="flex justify-center gap-12 my-6">
-              {(() => {
-                const { current, transfer } = getVerticalProgressData(selectedPlan);
-                return (
-                  <>
-                    <VerticalProgressBar percentage={current} label="Current Progress" />
-                    <VerticalProgressBar percentage={transfer} label="Transfer Progress" />
-                  </>
-                );
-              })()}
+            {/* === Degree Progress (Current vs Transfer) === */}
+            <div className="mt-4 px-3 sm:px-4 py-3 sm:py-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-800/60">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Degree Progress</h2>
+                {progressLoading && (
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Loading…</span>
+                )}
+              </div>
+
+              {!selectedPlanId ? (
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  Create or select a plan to see progress.
+                </div>
+              ) : !progress ? (
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  No progress data available.
+                </div>
+              ) : (
+                <div className="flex items-start justify-center gap-8">
+                  <VerticalProgressWithBubbles
+                    title="Current Program"
+                    percent={progress.current.percent}
+                    requirements={progress.current.requirements}
+                    color="blue"
+                  />
+                  <VerticalProgressWithBubbles
+                    title="Transfer Program"
+                    percent={progress.transfer.percent}
+                    requirements={progress.transfer.requirements}
+                    color="violet"
+                  />
+                </div>
+              )}
             </div>
             {/* Plan control buttons below progress bars */}
             <div className="flex flex-col sm:flex-row justify-center gap-2 mb-4">
@@ -597,6 +716,7 @@ const PlanBuilder = ({
       )}
 
       
+
       
       {/* Internal Add Course Modal - only show if external handler not provided */}
       {!onAddToPlan && (
