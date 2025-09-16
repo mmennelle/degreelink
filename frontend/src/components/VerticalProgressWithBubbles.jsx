@@ -274,7 +274,7 @@ export default function VerticalProgressWithBubbles({
     <section className="flex flex-col items-center gap-3">
       <h3 className={`text-sm font-semibold text-center ${titleColor}`}>{title}</h3>
 
-            <div className="relative h-64 w-20 mx-2" ref={barRef} aria-label={`${title} progress`} role="img">
+            <div className="relative h-64 w-20 mx-2 border-2 border-gray-300 dark:border-gray-600 rounded-md" ref={barRef} aria-label={`${title} progress`} role="img">
         {/* Overall percent label on top */}
         <div className="absolute -right-5 -top-7 translate-x-full">
           <div className="px-.5 py-.5 text-xs rounded-lg bg-gray-800 text-white dark:bg-gray-900 dark:text-gray-100 shadow-lg font-medium">
@@ -360,7 +360,9 @@ export default function VerticalProgressWithBubbles({
                 </div>
               )
             )}
+            
           </div>
+          
         ))}
       </div>
       <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-1">
@@ -372,127 +374,8 @@ export default function VerticalProgressWithBubbles({
   );
 }
 
-function RequirementBubble({ 
-  requirement, 
-  y, 
-  side, 
-  initials,
-  colorScheme, 
-  open, 
-  onToggle, 
-  onClose, 
-  onAddCourse,
-  plan 
-}) {
-  const getBubbleColor = (status) => {
-    switch (status) {
-      case 'met': return colorScheme.bubble;
-      case 'part': return colorScheme.bubblePartial;
-      default: return colorScheme.bubbleNone;
-    }
-  };
 
-  // Position bubble on left or right side of the progress bar - very close to bar
-  const bubbleStyle = {
-    bottom: `${y}%`,
-    [side === 'left' ? 'right' : 'left']: '100%',
-    [side === 'left' ? 'marginRight' : 'marginLeft']: '1px' // Moved even closer - 1px gap
-  };
 
-  // Position popover on opposite side of bubble
-  const popoverPositionClass = side === 'left' 
-    ? 'right-full mr-2' 
-    : 'left-full ml-2';
-
-  return (
-    <div 
-      className={`absolute ${open ? 'z-40' : 'z-10'}`}
-      style={bubbleStyle}
-    >
-      {/* Bubble button with initials */}
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open ? 'true' : 'false'}
-        aria-label={`${requirement.name} requirement (${requirement.status})`}
-        className={`relative h-8 w-8 rounded-full ring-2 shadow-md transition-all duration-200 focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2 text-xs font-bold ${getBubbleColor(requirement.status)}`}
-      >
-        <span className="select-none">{initials}</span>
-      </button>
-
-      {/* Connection line from bubble to progress bar - longer line */}
-      <div 
-        className={`absolute top-1/2 -translate-y-1/2 h-0.5 w-3 bg-gray-400 dark:bg-gray-500 ${
-          side === 'left' ? 'left-full' : 'right-full'
-        }`}
-      />
-
-      {/* Popover */}
-      {(() => {
-  const isMobile = useIsMobile();
-
-          // Lock page scroll when mobile sheet is open
-          useEffect(() => {
-            if (!isMobile || !open) return;
-            const prev = document.body.style.overflow;
-            document.body.style.overflow = 'hidden';
-            return () => { document.body.style.overflow = prev; };
-          }, [isMobile, open]);
-
-          if (!open) return null;
-
-          // Mobile: full overlay + bottom sheet (no inner scrollbars, tap outside to close)
-          if (isMobile) {
-            return (
-              <>
-                {/* Backdrop */}
-                <button
-                  aria-label="Close panel"
-                  onClick={onClose}
-                  className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-[1px]"
-                />
-                {/* Sheet */}
-                <div
-                  role="dialog"
-                  aria-modal="true"
-                  aria-labelledby={`req-title-${requirement.id}`}
-                  className="fixed inset-x-0 bottom-0 z-[70] rounded-t-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl pt-3 pb-4 px-4"
-                >
-                  {/* drag-handle affordance */}
-                  <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-gray-300 dark:bg-gray-600" />
-                  <RequirementDetails
-                    requirement={requirement}
-                    onClose={onClose}
-                    onAddCourse={onAddCourse}
-                    plan={plan}
-                    compact
-                  />
-                  {/* SR-only close for a11y (no visible ❌) */}
-                  <button onClick={onClose} className="sr-only">Close</button>
-                </div>
-              </>
-            );
-          }
-
-          // Desktop: keep existing anchored popover
-          return (
-            <div
-              role="dialog"
-              aria-modal="false"
-              className={`absolute top-1/2 -translate-y-1/2 z-50 w-80 max-w-[85vw] rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl animate-in slide-in-from-${side}-2 duration-200 ${popoverPositionClass}`}
-            >
-              <RequirementDetails
-                requirement={requirement}
-                onClose={onClose}
-                onAddCourse={onAddCourse}
-                plan={plan}
-              />
-            </div>
-          );
-        })()}
-    </div>
-  );
-}
 
 function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact = false }) {
   const [showSuggestions, setShowSuggestions] = useState(false);
