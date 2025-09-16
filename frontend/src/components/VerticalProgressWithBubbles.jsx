@@ -57,30 +57,73 @@ export default function VerticalProgressWithBubbles({
   const barRef = useRef(null);
   const [openBubbleId, setOpenBubbleId] = useState(null);
 
+  // --- De-duplication helpers (category-level) ---
+  const catKey = (s) => (s || 'Uncategorized').trim().toLowerCase();
+
+  const mergeReq = (a, b) => {
+    const totalA = a.totalCredits ?? a.credits_required ?? 0;
+    const totalB = b.totalCredits ?? b.credits_required ?? 0;
+    const doneA  = a.completedCredits ?? a.credits_completed ?? 0;
+    const doneB  = b.completedCredits ?? b.credits_completed ?? 0;
+    const maxTotal = Math.max(totalA, totalB);
+    const maxDone  = Math.max(doneA, doneB);
+
+    return {
+      ...a,
+      name: a.name || b.name,
+      description: a.description || b.description,
+      requirement_type: a.requirement_type || b.requirement_type,
+      totalCredits: maxTotal,
+      credits_required: maxTotal,
+      completedCredits: maxDone,
+      credits_completed: maxDone,
+      courses: Array.from(new Set([...(a.courses || []), ...(b.courses || [])])),
+      status: (() => {
+        if (maxTotal <= 0) return 'none';
+        if (maxDone >= maxTotal) return 'met';
+        return maxDone > 0 ? 'part' : 'none';
+      })(),
+    };
+  };
+
+  const dedupeByCategory = (list = [], program = null) => {
+    const byKey = new Map();
+    for (const req of list) {
+      const key = catKey(req.category || req.name);
+      const base = {
+        id: req.id || key,
+        name: req.category || req.name || 'Unknown Requirement',
+        status: req.status || (req.is_complete ? 'met' :
+                (req.credits_completed || req.completedCredits || 0) > 0 ? 'part' : 'none'),
+        completedCredits: req.credits_completed || req.completedCredits || 0,
+        totalCredits: req.credits_required || req.totalCredits || 0,
+        courses: req.courses || req.applied || [],
+        description: req.description || '',
+        requirement_type: req.requirement_type || 'simple',
+        programRequirement: program?.requirements?.find(
+          pr => (pr.category || pr.name) === (req.category || req.name)
+        ) || null,
+      };
+      if (!byKey.has(key)) {
+        byKey.set(key, base);
+      } else {
+        byKey.set(key, mergeReq(byKey.get(key), base));
+      }
+    }
+    return Array.from(byKey.values());
+  };
+
+
   // Process requirements to create bubbles for all requirement categories
-  const bubbleReqs = useMemo(() => {
-    if (!requirements.length) return [];
-    
-    return requirements.map(req => ({
-      id: req.id || req.category || req.name,
-      name: req.category || req.name || 'Unknown Requirement',
-      status: req.status || (req.is_complete ? 'met' : 
-                req.credits_completed > 0 ? 'part' : 'none'),
-      completedCredits: req.credits_completed || req.completedCredits || 0,
-      totalCredits: req.credits_required || req.totalCredits || 0,
-      courses: req.courses || req.applied || [],
-      description: req.description || '',
-      requirement_type: req.requirement_type || 'simple',
-      // Add program requirement data for suggestions
-      programRequirement: program?.requirements?.find(pr => 
-        pr.category === (req.category || req.name)
-      ) || null
-    }));
-  }, [requirements, program]);
+  // Process requirements -> de-duplicate by category -> bubbles
+    const bubbleReqs = useMemo(() => {
+      if (!requirements.length) return [];
+      return dedupeByCategory(requirements, program);
+    }, [requirements, program]);
 
   // Helper function to generate initials from requirement names
-  const getRequirementInitials = (name) => {
-    if (!name) return 'XX';
+    const getRequirementInitials = (name) => {
+      if (!name) return 'XX';
     
     // Handle common requirement categories with specific abbreviations
     const abbreviations = {
@@ -206,7 +249,7 @@ export default function VerticalProgressWithBubbles({
         {/* Requirement Bubbles */}
         {positioned.map((req) => (
           <RequirementBubble
-            key={req.id}
+            key={req.id || (req.name || 'Unknown Requirement')}
             requirement={req}
             y={req.y}
             side={req.side}
@@ -263,7 +306,7 @@ function RequirementBubble({
 
   return (
     <div 
-      className="absolute z-10" 
+      className={`absolute ${open ? 'z-40' : 'z-10'}`}
       style={bubbleStyle}
     >
       {/* Bubble button with initials */}
@@ -287,10 +330,11 @@ function RequirementBubble({
       {/* Popover */}
       {open && (
         <div
-          role="dialog"
-          aria-modal="false"
-          className={`absolute top-1/2 -translate-y-1/2 z-30 w-80 max-w-[85vw] rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl animate-in slide-in-from-${side}-2 duration-200 ${popoverPositionClass}`}
-        >
+            role="dialog"
+            aria-modal="false"
+            className={`absolute top-1/2 -translate-y-1/2 z-50 w-80 max-w-[85vw] rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl animate-in slide-in-from-${side}-2 duration-200 ${popoverPositionClass}`}
+          >
+
           <RequirementDetails 
             requirement={requirement}
             onClose={onClose}

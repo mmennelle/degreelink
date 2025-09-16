@@ -251,6 +251,7 @@ def upload_requirements():
         # repeatedly querying the database.
         current_requirement = None
         current_group = None
+        marked_current_versions = set()
 
         for row_num, row in enumerate(csv_reader, start=2):
             try:
@@ -340,14 +341,11 @@ def upload_requirements():
                     requirements_created += 1
 
                 # If this row marks the requirement version as current, clear other versions for the program
-                if is_current:
-                    # Set all other requirements for this program to not current
-                    ProgramRequirement.query.filter(
-                        ProgramRequirement.program_id == program.id,
-                        ProgramRequirement.id != current_requirement.id
-                    ).update({ProgramRequirement.is_current: False})
-                    # Mark current requirement's version as current
-                    current_requirement.is_current = True
+                # If this row is marked current, remember its (program, semester, year)
+                    if is_current:
+                        current_requirement.is_current = True
+                        marked_current_versions.add((program.id, semester, year))
+
 
                 # Handle grouped/conditional requirement groups
                 group_name = (row.get('group_name') or '').strip()
@@ -406,8 +404,22 @@ def upload_requirements():
                 errors.append(f"Row {row_num}: {str(e)}")
 
         # Commit all creations in a single transaction
-        if programs_created or requirements_created or groups_created or options_created:
+# After parsing all rows: set current flags atomically per version
+            from models.program import ProgramRequirement
+            for prog_id, sem, yr in marked_current_versions:
+                # All rows of this version are current…
+                ProgramRequirement.query.filter_by(
+                    program_id=prog_id, semester=sem, year=yr
+                ).update({ProgramRequirement.is_current: True})
+                # …and all other versions for this program are not.
+                ProgramRequirement.query.filter(
+                    ProgramRequirement.program_id == prog_id,
+                    (ProgramRequirement.semester != sem) | (ProgramRequirement.year != yr)
+                ).update({ProgramRequirement.is_current: False})
+
+            # Commit one time at the end
             db.session.commit()
+
 
         return jsonify({
             'message': 'Requirements upload completed',

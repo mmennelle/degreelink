@@ -41,6 +41,49 @@ const PlanBuilder = ({
     plan: null,
     program: null
   });
+    // Normalize category keys for deduping
+  const catKey = (s) => (s || 'Uncategorized').trim().toLowerCase();
+
+  // Merge/choose fields for duplicates
+  const mergeReq = (a, b) => {
+    const totalA = a.totalCredits ?? a.credits_required ?? 0;
+    const totalB = b.totalCredits ?? b.credits_required ?? 0;
+    const doneA  = a.completedCredits ?? a.credits_completed ?? 0;
+    const doneB  = b.completedCredits ?? b.credits_completed ?? 0;
+    return {
+      ...a,
+      name: a.name || b.name,
+      description: a.description || b.description,
+      requirement_type: a.requirement_type || b.requirement_type,
+      totalCredits: Math.max(totalA, totalB),
+      credits_required: Math.max(totalA, totalB),
+      completedCredits: Math.max(doneA, doneB),
+      credits_completed: Math.max(doneA, doneB),
+      courses: Array.from(new Set([...(a.courses||[]), ...(b.courses||[])])),
+      status: (() => {
+        const need = Math.max(totalA, totalB);
+        const got  = Math.max(doneA, doneB);
+        if (need <= 0) return 'none';
+        if (got >= need) return 'met';
+        return got > 0 ? 'part' : 'none';
+      })(),
+    };
+  };
+
+  // De-duplicate by category key
+  const dedupeRequirements = (list=[]) => {
+    const byKey = new Map();
+    for (const r of list) {
+      const key = catKey(r.category || r.name);
+      if (!byKey.has(key)) {
+        byKey.set(key, { ...r, id: r.id || key, category: r.category || r.name || 'Uncategorized' });
+      } else {
+        byKey.set(key, mergeReq(byKey.get(key), r));
+      }
+    }
+    return Array.from(byKey.values());
+  };
+
 
   // Override for the user's current institution. If null, it will be detected automatically.
   const [currentInstitutionOverride, setCurrentInstitutionOverride] = useState(null);
@@ -135,17 +178,25 @@ const PlanBuilder = ({
             }
 
             if (!apiCurrent.requirements?.length || !apiTransfer.requirements?.length) {
-              const reqs = buildRequirementStatuses(selectedPlan, program);
+              const reqs = dedupeRequirements(buildRequirementStatuses(selectedPlan, program));
               if (!apiCurrent.requirements?.length) apiCurrent.requirements = reqs;
               if (!apiTransfer.requirements?.length) apiTransfer.requirements = reqs;
             }
 
+
             if (alive) {
-              setProgress({ 
-                current: apiCurrent, 
-                transfer: apiTransfer 
+              setProgress({
+                current: {
+                  ...apiCurrent,
+                  requirements: dedupeRequirements(apiCurrent.requirements)
+                },
+                transfer: {
+                  ...apiTransfer,
+                  requirements: dedupeRequirements(apiTransfer.requirements)
+                }
               });
             }
+
           } catch (e) {
             console.error('Progress loading failed:', e);
             // Fallback to local calculation
