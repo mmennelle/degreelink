@@ -14,12 +14,13 @@ class ApiService {
       };
       
       const response = await fetch(url, config);
-      const data = await response.json();
-      
+      const raw = await response.text();           // read once
+      let data = null;
+      try { data = raw ? JSON.parse(raw) : null; } catch {}
       if (!response.ok) {
-        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+        const msg = data?.error || data?.message || data?.detail || `HTTP ${response.status}: ${response.statusText}`;
+        throw new Error(msg);
       }
-      
       return data;
     }
     

@@ -249,7 +249,12 @@ const PlanBuilder = ({
     if (!selectedPlan) return;
     
     for (const courseData of courseDataArray) {
-      await api.addCourseToPlan(selectedPlan.id, courseData);
+      try {
+        await api.addCourseToPlan(selectedPlan.id, courseData);
+      } catch (e) {
+        console.error('addCourseToPlan failed:', e);
+        alert(`Failed to add ${courseData?.course_id ?? 'course'}: ${e.message}`);
+      }
     }
     
     // Refresh plan details

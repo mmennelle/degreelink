@@ -304,14 +304,16 @@ useEffect(() => {
     for (const data of courseData) {
       try {
         await onCoursesAdded([{
-          course_id: data.course.id,
-          semester: data.semester,
-          year: parseInt(data.year),
-          status: data.status,
-          requirement_category: data.requirement_category,
-          grade: data.grade || undefined,
-          notes: data.notes || undefined
-        }]);
+        course_id: data.course.id,
+        semester: data.semester,
+        year: Number(data.year),
+        status: data.status,
+        requirement_category: data.requirement_category,
+        requirement_group_id: data.requirement_group_id || undefined, // 👈 grouped reqs
+        credits: data.course?.credits ?? undefined,                    // 👈 backend often wants this
+        grade: data.grade || undefined,
+        notes: data.notes || undefined
+      }]);
       } catch (error) {
         newErrors.push({
           course: data.course,
