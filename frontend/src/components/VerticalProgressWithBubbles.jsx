@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useRef, useState, useEffect, useCallback} from 'react';
 import { CheckCircle2, X, Plus, BookOpen, AlertCircle, Target, ChevronDown, ChevronUp } from 'lucide-react';
 
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
@@ -134,92 +134,121 @@ export default function VerticalProgressWithBubbles({
   };
 
 
-  // Process requirements to create bubbles for all requirement categories
-  // Process requirements -> de-duplicate by category -> bubbles
+    // Process requirements -> de-duplicate by category -> bubbles
     const bubbleReqs = useMemo(() => {
       if (!requirements.length) return [];
       return dedupeByCategory(requirements, program);
     }, [requirements, program]);
 
-  // Helper function to generate initials from requirement names
-    const getRequirementInitials = (name) => {
+    /**
+   * Assign the same amber colour to every requirement segment.  This helper
+   * returns static classes for the filled and track portions so that all
+   * segments share the same hue and are distinguishable only by their fill
+   * percentage.
+   */
+  const getColorForName = useCallback(() => {
+    return { fill: 'bg-amber-500', track: 'bg-indigo-900' };
+  }, []);
+
+
+  /**
+   * Convert the list of requirements into an array of segments.  Each segment
+   * occupies a proportion of the bar based on the total credits required
+   * (with a fallback to equal sizing if totals are unavailable).  We also
+   * compute the percentage completed within each segment and store the
+   * midpoint of the segment for popover positioning.
+   * 
+   * 
+   */
+
+    function getRequirementInitials(name) {
       if (!name) return 'XX';
-    
-    // Handle common requirement categories with specific abbreviations
-    const abbreviations = {
-      'mathematics': 'MA',
-      'math': 'MA',
-      'english': 'EN',
-      'composition': 'EN',
-      'literature': 'LI',
-      'humanities': 'HU',
-      'biology': 'BI',
-      'chemistry': 'CH',
-      'physics': 'PH',
-      'history': 'HI',
-      'science': 'SC',
-      'social science': 'SO',
-      'social sciences': 'SO',
-      'liberal arts': 'LA',
-      'fine arts': 'FA',
-      'core': 'CO',
-      'elective': 'EL',
-      'free elective': 'FE',
-      'general education': 'GE'
-    };
-    
-    const nameLower = name.toLowerCase();
-    
-    // Check for exact matches first
-    if (abbreviations[nameLower]) {
-      return abbreviations[nameLower];
-    }
-    
-    // Check for partial matches
-    for (const [key, abbrev] of Object.entries(abbreviations)) {
-      if (nameLower.includes(key)) {
-        return abbrev;
+      // Common abbreviations
+      const abbreviations = {
+        'mathematics': 'MA',
+        'math': 'MA',
+        'english': 'EN',
+        'composition': 'EN',
+        'literature': 'LI',
+        'humanities': 'HU',
+        'biology': 'BI',
+        'chemistry': 'CH',
+        'physics': 'PH',
+        'history': 'HI',
+        'science': 'SC',
+        'social science': 'SO',
+        'social sciences': 'SO',
+        'liberal arts': 'LA',
+        'fine arts': 'FA',
+        'core': 'CO',
+        'elective': 'EL',
+        'free elective': 'FE',
+        'general education': 'GE'
+      };
+      const nameLower = name.toLowerCase();
+      if (abbreviations[nameLower]) {
+        return abbreviations[nameLower];
       }
-    }
-    
-    // Fall back to first two letters of each word, up to 2 letters total
-    const words = name.trim().split(/\s+/);
-    if (words.length === 1) {
-      return words[0].substring(0, 2).toUpperCase();
-    } else {
+      for (const [key, abbrev] of Object.entries(abbreviations)) {
+        if (nameLower.includes(key)) {
+          return abbrev;
+        }
+      }
+      const words = name.trim().split(/\s+/);
+      if (words.length === 1) {
+        return words[0].substring(0, 2).toUpperCase();
+      }
       return words.slice(0, 2).map(w => w.charAt(0)).join('').toUpperCase();
     }
-  };
 
-  // Position bubbles evenly along the bar with alternating sides
-  const positioned = useMemo(() => {
-    const n = bubbleReqs.length;
-    if (n === 0) return [];
-    
-    // For 1-3 bubbles, space them more naturally
-    if (n <= 3) {
-      return bubbleReqs.map((r, i) => {
-        const positions = n === 1 ? [50] : n === 2 ? [30, 70] : [20, 50, 80];
-        return { 
-          ...r, 
-          y: positions[i],
-          side: i % 2 === 0 ? 'left' : 'right', // Alternate sides
-          initials: getRequirementInitials(r.name)
-        };
-      });
-    }
-    
-    // For more bubbles, distribute evenly with padding and alternate sides
-    return bubbleReqs.map((r, i) => {
-      const pct = (i + 1) / (n + 1);
-      return { 
-        ...r, 
-        y: clamp(pct * 100, 12, 88),
-        side: i % 2 === 0 ? 'left' : 'right', // Alternate sides
-        initials: getRequirementInitials(r.name)
+  const segments = useMemo(() => {
+    const list = bubbleReqs;
+    const n = list.length;
+    if (!n) return [];
+    // Compute the sum of credits; treat zero-credit requirements as 1 to
+    // guarantee they receive space in the bar.
+    let sumCredits = 0;
+    list.forEach((req) => {
+      const tot = req.totalCredits ?? req.credits_required ?? 0;
+      sumCredits += (tot > 0 ? tot : 1);
+    });
+    let cumulative = 0;
+    return list.map((req, index) => {
+      const tot = req.totalCredits ?? req.credits_required ?? 0;
+      const segValue = (tot > 0 ? tot : 1);
+      const segHeight = sumCredits > 0 ? (segValue / sumCredits) * 100 : (100 / n);
+      const completed = req.completedCredits ?? req.credits_completed ?? 0;
+      const fillPercent = tot > 0 ? Math.min((completed / tot) * 100, 100) : 0;
+      const colors = getColorForName(req.name || req.category || '');
+      const initials = getRequirementInitials(req.name || req.category || '');
+      const side = index % 2 === 0 ? 'left' : 'right';
+      const start = cumulative;
+      const mid = start + segHeight / 2;
+      cumulative += segHeight;
+      return {
+        requirement: req,
+        id: req.id || req.name || index,
+        height: segHeight,
+        fillPercent,
+        fillClass: colors.fill,
+        trackClass: colors.track,
+        initials,
+        side,
+        mid
       };
     });
-  }, [bubbleReqs]);
+  }, [bubbleReqs, getColorForName]);
+
+  // Whether the user is on a small device; determines popover behaviour
+  const isMobile = useIsMobile();
+
+  // Lock page scroll when any popover is open on mobile
+  useEffect(() => {
+    if (!isMobile || !openBubbleId) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [isMobile, openBubbleId]);
 
   // Close popover on outside click / ESC
   const onDoc = useCallback((e) => {
@@ -245,49 +274,100 @@ export default function VerticalProgressWithBubbles({
     <section className="flex flex-col items-center gap-3">
       <h3 className={`text-sm font-semibold text-center ${titleColor}`}>{title}</h3>
 
-      <div className="relative h-64 w-16 mx-2" ref={barRef} aria-label={`${title} progress`} role="img">
-        {/* Track */}
-        <div 
-          className={`absolute left-1/2 -translate-x-1/2 rounded-full ${trackColor}`} 
-          style={{ width: 8, height: '100%' }} 
-        />
-
-        {/* Fill */}
-        <div
-          className={`absolute bottom-0 left-1/2 -translate-x-1/2 rounded-b-full transition-all duration-500 ease-out ${barColor}`}
-          style={{ width: 8, height: `${clamp(percent, 0, 100)}%` }}
-          aria-hidden="true"
-        />
-
-        {/* Percent label */}
-        <div className="absolute -right-4 -top-4 translate-x-full">
-          <div className="px-2 py-1 text-xs rounded-lg bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900 shadow-lg font-medium">
+            <div className="relative h-64 w-20 mx-2" ref={barRef} aria-label={`${title} progress`} role="img">
+        {/* Overall percent label on top */}
+        <div className="absolute -right-5 -top-7 translate-x-full">
+          <div className="px-.5 py-.5 text-xs rounded-lg bg-gray-800 text-white dark:bg-gray-900 dark:text-gray-100 shadow-lg font-medium">
             {Math.round(clamp(percent, 0, 100))}%
           </div>
         </div>
-
-        {/* Requirement Bubbles */}
-        {positioned.map((req) => (
-          <RequirementBubble
-            key={req.id || (req.name || 'Unknown Requirement')}
-            requirement={req}
-            y={req.y}
-            side={req.side}
-            initials={req.initials}
-            colorScheme={c}
-            open={openBubbleId === req.id}
-            onToggle={() => setOpenBubbleId(openBubbleId === req.id ? null : req.id)}
-            onClose={() => setOpenBubbleId(null)}
-            onAddCourse={onAddCourse}
-            plan={plan}
-          />
+        {/* Render segments representing each requirement */}
+        {segments.map((seg) => (
+          <div
+            key={seg.id}
+            className="relative w-full"
+            style={{ height: `${seg.height}%` }}
+          >
+            {/* Track background */}
+            <div className={`absolute inset-0 ${seg.trackClass} rounded-sm`} />
+            {/* Filled portion */}
+            <div
+              className={`absolute bottom-0 left-0 w-full ${seg.fillClass} rounded-sm`}
+              style={{ height: `${seg.fillPercent}%` }}
+            />
+            {/* Abbreviation label overlay */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span
+                className="uppercase font-bold text-xs"
+                style={{ opacity: 0.65, color: 'white' }}
+              >
+                {seg.initials}
+              </span>
+            </div>
+            {/* Clickable area to toggle popover */}
+            <button
+              type="button"
+              onClick={() => setOpenBubbleId(openBubbleId === seg.id ? null : seg.id)}
+              aria-expanded={openBubbleId === seg.id ? 'true' : 'false'}
+              aria-label={`${seg.requirement.name} requirement (${seg.requirement.status})`}
+              className="absolute inset-0 focus:outline-none"
+            />
+            {/* Popover for requirement details */}
+            {openBubbleId === seg.id && (
+              isMobile ? (
+                <>
+                  {/* Backdrop */}
+                  <button
+                    aria-label="Close panel"
+                    onClick={() => setOpenBubbleId(null)}
+                    className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-[1px]"
+                  />
+                  {/* Sheet */}
+                  <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby={`req-title-${seg.id}`}
+                    className="fixed inset-x-0 bottom-0 z-[70] rounded-t-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl pt-3 pb-4 px-4"
+                  >
+                    <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-gray-300 dark:bg-gray-600" />
+                    <RequirementDetails
+                      requirement={seg.requirement}
+                      onClose={() => setOpenBubbleId(null)}
+                      onAddCourse={onAddCourse}
+                      plan={plan}
+                      compact
+                    />
+                    <button onClick={() => setOpenBubbleId(null)} className="sr-only">
+                      Close
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div
+                  role="dialog"
+                  aria-modal="false"
+                  className={`absolute z-50 w-80 max-w-[85vw] rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl animate-in slide-in-from-${seg.side}-2 duration-200 ${
+                    seg.side === 'left' ? 'right-full mr-2' : 'left-full ml-2'
+                  }`}
+                  style={{ top: `${seg.mid}%`, transform: 'translateY(-50%)' }}
+                >
+                  <RequirementDetails
+                    requirement={seg.requirement}
+                    onClose={() => setOpenBubbleId(null)}
+                    onAddCourse={onAddCourse}
+                    plan={plan}
+                  />
+                </div>
+              )
+            )}
+          </div>
         ))}
       </div>
-
-      <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+      <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-1">
         <CheckCircle2 size={14} className={c.legend} />
         <span>requirement progress</span>
       </div>
+
     </section>
   );
 }
