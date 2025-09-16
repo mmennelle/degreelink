@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { BookOpen, Plus, ChevronRight, ChevronLeft, Target } from 'lucide-react';
 import api from '../services/api';
 import CourseSearch from './CourseSearch';
@@ -51,6 +51,11 @@ const PlanBuilder = ({
   // Use external programs if provided, otherwise use internal
   const programsList = programs.length > 0 ? programs : internalPrograms;
 
+  const getProgram = useCallback(() => {
+    if (!selectedPlan) return null;
+    return programsList.find(p => p.id === selectedPlan.program_id);
+  }, [selectedPlan, programsList]);
+
   useEffect(() => {
     if (externalPlans === undefined) {
       loadPlans();
@@ -61,67 +66,107 @@ const PlanBuilder = ({
   }, []); // Empty dependency array for initial load only
 
     useEffect(() => {
-  let alive = true;
-  async function loadProgress() {
-    if (!selectedPlanId) { setProgress(null); return; }
-    setProgressLoading(true);
-    try {
-      const p = await api.getPlanProgress(selectedPlanId);
+        let alive = true;
+        async function loadProgress() {
+          if (!selectedPlanId) { 
+            setProgress(null); 
+            return; 
+          }
+          
+          setProgressLoading(true);
+          try {
+            // Try to get progress from backend first
+            let progressData = null;
+            try {
+              progressData = await api.getPlanProgress(selectedPlanId);
+            } catch (apiError) {
+              console.warn('API progress failed, using local calculation:', apiError);
+            }
 
-      // Also load plan details we already keep in state
-      const localPercents = selectedPlan ? getVerticalProgressData(selectedPlan) : { current: 0, transfer: 0 };
-      const program = getProgram();
+            const localPercents = selectedPlan ? getVerticalProgressData(selectedPlan) : { current: 0, transfer: 0 };
+            const program = getProgram();
 
-      const normalize = (side) => ({
-        percent: Math.round(side?.percent ?? 0),
-        requirements: (side?.requirements ?? []).map(r => ({
-          id: r.id || r.code || r.name,
-          name: r.name,
-          status: r.status,
-          completedCredits: r.completedCredits,
-          totalCredits: r.totalCredits,
-          courses: r.courses || r.applied || [],
-        })),
-      });
+            const normalize = (side) => ({
+              percent: Math.round(
+                side?.percent ??
+                side?.requirements_completion_percentage ??
+                side?.completion_percentage ??
+                0
+              ),
+              requirements: (side?.requirements ?? side?.requirement_progress ?? []).map((r) => {
+                const completed = r.completedCredits ?? r.credits_completed ?? 0;
+                const total = r.totalCredits ?? r.credits_required ?? 0;
+                const status = r.status ?? (total > 0 ? (completed >= total ? 'met' : (completed > 0 ? 'part' : 'none')) : 'none');
 
-      const apiCurrent = normalize(p?.current || {});
-      const apiTransfer = normalize(p?.transfer || {});
+                return {
+                  id: r.id || r.code || r.category || r.name,
+                  name: r.name || r.category || `Requirement ${r.id ?? ''}`,
+                  category: r.category || r.name, // Ensure category is set
+                  status,
+                  completedCredits: completed,
+                  totalCredits: total,
+                  credits_completed: completed,
+                  credits_required: total,
+                  courses: r.courses || r.applied || [],
+                  description: r.description,
+                  requirement_type: r.requirement_type,
+                  // Add program requirement for suggestions
+                  programRequirement: program?.requirements?.find(pr => 
+                    pr.category === (r.category || r.name)
+                  ) || null
+                };
+              }),
+            });
 
-      // Fallback percents if API returned 0 but local says otherwise
-      if (!apiCurrent.percent && localPercents.current) {
-        apiCurrent.percent = Math.round(localPercents.current);
-      }
-      if (!apiTransfer.percent && localPercents.transfer) {
-        apiTransfer.percent = Math.round(localPercents.transfer);
-      }
+            let apiCurrent = { percent: 0, requirements: [] };
+            let apiTransfer = { percent: 0, requirements: [] };
+            
+            if (progressData) {
+              apiCurrent = normalize(progressData.current || progressData.progress || {});
+              apiTransfer = normalize(progressData.transfer || {});
+            }
 
-      // Fallback requirements if API has none
-      if (!apiCurrent.requirements?.length || !apiTransfer.requirements?.length) {
-        const reqs = buildRequirementStatuses(selectedPlan, program);
-        if (!apiCurrent.requirements?.length) apiCurrent.requirements = reqs;
-        if (!apiTransfer.requirements?.length) apiTransfer.requirements = reqs;
-      }
+            // Use local fallbacks if API data is incomplete
+            if (!apiCurrent.percent && localPercents.current) {
+              apiCurrent.percent = Math.round(localPercents.current);
+            }
+            if (!apiTransfer.percent && localPercents.transfer) {
+              apiTransfer.percent = Math.round(localPercents.transfer);
+            }
 
-      if (alive) setProgress({ current: apiCurrent, transfer: apiTransfer });
-    } catch (e) {
-      console.error('getPlanProgress failed', e);
-      // pure fallback
-      const localPercents = selectedPlan ? getVerticalProgressData(selectedPlan) : { current: 0, transfer: 0 };
-      const program = getProgram();
-      const reqs = buildRequirementStatuses(selectedPlan, program);
-      if (alive) {
-        setProgress({
-          current: { percent: Math.round(localPercents.current), requirements: reqs },
-          transfer: { percent: Math.round(localPercents.transfer), requirements: reqs },
-        });
-      }
-    } finally {
-      if (alive) setProgressLoading(false);
-    }
-  }
-  loadProgress();
-  return () => { alive = false; };
-}, [selectedPlanId, selectedPlan]); // include selectedPlan so fallback updates
+            if (!apiCurrent.requirements?.length || !apiTransfer.requirements?.length) {
+              const reqs = buildRequirementStatuses(selectedPlan, program);
+              if (!apiCurrent.requirements?.length) apiCurrent.requirements = reqs;
+              if (!apiTransfer.requirements?.length) apiTransfer.requirements = reqs;
+            }
+
+            if (alive) {
+              setProgress({ 
+                current: apiCurrent, 
+                transfer: apiTransfer 
+              });
+            }
+          } catch (e) {
+            console.error('Progress loading failed:', e);
+            // Fallback to local calculation
+            const localPercents = selectedPlan ? getVerticalProgressData(selectedPlan) : { current: 0, transfer: 0 };
+            const program = getProgram();
+            const reqs = buildRequirementStatuses(selectedPlan, program);
+            
+            if (alive) {
+              setProgress({
+                current: { percent: Math.round(localPercents.current), requirements: reqs },
+                transfer: { percent: Math.round(localPercents.transfer), requirements: reqs },
+              });
+            }
+          } finally {
+            if (alive) setProgressLoading(false);
+          }
+        }
+        
+        loadProgress();
+        return () => { alive = false; };
+      }, [selectedPlanId, selectedPlan, getProgram]);
 
 
   useEffect(() => {
@@ -228,40 +273,51 @@ const PlanBuilder = ({
     }
   };
 
-  const handleCourseSelect = (courses) => {
-    // Use external handler if provided, otherwise use internal modal
-    if (onAddToPlan) {
-      onAddToPlan(courses);
-    } else {
-      const coursesArray = Array.isArray(courses) ? courses : [courses];
-      const program = programsList.find(p => p.id === selectedPlan?.program_id);
-      
-      setAddCourseModal({
-        isOpen: true,
-        courses: coursesArray,
-        plan: selectedPlan,
-        program: program
-      });
-    }
-  };
-
-  const handleCoursesAdded = async (courseDataArray) => {
-    if (!selectedPlan) return;
-    
-    for (const courseData of courseDataArray) {
-      try {
-        await api.addCourseToPlan(selectedPlan.id, courseData);
-      } catch (e) {
-        console.error('addCourseToPlan failed:', e);
-        alert(`Failed to add ${courseData?.course_id ?? 'course'}: ${e.message}`);
+  const handleCourseSelect = useCallback((courses) => {
+      if (onAddToPlan) {
+        onAddToPlan(courses);
+      } else {
+        const coursesArray = Array.isArray(courses) ? courses : [courses];
+        const program = programsList.find(p => p.id === selectedPlan?.program_id);
+        
+        setAddCourseModal({
+          isOpen: true,
+          courses: coursesArray,
+          plan: selectedPlan,
+          program: program
+        });
       }
-    }
-    
-    // Refresh plan details
-    await loadPlanDetails(selectedPlan.id);
-    setAddCourseModal({ isOpen: false, courses: [], plan: null, program: null });
-    setShowCourseSearch(false);
-  };
+    }, [onAddToPlan, selectedPlan, programsList]);
+
+    // 5. Enhance handleCoursesAdded to refresh progress:
+  const handleCoursesAdded = useCallback(async (courseDataArray) => {
+      if (!selectedPlan) return;
+      
+      const addedCourses = [];
+      for (const courseData of courseDataArray) {
+        try {
+          const result = await api.addCourseToPlan(selectedPlan.id, courseData);
+          addedCourses.push(result);
+        } catch (e) {
+          console.error('addCourseToPlan failed:', e);
+          alert(`Failed to add ${courseData?.course_id ?? 'course'}: ${e.message}`);
+        }
+      }
+      
+      if (addedCourses.length > 0) {
+        // Refresh both plan details and progress
+        await loadPlanDetails(selectedPlan.id);
+        
+        // Close modal
+        setAddCourseModal({ isOpen: false, courses: [], plan: null, program: null });
+        setShowCourseSearch(false);
+        
+        // Show success message
+        const coursesText = addedCourses.length === 1 ? 'course' : 'courses';
+        // You could add a toast notification here instead of alert
+        console.log(`Successfully added ${addedCourses.length} ${coursesText} to your plan`);
+      }
+    }, [selectedPlan, loadPlanDetails]);
 
   const handleCreatePlan = () => {
     
@@ -345,11 +401,6 @@ const PlanBuilder = ({
       grouped[category].push(course);
     });
     return grouped;
-  };
-
-  const getProgram = () => {
-    if (!selectedPlan) return null;
-    return programsList.find(p => p.id === selectedPlan.program_id);
   };
 
   // Determine progress percentages for the current program and transfer program.
@@ -454,35 +505,46 @@ const PlanBuilder = ({
     );
   };
   const buildRequirementStatuses = (plan, program) => {
-  if (!plan || !program?.requirements) return [];
+      if (!plan || !program?.requirements) return [];
 
-  const byCat = {};
-  (plan.courses || []).forEach(pc => {
-    if (pc.status !== 'completed') return;
-    const cat = pc.requirement_category || 'Uncategorized';
-    const credits = pc.credits || pc.course?.credits || 0;
-    byCat[cat] = (byCat[cat] || 0) + credits;
-  });
+      const byCat = {};
+      (plan.courses || []).forEach(pc => {
+        if (pc.status !== 'completed') return;
+        const cat = pc.requirement_category || 'Uncategorized';
+        const credits = pc.credits || pc.course?.credits || 0;
+        byCat[cat] = (byCat[cat] || 0) + credits;
+      });
 
-  return (program.requirements || []).map(req => {
-    const got = byCat[req.category] || 0;
-    const need = req.credits || 0;            // or req.courses if that’s your rule
-    let status = 'none';
-    if (need > 0) {
-      status = got >= need ? 'met' : (got > 0 ? 'part' : 'none');
-    }
-    return {
-      id: req.category,
-      name: req.category,
-      status,
-      completedCredits: got,
-      totalCredits: need,
-      courses: (plan.courses || [])
-        .filter(pc => pc.status === 'completed' && (pc.requirement_category || 'Uncategorized') === req.category)
-        .map(pc => pc.course?.code || pc.course?.title || `Course ${pc.id}`)
+      return (program.requirements || []).map(req => {
+        const got = byCat[req.category] || 0;
+        const need = req.credits_required || 0;
+        let status = 'none';
+        if (need > 0) {
+          status = got >= need ? 'met' : (got > 0 ? 'part' : 'none');
+        }
+        
+        // Get the courses that apply to this requirement
+        const appliedCourses = (plan.courses || [])
+          .filter(pc => pc.status === 'completed' && (pc.requirement_category || 'Uncategorized') === req.category)
+          .map(pc => pc.course?.code || pc.course?.title || `Course ${pc.id}`);
+
+        return {
+          id: req.id || req.category,
+          name: req.category,
+          category: req.category, // Add this for compatibility
+          status,
+          completedCredits: got,
+          totalCredits: need,
+          credits_completed: got, // Add backend compatibility
+          credits_required: need, // Add backend compatibility
+          courses: appliedCourses,
+          description: req.description,
+          requirement_type: req.requirement_type,
+          // Add the full requirement object for suggestions
+          programRequirement: req
+        };
+      });
     };
-  });
-};
 
 
   // Debug early return conditions
@@ -646,12 +708,18 @@ const PlanBuilder = ({
                     percent={progress.current.percent}
                     requirements={progress.current.requirements}
                     color="blue"
+                    program={getProgram()}
+                    plan={selectedPlan}
+                    onAddCourse={handleCourseSelect}
                   />
                   <VerticalProgressWithBubbles
-                    title="Transfer Program"
+                    title="Transfer Program" 
                     percent={progress.transfer.percent}
                     requirements={progress.transfer.requirements}
                     color="violet"
+                    program={getProgram()}  // Add this
+                    plan={selectedPlan}     // Add this  
+                    onAddCourse={handleCourseSelect}  // Add this for transfer suggestions too
                   />
                 </div>
               )}
