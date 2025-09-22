@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { BookOpen, Plus, ChevronRight, ChevronLeft, Target } from 'lucide-react';
 import api from '../services/api';
 import CourseSearch from './CourseSearch';
@@ -41,6 +41,153 @@ const PlanBuilder = ({
     plan: null,
     program: null
   });
+  // ======= Synchronized status carousel (drives both bars together) =======
+    const VIEWS = ['All Courses', 'Planned', 'In Progress', 'Completed'];
+    const [viewIndex, setViewIndex] = useState(0);
+    const [dragging, setDragging] = useState(false);
+    const [dragX, setDragX] = useState(0);
+    const frameRef = useRef(null);
+
+    // simple mobile detector
+    const useIsMobile = () => {
+      const [isMobile, setIsMobile] = useState(
+        typeof window !== 'undefined' ? window.matchMedia('(max-width: 640px)').matches : false
+      );
+      useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const mq = window.matchMedia('(max-width: 640px)');
+        const handler = e => setIsMobile(e.matches);
+        mq.addEventListener?.('change', handler);
+        mq.addListener?.(handler);
+        return () => {
+          mq.removeEventListener?.('change', handler);
+          mq.removeListener?.(handler);
+        };
+      }, []);
+      return isMobile;
+    };
+    const isMobile = useIsMobile();
+
+    // recompute requirement completion per view using the selected plan
+    const recomputeReqsForView = useCallback((baseReqs, which, plan) => {
+      if (!Array.isArray(baseReqs) || !plan?.courses?.length) return baseReqs || [];
+
+      const buckets = {};
+      const allow = (status) => {
+        if (which === 'All Courses') return true;
+        if (which === 'Planned') return status === 'planned';
+        if (which === 'In Progress') return status === 'in_progress';
+        if (which === 'Completed') return status === 'completed';
+        return true;
+      };
+
+      for (const pc of plan.courses) {
+        if (!allow(pc.status)) continue;
+        const cat = pc.requirement_category || 'Uncategorized';
+        const credits = pc.credits || pc.course?.credits || 0;
+        buckets[cat] = (buckets[cat] || 0) + credits;
+      }
+
+      return (baseReqs || []).map((req) => {
+        const need = req.totalCredits ?? req.credits_required ?? 0;
+        const got  = buckets[req.category || req.name] || 0;
+        const status = need > 0 ? (got >= need ? 'met' : (got > 0 ? 'part' : 'none')) : 'none';
+        return {
+          ...req,
+          completedCredits: got,
+          credits_completed: got,
+          status,
+        };
+      });
+    }, []);
+
+    const percentFromReqs = (reqs) => {
+      let need = 0, got = 0;
+      (reqs || []).forEach(r => {
+        const tot = r.totalCredits ?? r.credits_required ?? 0;
+        const done = r.completedCredits ?? r.credits_completed ?? 0;
+        need += tot;
+        got  += Math.min(done, tot);
+      });
+      return need > 0 ? Math.min(Math.round((got / need) * 100), 100) : 0;
+    };
+
+    // Build the 4 slides: each slide holds both bars (Current + Transfer)
+    const slides = useMemo(() => {
+      if (!progress) return [];
+      return VIEWS.map((v) => {
+        const currentReqs  = recomputeReqsForView(progress.current.requirements,  v, selectedPlan);
+        const transferReqs = recomputeReqsForView(progress.transfer.requirements, v, selectedPlan);
+        return {
+          name: v,
+          current:  { requirements: currentReqs,  percent: percentFromReqs(currentReqs) },
+          transfer: { requirements: transferReqs, percent: percentFromReqs(transferReqs) }
+        };
+      });
+    }, [progress, selectedPlan, recomputeReqsForView]);
+
+    const go = useCallback((dirOrIndex) => {
+      setViewIndex((i) => {
+        if (typeof dirOrIndex === 'number') return Math.max(0, Math.min(dirOrIndex, VIEWS.length - 1));
+        const n = VIEWS.length;
+        return (i + (dirOrIndex === 'next' ? 1 : -1) + n) % n;
+      });
+    }, []);
+
+    // mobile swipe for the whole two-bar frame
+    useEffect(() => {
+      const el = frameRef.current;
+      if (!el) return;
+      let startX = 0, startY = 0, dx = 0, dy = 0, tracking = false;
+
+      const onStart = (e) => {
+        if (!isMobile) return;
+        const t = e.touches?.[0];
+        if (!t) return;
+        startX = t.clientX; startY = t.clientY; dx = 0; dy = 0;
+        tracking = true; setDragging(true); setDragX(0);
+      };
+      const onMove = (e) => {
+        if (!tracking) return;
+        const t = e.touches?.[0]; if (!t) return;
+        dx = t.clientX - startX; dy = t.clientY - startY;
+        if (Math.abs(dx) > Math.abs(dy) * 1.3) setDragX(dx);
+      };
+      const onEnd = () => {
+        if (!tracking) return;
+        tracking = false;
+        const width = el.clientWidth || 1;
+        const threshold = width * 0.25;
+        setDragging(false); setDragX(0);
+        if (dx < -threshold) go('next');
+        else if (dx > threshold) go('prev');
+      };
+
+      el.addEventListener('touchstart', onStart, { passive: true });
+      el.addEventListener('touchmove',  onMove,  { passive: true });
+      el.addEventListener('touchend',   onEnd);
+
+      return () => {
+        el.removeEventListener('touchstart', onStart);
+        el.removeEventListener('touchmove',  onMove);
+        el.removeEventListener('touchend',   onEnd);
+      };
+    }, [isMobile, go]);
+
+    // slide track transform (animate unless dragging)
+    const trackStyle = (() => {
+      const basePct = -(viewIndex * 100);
+      const width = frameRef.current ? frameRef.current.clientWidth || 1 : 1;
+      const dragPct = dragging ? (dragX / width) * 100 : 0;
+      const tx = basePct + dragPct;
+      return {
+        transform: `translateX(${tx}%)`,
+        transition: dragging ? 'none' : 'transform 300ms ease',
+        willChange: 'transform',
+      };
+    })();
+    // ======= END synchronized carousel =======
+
     // Normalize category keys for deduping
   const catKey = (s) => (s || 'Uncategorized').trim().toLowerCase();
 
@@ -753,26 +900,82 @@ const PlanBuilder = ({
                   No progress data available.
                 </div>
               ) : (
-                <div className="flex items-start justify-center gap-8">
-                  <VerticalProgressWithBubbles
-                    title="Current Program"
-                    percent={progress.current.percent}
-                    requirements={progress.current.requirements}
-                    color="blue"
-                    program={getProgram()}
-                    plan={selectedPlan}
-                    onAddCourse={handleCourseSelect}
-                  />
-                  <VerticalProgressWithBubbles
-                    title="Transfer Program" 
-                    percent={progress.transfer.percent}
-                    requirements={progress.transfer.requirements}
-                    color="violet"
-                    program={getProgram()}  // Add this
-                    plan={selectedPlan}     // Add this  
-                    onAddCourse={handleCourseSelect}  // Add this for transfer suggestions too
-                  />
-                </div>
+                // Synchronized two-bar carousel
+                (
+                  <div className="flex flex-col items-center gap-2">
+                    {/* Header controls */}
+                    <div className="flex items-center gap-2">
+                      {!isMobile && (
+                        <button
+                          onClick={() => go('prev')}
+                          aria-label="Previous view"
+                          className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                        >
+                          <ChevronLeft size={18}/>
+                        </button>
+                      )}
+                      <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                        {VIEWS[viewIndex]}
+                      </div>
+                      {!isMobile && (
+                        <button
+                          onClick={() => go('next')}
+                          aria-label="Next view"
+                          className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                        >
+                          <ChevronRight size={18}/>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Frame */}
+                    <div ref={frameRef} className="relative w-full">
+                      <div className="overflow-hidden">
+                        {/* Track */}
+                        <div className="flex" style={trackStyle}>
+                          {slides.map((s) => (
+                            <div key={s.name} className="basis-full shrink-0">
+                              <div className="flex items-start justify-center gap-4 sm:gap-8">
+                                <VerticalProgressWithBubbles
+                                  title="Current Program"
+                                  percent={s.current.percent}
+                                  requirements={s.current.requirements}
+                                  color="blue"
+                                  program={getProgram()}
+                                  plan={selectedPlan}
+                                  onAddCourse={handleCourseSelect}
+                                  enableCarousel={false}  // parent controls the carousel now
+                                />
+                                <VerticalProgressWithBubbles
+                                  title="Transfer Program"
+                                  percent={s.transfer.percent}
+                                  requirements={s.transfer.requirements}
+                                  color="violet"
+                                  program={getProgram()}
+                                  plan={selectedPlan}
+                                  onAddCourse={handleCourseSelect}
+                                  enableCarousel={false}  // parent controls the carousel now
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Dots */}
+                    <div className="flex items-center gap-1">
+                      {VIEWS.map((v, i) => (
+                        <button
+                          key={v}
+                          aria-label={`Go to ${v}`}
+                          onClick={() => setViewIndex(i)}
+                          className={`h-1.5 rounded-full transition-all ${i === viewIndex ? 'w-4 bg-gray-700 dark:bg-gray-200' : 'w-2 bg-gray-300 dark:bg-gray-600'}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )
               )}
             </div>
             {/* Plan control buttons below progress bars */}
