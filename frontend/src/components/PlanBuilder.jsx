@@ -694,6 +694,9 @@ const PlanBuilder = ({
           <h2 className="text-2xl sm:text-3xl font-semibold mx-auto text-gray-900 dark:text-white">
             Academic Plans
           </h2>
+
+
+          
         </div>
 
         {error && (
@@ -760,6 +763,7 @@ const PlanBuilder = ({
           </div>
         ) : (
           <div>
+            {/* Top row: back button and copyable plan code */}
             <div className="flex items-center justify-between mb-2">
               <button
                 onClick={() => setSelectedPlanId(null)}

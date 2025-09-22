@@ -36,6 +36,7 @@ const COLOR = {
   },
 };
 
+
 // Detect mobile layout (Tailwind 'sm' breakpoint)
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() =>
@@ -62,6 +63,9 @@ export default function VerticalProgressWithBubbles({
   color = 'blue',
   program = null,
   onAddCourse = null,
+  plan = null,
+  enableCarousel = false,
+  views = ['All Courses', 'Planned', 'In Progress', 'Completed'],
   plan = null,
   enableCarousel = false,
   views = ['All Courses', 'Planned', 'In Progress', 'Completed'],
@@ -264,11 +268,13 @@ export default function VerticalProgressWithBubbles({
     const n = list.length;
     if (!n) return [];
 
+
     let sumCredits = 0;
     list.forEach((req) => {
       const tot = req.totalCredits ?? req.credits_required ?? 0;
       sumCredits += (tot > 0 ? tot : 1);
     });
+
 
     let cumulative = 0;
     return list.map((req, index) => {
@@ -433,28 +439,32 @@ export default function VerticalProgressWithBubbles({
     <section className="flex flex-col items-center gap-2 sm:gap-3 select-none w-full max-w-full" ref={shellRef}>
       {/* Header with carousel controls */}
       <div className="flex items-center gap-2">
-        {enableCarousel && !isMobile && (
-          <button
-            type="button"
-            onClick={() => go('prev')}
-            aria-label="Previous view"
-            className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-          >
-            <ChevronLeft size={18}/>
-          </button>
-        )}
-        <h3 className={`text-sm font-semibold text-center ${titleColor}`}>
-          {title}{enableCarousel && <span className="text-gray-500 dark:text-gray-400"> • {safeViews[viewIndex]}</span>}
-        </h3>
-        {enableCarousel && !isMobile && (
-          <button
-            type="button"
-            onClick={() => go('next')}
-            aria-label="Next view"
-            className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-          >
-            <ChevronRight size={18}/>
-          </button>
+        {enableCarousel && !isMobile ? (
+          <>
+            <button
+              type="button"
+              onClick={() => go('prev')}
+              aria-label="Previous view"
+              className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+            >
+              <ChevronLeft size={18}/>
+            </button>
+            <h3 className={`text-sm font-semibold text-center ${titleColor}`}>
+              {title}{enableCarousel && <span className="text-gray-500 dark:text-gray-400"> • {safeViews[viewIndex]}</span>}
+            </h3>
+            <button
+              type="button"
+              onClick={() => go('next')}
+              aria-label="Next view"
+              className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+            >
+              <ChevronRight size={18}/>
+            </button>
+          </>
+        ) : (
+          <h3 className={`text-sm font-semibold text-center ${titleColor}`}>
+            {title}{enableCarousel && <span className="text-gray-500 dark:text-gray-400"> • {safeViews[viewIndex]}</span>}
+          </h3>
         )}
       </div>
 
@@ -688,9 +698,12 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
   const getStatusChip = (status) => {
     switch (status) {
       case 'met':
+      case 'met':
         return 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20';
       case 'part':
+      case 'part':
         return 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20';
+      default:
       default:
         return 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800';
     }
@@ -743,6 +756,11 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
       {/* Progress Details */}
       {totalCredits > 0 && (
         <div className="mb-4">
+        </div>
+
+      {/* Progress Details */}
+      {totalCredits > 0 && (
+        <div className="mb-4">
           <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
             <span>Credits Progress</span>
             <span>{Math.round(((completedCredits ?? 0) / totalCredits) * 100)}%</span>
@@ -771,6 +789,7 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
             <span className="flex items-center">
               <BookOpen size={14} className="mr-1" />
               Current Courses
+              Current Courses
             </span>
             {showCourses ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
@@ -783,8 +802,10 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
                     <div className="flex-1 min-w-0">
                       <h6 className="text-sm font-medium text-gray-900 dark:text-gray-100">
                         {pc.course?.code}: {pc.course?.title}
+                        {pc.course?.code}: {pc.course?.title}
                       </h6>
                       <p className="text-xs text-gray-600 dark:text-gray-400">
+                        {(pc.credits || pc.course?.credits) ?? 0} credits • {pc.course?.institution}
                         {(pc.credits || pc.course?.credits) ?? 0} credits • {pc.course?.institution}
                       </p>
                     </div>
@@ -799,6 +820,9 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
         </div>
       )}
 
+      {/* Suggestions */}
+      {onAddCourse && (
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
       {/* Suggestions */}
       {onAddCourse && (
         <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
@@ -861,3 +885,4 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
     </div>
   );
 }
+
