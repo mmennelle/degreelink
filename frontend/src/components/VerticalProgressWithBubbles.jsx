@@ -1,5 +1,5 @@
-import React, { useMemo, useRef, useState, useEffect, useCallback} from 'react';
-import { CheckCircle2, X, Plus, BookOpen, AlertCircle, Target, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
+import { CheckCircle2, X, Plus, BookOpen, AlertCircle, Target, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
 
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
@@ -33,6 +33,7 @@ const COLOR = {
     legend: 'text-emerald-600 dark:text-emerald-400',
   },
 };
+
 // Detect mobile layout (Tailwind 'sm' breakpoint)
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() =>
@@ -53,9 +54,8 @@ function useIsMobile() {
   return isMobile;
 }
 
-
 /**
- * Enhanced Vertical Progress with Academic Requirements
+ * Enhanced Vertical Progress with Academic Requirements and Carousel
  * Props:
  * - title: string
  * - percent: number (0..100)
@@ -75,7 +75,100 @@ export default function VerticalProgressWithBubbles({
 }) {
   const c = COLOR[color] || COLOR.blue;
   const barRef = useRef(null);
+  const carouselRef = useRef(null);
   const [openBubbleId, setOpenBubbleId] = useState(null);
+  
+  // Carousel state
+  const [currentView, setCurrentView] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  // Touch handling for mobile swipes
+  const [touchStart, setTouchStart] = useState(null);
+  const [touchEnd, setTouchEnd] = useState(null);
+
+  const isMobile = useIsMobile();
+
+  // Carousel views configuration
+  const views = [
+    { 
+      id: 'all', 
+      name: 'All Courses', 
+      color: 'blue',
+      filter: () => true 
+    },
+    { 
+      id: 'planned', 
+      name: 'Planned', 
+      color: 'orange',
+      filter: (course) => course.status === 'planned' 
+    },
+    { 
+      id: 'in_progress', 
+      name: 'In Progress', 
+      color: 'violet',
+      filter: (course) => course.status === 'in_progress' 
+    },
+    { 
+      id: 'completed', 
+      name: 'Completed', 
+      color: 'emerald',
+      filter: (course) => course.status === 'completed' 
+    }
+  ];
+
+  // Filter requirements based on current view
+  const filteredRequirements = useMemo(() => {
+    if (!plan?.courses || currentView === 0) {
+      return requirements; // Show all for "All Courses" view
+    }
+
+    const currentFilter = views[currentView].filter;
+    const filteredCourses = plan.courses.filter(currentFilter);
+    
+    // Recalculate requirement completion based on filtered courses
+    return requirements.map(req => {
+      const reqCourses = filteredCourses.filter(course => 
+        (course.requirement_category || 'Uncategorized') === (req.category || req.name)
+      );
+      
+      const completedCredits = reqCourses.reduce((sum, course) => 
+        sum + (course.credits || course.course?.credits || 0), 0
+      );
+      
+      const totalCredits = req.totalCredits || req.credits_required || 0;
+      const newStatus = totalCredits > 0 ? 
+        (completedCredits >= totalCredits ? 'met' : 
+         (completedCredits > 0 ? 'part' : 'none')) : 'none';
+
+      return {
+        ...req,
+        completedCredits,
+        credits_completed: completedCredits,
+        status: newStatus,
+        courses: reqCourses.map(c => c.course?.code || c.course?.title || `Course ${c.id}`)
+      };
+    });
+  }, [requirements, plan?.courses, currentView, views]);
+
+  // Calculate filtered percentage
+  const filteredPercent = useMemo(() => {
+    if (!plan?.courses || currentView === 0) {
+      return percent; // Use original percent for "All Courses"
+    }
+
+    const currentFilter = views[currentView].filter;
+    const filteredCourses = plan.courses.filter(currentFilter);
+    const totalCredits = filteredCourses.reduce((sum, course) => 
+      sum + (course.credits || course.course?.credits || 0), 0
+    );
+    
+    // Get total required credits from program
+    const totalRequired = program?.total_credits || 
+      (requirements?.reduce((sum, req) => sum + (req.totalCredits || req.credits_required || 0), 0)) || 
+      120; // Default fallback
+
+    return totalRequired > 0 ? Math.min((totalCredits / totalRequired) * 100, 100) : 0;
+  }, [percent, plan?.courses, currentView, views, program, requirements]);
 
   // --- De-duplication helpers (category-level) ---
   const catKey = (s) => (s || 'Uncategorized').trim().toLowerCase();
@@ -83,10 +176,10 @@ export default function VerticalProgressWithBubbles({
   const mergeReq = (a, b) => {
     const totalA = a.totalCredits ?? a.credits_required ?? 0;
     const totalB = b.totalCredits ?? b.credits_required ?? 0;
-    const doneA  = a.completedCredits ?? a.credits_completed ?? 0;
-    const doneB  = b.completedCredits ?? b.credits_completed ?? 0;
+    const doneA = a.completedCredits ?? a.credits_completed ?? 0;
+    const doneB = b.completedCredits ?? b.credits_completed ?? 0;
     const maxTotal = Math.max(totalA, totalB);
-    const maxDone  = Math.max(doneA, doneB);
+    const maxDone = Math.max(doneA, doneB);
 
     return {
       ...a,
@@ -114,7 +207,7 @@ export default function VerticalProgressWithBubbles({
         id: req.id || key,
         name: req.category || req.name || 'Unknown Requirement',
         status: req.status || (req.is_complete ? 'met' :
-                (req.credits_completed || req.completedCredits || 0) > 0 ? 'part' : 'none'),
+          (req.credits_completed || req.completedCredits || 0) > 0 ? 'part' : 'none'),
         completedCredits: req.credits_completed || req.completedCredits || 0,
         totalCredits: req.credits_required || req.totalCredits || 0,
         courses: req.courses || req.applied || [],
@@ -133,80 +226,61 @@ export default function VerticalProgressWithBubbles({
     return Array.from(byKey.values());
   };
 
+  // Process requirements -> de-duplicate by category -> bubbles
+  const bubbleReqs = useMemo(() => {
+    if (!filteredRequirements.length) return [];
+    return dedupeByCategory(filteredRequirements, program);
+  }, [filteredRequirements, program]);
 
-    // Process requirements -> de-duplicate by category -> bubbles
-    const bubbleReqs = useMemo(() => {
-      if (!requirements.length) return [];
-      return dedupeByCategory(requirements, program);
-    }, [requirements, program]);
-
-    /**
-   * Assign the same amber colour to every requirement segment.  This helper
-   * returns static classes for the filled and track portions so that all
-   * segments share the same hue and are distinguishable only by their fill
-   * percentage.
-   */
   const getColorForName = useCallback(() => {
     return { fill: 'bg-amber-500', track: 'bg-indigo-900' };
   }, []);
 
-
-  /**
-   * Convert the list of requirements into an array of segments.  Each segment
-   * occupies a proportion of the bar based on the total credits required
-   * (with a fallback to equal sizing if totals are unavailable).  We also
-   * compute the percentage completed within each segment and store the
-   * midpoint of the segment for popover positioning.
-   * 
-   * 
-   */
-
-    function getRequirementInitials(name) {
-      if (!name) return 'XX';
-      // Common abbreviations
-      const abbreviations = {
-        'mathematics': 'MA',
-        'math': 'MA',
-        'english': 'EN',
-        'composition': 'EN',
-        'literature': 'LI',
-        'humanities': 'HU',
-        'biology': 'BI',
-        'chemistry': 'CH',
-        'physics': 'PH',
-        'history': 'HI',
-        'science': 'SC',
-        'social science': 'SO',
-        'social sciences': 'SO',
-        'liberal arts': 'LA',
-        'fine arts': 'FA',
-        'core': 'CO',
-        'elective': 'EL',
-        'free elective': 'FE',
-        'general education': 'GE'
-      };
-      const nameLower = name.toLowerCase();
-      if (abbreviations[nameLower]) {
-        return abbreviations[nameLower];
-      }
-      for (const [key, abbrev] of Object.entries(abbreviations)) {
-        if (nameLower.includes(key)) {
-          return abbrev;
-        }
-      }
-      const words = name.trim().split(/\s+/);
-      if (words.length === 1) {
-        return words[0].substring(0, 2).toUpperCase();
-      }
-      return words.slice(0, 2).map(w => w.charAt(0)).join('').toUpperCase();
+  function getRequirementInitials(name) {
+    if (!name) return 'XX';
+    // Common abbreviations
+    const abbreviations = {
+      'mathematics': 'MA',
+      'math': 'MA',
+      'english': 'EN',
+      'composition': 'EN',
+      'literature': 'LI',
+      'humanities': 'HU',
+      'biology': 'BI',
+      'chemistry': 'CH',
+      'physics': 'PH',
+      'history': 'HI',
+      'science': 'SC',
+      'social science': 'SO',
+      'social sciences': 'SO',
+      'liberal arts': 'LA',
+      'fine arts': 'FA',
+      'core': 'CO',
+      'elective': 'EL',
+      'free elective': 'FE',
+      'general education': 'GE'
+    };
+    const nameLower = name.toLowerCase();
+    if (abbreviations[nameLower]) {
+      return abbreviations[nameLower];
     }
+    for (const [key, abbrev] of Object.entries(abbreviations)) {
+      if (nameLower.includes(key)) {
+        return abbrev;
+      }
+    }
+    const words = name.trim().split(/\s+/);
+    if (words.length === 1) {
+      return words[0].substring(0, 2).toUpperCase();
+    }
+    return words.slice(0, 2).map(w => w.charAt(0)).join('').toUpperCase();
+  }
 
   const segments = useMemo(() => {
     const list = bubbleReqs;
     const n = list.length;
     if (!n) return [];
-    // Compute the sum of credits; treat zero-credit requirements as 1 to
-    // guarantee they receive space in the bar.
+    
     let sumCredits = 0;
     list.forEach((req) => {
       const tot = req.totalCredits ?? req.credits_required ?? 0;
@@ -239,8 +313,55 @@ export default function VerticalProgressWithBubbles({
     });
   }, [bubbleReqs, getColorForName]);
 
-  // Whether the user is on a small device; determines popover behaviour
-  const isMobile = useIsMobile();
+  // Touch handlers for mobile swipe
+  const handleTouchStart = (e) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > 50;
+    const isRightSwipe = distance < -50;
+
+    if (isLeftSwipe && currentView < views.length - 1) {
+      navigateToView(currentView + 1);
+    }
+    if (isRightSwipe && currentView > 0) {
+      navigateToView(currentView - 1);
+    }
+  };
+
+  // Navigation functions
+  const navigateToView = (viewIndex) => {
+    if (viewIndex === currentView || isTransitioning) return;
+    if (viewIndex < 0 || viewIndex >= views.length) return;
+
+    setIsTransitioning(true);
+    setCurrentView(viewIndex);
+    
+    setTimeout(() => {
+      setIsTransitioning(false);
+    }, 300);
+  };
+
+  const nextView = () => {
+    if (currentView < views.length - 1) {
+      navigateToView(currentView + 1);
+    }
+  };
+
+  const prevView = () => {
+    if (currentView > 0) {
+      navigateToView(currentView - 1);
+    }
+  };
 
   // Lock page scroll when any popover is open on mobile
   useEffect(() => {
@@ -266,116 +387,215 @@ export default function VerticalProgressWithBubbles({
     };
   }, [onDoc]);
 
-  const barColor = c.bar;
-  const trackColor = c.track;
-  const titleColor = c.title;
+  // Get current view color scheme
+  const currentViewConfig = views[currentView];
+  const viewColorScheme = COLOR[currentViewConfig.color] || c;
 
   return (
     <section className="flex flex-col items-center gap-3">
-      <h3 className={`text-sm font-semibold text-center ${titleColor}`}>{title}</h3>
+      {/* Title */}
+      <h3 className={`text-sm font-semibold text-center ${viewColorScheme.title}`}>
+        {title}
+      </h3>
 
-            <div className="relative h-64 w-20 mx-2 border-2 border-gray-300 dark:border-gray-600 rounded-md" ref={barRef} aria-label={`${title} progress`} role="img">
-        {/* Overall percent label on top */}
-        <div className="absolute -right-5 -top-7 translate-x-full">
-          <div className="px-.5 py-.5 text-xs rounded-lg bg-gray-800 text-white dark:bg-gray-900 dark:text-gray-100 shadow-lg font-medium">
-            {Math.round(clamp(percent, 0, 100))}%
+      {/* View Navigation - Desktop */}
+      {!isMobile && (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={prevView}
+            disabled={currentView === 0 || isTransitioning}
+            className={`p-1 rounded-full transition-colors ${
+              currentView === 0 || isTransitioning
+                ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
+          >
+            <ChevronLeft size={16} />
+          </button>
+          
+          <div className="flex items-center gap-1">
+            {views.map((view, index) => (
+              <button
+                key={view.id}
+                onClick={() => navigateToView(index)}
+                disabled={isTransitioning}
+                className={`w-2 h-2 rounded-full transition-colors ${
+                  index === currentView
+                    ? COLOR[view.color]?.bar || 'bg-blue-600'
+                    : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              />
+            ))}
+          </div>
+
+          <button
+            onClick={nextView}
+            disabled={currentView === views.length - 1 || isTransitioning}
+            className={`p-1 rounded-full transition-colors ${
+              currentView === views.length - 1 || isTransitioning
+                ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* Current View Label */}
+      <div className={`text-xs font-medium ${viewColorScheme.title}`}>
+        {currentViewConfig.name}
+      </div>
+
+      {/* Progress Bar Container */}
+      <div 
+        className="relative overflow-hidden"
+        onTouchStart={isMobile ? handleTouchStart : undefined}
+        onTouchMove={isMobile ? handleTouchMove : undefined}
+        onTouchEnd={isMobile ? handleTouchEnd : undefined}
+        ref={carouselRef}
+      >
+        <div className="flex transition-transform duration-300 ease-in-out">
+          {/* Single progress bar - no longer using carousel transforms */}
+          <div className="flex-shrink-0">
+            <div 
+              className="relative h-64 w-20 mx-2 border-2 border-gray-300 dark:border-gray-600 rounded-md" 
+              ref={barRef} 
+              aria-label={`${title} progress`} 
+              role="img"
+            >
+              {/* Overall percent label on top */}
+              <div className="absolute -right-5 -top-7 translate-x-full">
+                <div className={`px-1 py-0.5 text-xs rounded-lg ${viewColorScheme.bar} text-white shadow-lg font-medium`}>
+                  {Math.round(clamp(filteredPercent, 0, 100))}%
+                </div>
+              </div>
+
+              {/* Render segments representing each requirement */}
+              {segments.map((seg, segIndex) => (
+                <div
+                  key={seg.id}
+                  className="relative w-full"
+                  style={{ height: `${seg.height}%` }}
+                >
+                  {/* Horizontal divider between segments */}
+                  {segIndex > 0 && (
+                    <div className="absolute top-0 left-0 w-full h-px bg-white dark:bg-gray-300 opacity-30" />
+                  )}
+
+                  {/* Track background */}
+                  <div className={`absolute inset-0 ${seg.trackClass} ${segIndex === 0 ? 'rounded-t-sm' : ''} ${segIndex === segments.length - 1 ? 'rounded-b-sm' : ''}`} />
+                  
+                  {/* Filled portion */}
+                  <div
+                    className={`absolute bottom-0 left-0 w-full ${seg.fillClass} ${segIndex === segments.length - 1 ? 'rounded-b-sm' : ''}`}
+                    style={{ height: `${seg.fillPercent}%` }}
+                  />
+                  
+                  {/* Abbreviation label overlay */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span
+                      className="uppercase font-bold text-xs"
+                      style={{ 
+                        opacity: 0.65, 
+                        color: 'white',
+                        textShadow: '0 1px 2px rgba(0,0,0,0.5)'
+                      }}
+                    >
+                      {seg.initials}
+                    </span>
+                  </div>
+                  
+                  {/* Clickable area to toggle popover */}
+                  <button
+                    type="button"
+                    onClick={() => setOpenBubbleId(openBubbleId === seg.id ? null : seg.id)}
+                    aria-expanded={openBubbleId === seg.id ? 'true' : 'false'}
+                    aria-label={`${seg.requirement.name} requirement (${seg.requirement.status})`}
+                    className="absolute inset-0 focus:outline-none"
+                  />
+                  
+                  {/* Popover for requirement details */}
+                  {openBubbleId === seg.id && (
+                    isMobile ? (
+                      <>
+                        {/* Backdrop */}
+                        <button
+                          aria-label="Close panel"
+                          onClick={() => setOpenBubbleId(null)}
+                          className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-[1px]"
+                        />
+                        {/* Sheet */}
+                        <div
+                          role="dialog"
+                          aria-modal="true"
+                          aria-labelledby={`req-title-${seg.id}`}
+                          className="fixed inset-x-0 bottom-0 z-[70] rounded-t-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl pt-3 pb-4 px-4"
+                        >
+                          <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-gray-300 dark:bg-gray-600" />
+                          <RequirementDetails
+                            requirement={seg.requirement}
+                            onClose={() => setOpenBubbleId(null)}
+                            onAddCourse={onAddCourse}
+                            plan={plan}
+                            compact
+                          />
+                          <button onClick={() => setOpenBubbleId(null)} className="sr-only">
+                            Close
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div
+                        role="dialog"
+                        aria-modal="false"
+                        className={`absolute z-50 w-80 max-w-[85vw] rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl animate-in slide-in-from-${seg.side}-2 duration-200 ${
+                          seg.side === 'left' ? 'right-full mr-2' : 'left-full ml-2'
+                        }`}
+                        style={{ top: `${seg.mid}%`, transform: 'translateY(-50%)' }}
+                      >
+                        <RequirementDetails
+                          requirement={seg.requirement}
+                          onClose={() => setOpenBubbleId(null)}
+                          onAddCourse={onAddCourse}
+                          plan={plan}
+                        />
+                      </div>
+                    )
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-        {/* Render segments representing each requirement */}
-        {segments.map((seg) => (
-          <div
-            key={seg.id}
-            className="relative w-full"
-            style={{ height: `${seg.height}%` }}
-          >
-            {/* Track background */}
-            <div className={`absolute inset-0 ${seg.trackClass} rounded-sm`} />
-            {/* Filled portion */}
-            <div
-              className={`absolute bottom-0 left-0 w-full ${seg.fillClass} rounded-sm`}
-              style={{ height: `${seg.fillPercent}%` }}
-            />
-            {/* Abbreviation label overlay */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span
-                className="uppercase font-bold text-xs"
-                style={{ opacity: 0.65, color: 'white' }}
-              >
-                {seg.initials}
-              </span>
-            </div>
-            {/* Clickable area to toggle popover */}
-            <button
-              type="button"
-              onClick={() => setOpenBubbleId(openBubbleId === seg.id ? null : seg.id)}
-              aria-expanded={openBubbleId === seg.id ? 'true' : 'false'}
-              aria-label={`${seg.requirement.name} requirement (${seg.requirement.status})`}
-              className="absolute inset-0 focus:outline-none"
-            />
-            {/* Popover for requirement details */}
-            {openBubbleId === seg.id && (
-              isMobile ? (
-                <>
-                  {/* Backdrop */}
-                  <button
-                    aria-label="Close panel"
-                    onClick={() => setOpenBubbleId(null)}
-                    className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-[1px]"
-                  />
-                  {/* Sheet */}
-                  <div
-                    role="dialog"
-                    aria-modal="true"
-                    aria-labelledby={`req-title-${seg.id}`}
-                    className="fixed inset-x-0 bottom-0 z-[70] rounded-t-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl pt-3 pb-4 px-4"
-                  >
-                    <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-gray-300 dark:bg-gray-600" />
-                    <RequirementDetails
-                      requirement={seg.requirement}
-                      onClose={() => setOpenBubbleId(null)}
-                      onAddCourse={onAddCourse}
-                      plan={plan}
-                      compact
-                    />
-                    <button onClick={() => setOpenBubbleId(null)} className="sr-only">
-                      Close
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div
-                  role="dialog"
-                  aria-modal="false"
-                  className={`absolute z-50 w-80 max-w-[85vw] rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl animate-in slide-in-from-${seg.side}-2 duration-200 ${
-                    seg.side === 'left' ? 'right-full mr-2' : 'left-full ml-2'
-                  }`}
-                  style={{ top: `${seg.mid}%`, transform: 'translateY(-50%)' }}
-                >
-                  <RequirementDetails
-                    requirement={seg.requirement}
-                    onClose={() => setOpenBubbleId(null)}
-                    onAddCourse={onAddCourse}
-                    plan={plan}
-                  />
-                </div>
-              )
-            )}
-            
-          </div>
-          
-        ))}
-      </div>
-      <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-1">
-        <CheckCircle2 size={14} className={c.legend} />
-        <span>requirement progress</span>
       </div>
 
+      {/* Mobile: View Indicators */}
+      {isMobile && (
+        <div className="flex items-center gap-2 mt-2">
+          {views.map((view, index) => (
+            <button
+              key={view.id}
+              onClick={() => navigateToView(index)}
+              disabled={isTransitioning}
+              className={`w-2 h-2 rounded-full transition-colors ${
+                index === currentView
+                  ? COLOR[view.color]?.bar || 'bg-blue-600'
+                  : 'bg-gray-300 dark:bg-gray-600'
+              }`}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Legend */}
+      <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-1">
+        <CheckCircle2 size={14} className={viewColorScheme.legend} />
+        <span>requirement progress</span>
+      </div>
     </section>
   );
 }
-
-
-
 
 function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact = false }) {
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -583,12 +803,13 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
             className={`p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors ${compact ? 'hidden sm:inline-flex' : ''}`}
           >
             <X size={18} />
-    </button>
-    </div>
-  </div>
-{/* Progress Details */}
-{totalCredits > 0 && (
-  <div className="mb-4">
+          </button>
+        </div>
+      </div>
+
+      {/* Progress Details */}
+      {totalCredits > 0 && (
+        <div className="mb-4">
           <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
             <span>Credits Progress</span>
             <span>{Math.round((completedCredits / totalCredits) * 100)}%</span>
