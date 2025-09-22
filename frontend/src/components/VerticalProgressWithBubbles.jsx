@@ -430,7 +430,7 @@ export default function VerticalProgressWithBubbles({
   const titleColor = (COLOR[color] || COLOR.blue).title;
 
   return (
-    <section className="flex flex-col items-center gap-3 select-none" ref={shellRef}>
+    <section className="flex flex-col items-center gap-2 sm:gap-3 select-none w-full max-w-full" ref={shellRef}>
       {/* Header with carousel controls */}
       <div className="flex items-center gap-2">
         {enableCarousel && !isMobile && (
