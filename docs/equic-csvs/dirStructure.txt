@@ -1,0 +1,263 @@
+#!/usr/bin/env python3
+import argparse
+import os
+import shutil
+import sys
+from pathlib import Path
+from zipfile import ZipFile, BadZipFile
+import tarfile
+
+# ---------- Utilities ----------
+
+ARCHIVE_SUFFIXES = {
+    ".zip",
+    ".tar",
+    ".tar.gz", ".tgz",
+    ".tar.bz2", ".tbz2",
+}
+
+def is_archive(p: Path) -> bool:
+    s = p.suffix.lower()
+    if s == ".zip" or s == ".tar":
+        return True
+    # handle double-suffix cases
+    two = "".join(p.suffixes[-2:]).lower()
+    if two in (".tar.gz", ".tar.bz2"):
+        return True
+    # common short forms
+    if s in (".tgz", ".tbz2"):
+        return True
+    return False
+
+def normalized_archive_suffix(p: Path) -> str:
+    """Return a canonical archive suffix like '.zip', '.tar.gz', '.tar.bz2', '.tar'."""
+    sfx = [s.lower() for s in p.suffixes]
+    if len(sfx) >= 2 and sfx[-2] == ".tar" and sfx[-1] in (".gz", ".bz2"):
+        return ".tar" + sfx[-1]
+    if sfx and sfx[-1] in (".zip", ".tar", ".tgz", ".tbz2"):
+        return sfx[-1] if sfx[-1] != ".tgz" else ".tar.gz"
+    return p.suffix.lower()
+
+def safe_join(base: Path, *paths: str) -> Path:
+    # Prevent ../ escapes during extraction
+    final = base.joinpath(*paths).resolve()
+    if base.resolve() not in final.parents and final != base.resolve():
+        raise ValueError(f"Blocked path traversal: {final}")
+    return final
+
+def safe_move(src: Path, dst: Path, dry_run: bool = False) -> Path:
+    final_dst = dst
+    if final_dst.exists():
+        stem, suffix = final_dst.stem, final_dst.suffix
+        n = 1
+        while final_dst.exists():
+            final_dst = final_dst.with_name(f"{stem} ({n}){suffix}")
+            n += 1
+    if dry_run:
+        print(f"[DRY-RUN] Would move: {src} -> {final_dst}")
+    else:
+        final_dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(src), str(final_dst))
+        print(f"Moved: {src} -> {final_dst}")
+    return final_dst
+
+# ---------- Extraction ----------
+
+def extract_zip(zip_path: Path, out_dir: Path, delete_zip: bool, dry_run: bool) -> bool:
+    try:
+        if dry_run:
+            print(f"[DRY-RUN] Would extract ZIP: {zip_path} -> {out_dir}")
+            return True
+        with ZipFile(zip_path, "r") as zf:
+            for member in zf.infolist():
+                # Skip directory entries
+                if member.filename.endswith("/"):
+                    continue
+                # Build safe path
+                target = safe_join(out_dir, member.filename)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with zf.open(member, "r") as src, open(target, "wb") as dst:
+                    shutil.copyfileobj(src, dst)
+        print(f"Extracted ZIP: {zip_path} -> {out_dir}")
+        if delete_zip:
+            zip_path.unlink(missing_ok=True)
+            print(f"Deleted archive: {zip_path}")
+        return True
+    except BadZipFile:
+        print(f"Warning: Corrupt zip skipped: {zip_path}", file=sys.stderr)
+        return False
+    except Exception as e:
+        print(f"Warning: Failed to extract {zip_path}: {e}", file=sys.stderr)
+        return False
+
+def extract_tar(tar_path: Path, out_dir: Path, delete_tar: bool, dry_run: bool) -> bool:
+    try:
+        if dry_run:
+            print(f"[DRY-RUN] Would extract TAR: {tar_path} -> {out_dir}")
+            return True
+        mode = "r"
+        suf = normalized_archive_suffix(tar_path)
+        if suf == ".tar.gz":
+            mode = "r:gz"
+        elif suf == ".tar.bz2":
+            mode = "r:bz2"
+        with tarfile.open(tar_path, mode) as tf:
+            for member in tf.getmembers():
+                if not member.isfile():
+                    continue
+                member_path = safe_join(out_dir, member.name)
+                member_path.parent.mkdir(parents=True, exist_ok=True)
+                with tf.extractfile(member) as src, open(member_path, "wb") as dst:
+                    shutil.copyfileobj(src, dst)
+        print(f"Extracted TAR: {tar_path} -> {out_dir}")
+        if delete_tar:
+            tar_path.unlink(missing_ok=True)
+            print(f"Deleted archive: {tar_path}")
+        return True
+    except Exception as e:
+        print(f"Warning: Failed to extract {tar_path}: {e}", file=sys.stderr)
+        return False
+
+def extract_archive(archive_path: Path, delete_archives: bool, dry_run: bool) -> bool:
+    out_dir = archive_path.parent
+    suf = normalized_archive_suffix(archive_path)
+    if suf == ".zip":
+        return extract_zip(archive_path, out_dir, delete_archives, dry_run)
+    elif suf in (".tar", ".tar.gz", ".tar.bz2", ".tgz", ".tbz2"):
+        return extract_tar(archive_path, out_dir, delete_archives, dry_run)
+    else:
+        return False
+
+def extract_all_archives(root: Path, delete_archives: bool, dry_run: bool, max_passes: int = 5) -> None:
+    """
+    Recursively extract archives until none remain (or max_passes reached).
+    This handles archives that unpack more archives.
+    """
+    for round_idx in range(1, max_passes + 1):
+        archives = [p for p in root.rglob("*") if p.is_file() and is_archive(p)]
+        if not archives:
+            break
+        print(f"--- Extraction pass {round_idx}: {len(archives)} archive(s) found ---")
+        changed = False
+        for arc in archives:
+            if extract_archive(arc, delete_archives, dry_run):
+                changed = True
+        if not changed:
+            # Nothing extracted (probably errors only); stop to avoid a loop
+            break
+
+# ---------- Consolidation ----------
+
+def consolidate_files(root: Path, strip_prefix: bool = False, dry_run: bool = False) -> None:
+    # Snapshot files first to avoid iterator invalidation while moving
+    files = []
+    for p in root.rglob("*"):
+        if p.is_file():
+            files.append(p)
+
+    for file_path in files:
+        name = file_path.name
+
+        # Skip this script itself if it lives under root
+        try:
+            if file_path.resolve() == Path(sys.argv[0]).resolve():
+                continue
+        except Exception:
+            pass
+
+        if "_" not in name:
+            continue
+
+        prefix, rest = name.split("_", 1)
+        if not prefix:
+            continue
+
+        target_dir = root / prefix
+
+        # If the file is already under the correct target dir, we may still rename if strip_prefix=True
+        already_under = False
+        try:
+            file_path.relative_to(target_dir)
+            already_under = True
+        except ValueError:
+            pass
+
+        out_name = rest if strip_prefix else name
+        destination = target_dir / out_name
+
+        # If it's already in the right place with the right name, skip
+        if already_under and file_path.name == out_name:
+            continue
+
+        safe_move(file_path, destination, dry_run=dry_run)
+
+# ---------- Entry ----------
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Unpack a master ZIP (and nested archives), then organize files into per-student folders using the prefix before the first underscore."
+    )
+    parser.add_argument(
+        "path",
+        help="Path to the master ZIP file or a directory to process."
+    )
+    parser.add_argument(
+        "--delete-archives",
+        action="store_true",
+        help="Delete archives after successful extraction."
+    )
+    parser.add_argument(
+        "--strip-prefix",
+        action="store_true",
+        help="Inside each student's folder, drop the 'prefix_' from filenames."
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview actions without modifying files."
+    )
+    args = parser.parse_args()
+
+    target = Path(args.path).resolve()
+    if not target.exists():
+        print(f"Error: Path does not exist: {target}", file=sys.stderr)
+        sys.exit(1)
+
+    # If the target is a zip file, create an extraction folder next to it
+    # Otherwise, treat it as a directory root.
+    if target.is_file():
+        if normalized_archive_suffix(target) != ".zip":
+            print("Note: You passed a file that isn't a .zip. It will still attempt extraction if recognized.", file=sys.stderr)
+
+        extract_root = target.parent / target.stem
+        if args.dry_run:
+            print(f"[DRY-RUN] Would create extract root: {extract_root}")
+        else:
+            extract_root.mkdir(parents=True, exist_ok=True)
+        print(f"Master: {target}")
+        print(f"Extract root: {extract_root}")
+
+        # Extract the master archive into extract_root
+        if is_archive(target):
+            extract_archive(target, delete_archives=args.delete_archives, dry_run=args.dry_run)
+        else:
+            # Not an archive; just copy into extract_root to keep flow consistent
+            if not args.dry_run:
+                shutil.copy2(str(target), str(extract_root / target.name))
+
+        # Now recursively extract anything under extract_root
+        extract_all_archives(extract_root, delete_archives=args.delete_archives, dry_run=args.dry_run)
+
+        # Consolidate
+        consolidate_files(extract_root, strip_prefix=args.strip_prefix, dry_run=args.dry_run)
+        print("Done.")
+    else:
+        # Directory flow
+        root = target
+        print(f"Root: {root}")
+        extract_all_archives(root, delete_archives=args.delete_archives, dry_run=args.dry_run)
+        consolidate_files(root, strip_prefix=args.strip_prefix, dry_run=args.dry_run)
+        print("Done.")
+
+if __name__ == "__main__":
+    main()
