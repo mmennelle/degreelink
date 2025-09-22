@@ -679,6 +679,8 @@ const PlanBuilder = ({
                     program={getProgram()}
                     plan={selectedPlan}
                     onAddCourse={handleCourseSelect}
+                    enableCarousel={true}
+                    views={['All Courses', 'Planned', 'In Progress', 'Completed']}
                   />
                   <VerticalProgressWithBubbles
                     title="Transfer Program" 
@@ -688,6 +690,8 @@ const PlanBuilder = ({
                     program={getProgram()}
                     plan={selectedPlan}
                     onAddCourse={handleCourseSelect}
+                    enableCarousel={true}
+                    views={['All Courses', 'Planned', 'In Progress', 'Completed']}
                   />
                 </div>
               )}
