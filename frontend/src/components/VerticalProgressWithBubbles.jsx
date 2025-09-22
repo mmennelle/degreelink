@@ -66,9 +66,6 @@ export default function VerticalProgressWithBubbles({
   plan = null,
   enableCarousel = false,
   views = ['All Courses', 'Planned', 'In Progress', 'Completed'],
-  plan = null,
-  enableCarousel = false,
-  views = ['All Courses', 'Planned', 'In Progress', 'Completed'],
 }) {
   const c = COLOR[color] || COLOR.blue;
   const barFrameRef = useRef(null);   // visible window for the bar
@@ -697,14 +694,11 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
 
   const getStatusChip = (status) => {
     switch (status) {
-      case 'met':
-      case 'met':
-        return 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20';
-      case 'part':
-      case 'part':
-        return 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20';
-      default:
-      default:
+     case 'met':
+    return 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20';
+    case 'part':
+    return 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20';
+    default:
         return 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800';
     }
   };
@@ -756,11 +750,6 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
       {/* Progress Details */}
       {totalCredits > 0 && (
         <div className="mb-4">
-        </div>
-
-      {/* Progress Details */}
-      {totalCredits > 0 && (
-        <div className="mb-4">
           <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
             <span>Credits Progress</span>
             <span>{Math.round(((completedCredits ?? 0) / totalCredits) * 100)}%</span>
@@ -789,7 +778,6 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
             <span className="flex items-center">
               <BookOpen size={14} className="mr-1" />
               Current Courses
-              Current Courses
             </span>
             {showCourses ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
@@ -802,10 +790,8 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
                     <div className="flex-1 min-w-0">
                       <h6 className="text-sm font-medium text-gray-900 dark:text-gray-100">
                         {pc.course?.code}: {pc.course?.title}
-                        {pc.course?.code}: {pc.course?.title}
                       </h6>
                       <p className="text-xs text-gray-600 dark:text-gray-400">
-                        {(pc.credits || pc.course?.credits) ?? 0} credits • {pc.course?.institution}
                         {(pc.credits || pc.course?.credits) ?? 0} credits • {pc.course?.institution}
                       </p>
                     </div>
@@ -820,9 +806,6 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
         </div>
       )}
 
-      {/* Suggestions */}
-      {onAddCourse && (
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
       {/* Suggestions */}
       {onAddCourse && (
         <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
