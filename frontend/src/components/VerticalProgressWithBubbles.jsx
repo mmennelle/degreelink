@@ -1,9 +1,7 @@
-// VerticalProgressWithBubbles.jsx
+// VerticalProgressWithBubbles.jsx - Simplified version without internal carousel
 import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { CheckCircle2, X, Plus, BookOpen, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
-
-function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+import { X, Plus, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
 
 // Static class map for consistent styling
 const COLOR = {
@@ -36,7 +34,6 @@ const COLOR = {
   },
 };
 
-
 // Detect mobile layout (Tailwind 'sm' breakpoint)
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() =>
@@ -64,81 +61,15 @@ export default function VerticalProgressWithBubbles({
   program = null,
   onAddCourse = null,
   plan = null,
-  enableCarousel = false,
-  views = ['All Courses', 'Planned', 'In Progress', 'Completed'],
+  currentView = 'All Courses',
 }) {
   const c = COLOR[color] || COLOR.blue;
-  const barFrameRef = useRef(null);   // visible window for the bar
-  const shellRef = useRef(null);      // outer section for touch handlers
-  const [openBubbleKey, setOpenBubbleKey] = useState(null); // `${seg.id}-${slideIdx}`
-
-  // carousel state
+  const barFrameRef = useRef(null);
+  const shellRef = useRef(null);
+  const [openBubbleKey, setOpenBubbleKey] = useState(null);
   const isMobile = useIsMobile();
-  const [viewIndex, setViewIndex] = useState(0);
-  const safeViews = views && views.length ? views : ['All Courses', 'Planned', 'In Progress', 'Completed'];
 
-  const go = useCallback((dirOrIndex) => {
-    setOpenBubbleKey(null); // close any popovers when moving
-    setViewIndex((i) => {
-      if (typeof dirOrIndex === 'number') return clamp(dirOrIndex, 0, safeViews.length - 1);
-      const n = safeViews.length;
-      return (i + (dirOrIndex === 'next' ? 1 : -1) + n) % n;
-    });
-  }, [safeViews.length]);
-
-  // swipe/drag handling for mobile
-  const [dragging, setDragging] = useState(false);
-  const [dragX, setDragX] = useState(0);
-
-  useEffect(() => {
-    if (!enableCarousel || !isMobile || !shellRef.current) return;
-    const el = shellRef.current;
-
-    let startX = 0, startY = 0, dx = 0, dy = 0, tracking = false;
-
-    const onTouchStart = (e) => {
-      if (e.touches.length !== 1) return;
-      const t = e.touches[0];
-      startX = t.clientX; startY = t.clientY; dx = 0; dy = 0;
-      tracking = true;
-      setDragging(true);
-      setDragX(0);
-    };
-
-    const onTouchMove = (e) => {
-      if (!tracking) return;
-      const t = e.touches[0];
-      dx = t.clientX - startX;
-      dy = t.clientY - startY;
-      if (Math.abs(dx) > Math.abs(dy) * 1.3) setDragX(dx);
-    };
-
-    const onTouchEnd = () => {
-      if (!tracking) return;
-      tracking = false;
-      const frame = barFrameRef.current;
-      const width = frame ? frame.clientWidth : 1;
-      const threshold = width * 0.25;
-      const next = dx < -threshold;
-      const prev = dx > threshold;
-      setDragging(false);
-      setDragX(0);
-      if (next) go('next');
-      else if (prev) go('prev');
-    };
-
-    el.addEventListener('touchstart', onTouchStart, { passive: true });
-    el.addEventListener('touchmove', onTouchMove, { passive: true });
-    el.addEventListener('touchend', onTouchEnd);
-
-    return () => {
-      el.removeEventListener('touchstart', onTouchStart);
-      el.removeEventListener('touchmove', onTouchMove);
-      el.removeEventListener('touchend', onTouchEnd);
-    };
-  }, [enableCarousel, isMobile, go]);
-
-  // --- Requirement prep (dedupe then per-view recompute) ---
+  // --- Requirement prep (dedupe then use as-is from parent) ---
   const catKey = (s) => (s || 'Uncategorized').trim().toLowerCase();
 
   const mergeReq = (a, b) => {
@@ -191,55 +122,29 @@ export default function VerticalProgressWithBubbles({
     return Array.from(byKey.values());
   };
 
-  const baseReqs = useMemo(() => dedupeByCategory(requirements || [], program), [requirements, program]);
+  // Use the requirements as-is from parent (already filtered)
+  const displayRequirements = useMemo(() => {
+    console.log('VerticalProgress received requirements:', requirements.length, 'items for view:', currentView);
+    console.log('Requirements data:', requirements.map(r => ({ 
+      name: r.name, 
+      category: r.category, 
+      completed: r.completedCredits, 
+      total: r.totalCredits 
+    })));
+    return dedupeByCategory(requirements || [], program);
+  }, [requirements, program, currentView]);
 
-  const computeReqsForView = useCallback((which) => {
-    if (!plan?.courses || !baseReqs.length) return baseReqs;
-
-    const buckets = {};
-    const allowed = (status) => {
-      if (which === 'All Courses') return true;
-      if (which === 'Planned') return status === 'planned';
-      if (which === 'In Progress') return status === 'in_progress';
-      if (which === 'Completed') return status === 'completed';
-      return true;
-    };
-
-    for (const pc of plan.courses) {
-      if (!allowed(pc.status)) continue;
-      const cat = pc.requirement_category || 'Uncategorized';
-      const credits = pc.credits || pc.course?.credits || 0;
-      buckets[cat] = (buckets[cat] || 0) + credits;
-    }
-
-    return baseReqs.map((req) => {
-      const got = buckets[req.name] || 0;
-      const need = req.totalCredits || 0;
-      const status = need > 0 ? (got >= need ? 'met' : (got > 0 ? 'part' : 'none')) : 'none';
-      return { ...req, completedCredits: got, credits_completed: got, status };
-    });
-  }, [plan?.courses, baseReqs]);
-
-  const computeOverallPercent = (reqs) => {
+  // Calculate percent from the filtered requirements
+  const displayPercent = useMemo(() => {
     let need = 0, got = 0;
-    for (const r of reqs) {
+    for (const r of displayRequirements) {
       need += (r.totalCredits || 0);
       got  += Math.min(r.completedCredits || 0, r.totalCredits || 0);
     }
-    if (need <= 0) return 0;
-    return Math.min(Math.round((got / need) * 100), 100);
-  };
-
-  const perViewData = useMemo(() => {
-    return safeViews.map((v) => {
-      const reqs = computeReqsForView(v);
-      const percent = computeOverallPercent(reqs);
-      return { name: v, reqs, percent };
-    });
-  }, [safeViews, computeReqsForView]);
-
-  // Utility colors + initials
-  const getColorForName = useCallback(() => ({ fill: 'bg-amber-500', track: 'bg-indigo-900' }), []);
+    const calculatedPercent = need > 0 ? Math.min(Math.round((got / need) * 100), 100) : 0;
+    console.log(`Progress calculation for ${title}: ${got}/${need} = ${calculatedPercent}%`);
+    return calculatedPercent;
+  }, [displayRequirements, title]);
 
   function getRequirementInitials(name) {
     if (!name) return 'XX';
@@ -265,13 +170,11 @@ export default function VerticalProgressWithBubbles({
     const n = list.length;
     if (!n) return [];
 
-
     let sumCredits = 0;
     list.forEach((req) => {
       const tot = req.totalCredits ?? req.credits_required ?? 0;
       sumCredits += (tot > 0 ? tot : 1);
     });
-
 
     let cumulative = 0;
     return list.map((req, index) => {
@@ -280,17 +183,38 @@ export default function VerticalProgressWithBubbles({
       const segHeight = sumCredits > 0 ? (segValue / sumCredits) * 100 : (100 / n);
       const completed = req.completedCredits ?? req.credits_completed ?? 0;
       const fillPercent = tot > 0 ? Math.min((completed / tot) * 100, 100) : 0;
-      const colors = getColorForName(req.name || req.category || '');
+      
+      // Generate gradient color based on fill percentage
+      const getGradientColor = (percent) => {
+        const normalizedPercent = Math.max(0, Math.min(100, percent));
+        const red = Math.round(255 * (1 - normalizedPercent / 100));
+        const green = Math.round(255 * (normalizedPercent / 100));
+        const blue = 0;
+        
+        return {
+          backgroundColor: `rgb(${red}, ${green}, ${blue})`
+        };
+      };
+
       const initials = getRequirementInitials(req.name || req.category || '');
       const side = index % 2 === 0 ? 'left' : 'right';
       const start = cumulative;
       const mid = start + segHeight / 2;
       cumulative += segHeight;
 
-      return { requirement: req, id: req.id || req.name || index, height: segHeight,
-        fillPercent, fillClass: colors.fill, trackClass: colors.track, initials, side, mid };
+      return { 
+        requirement: req, 
+        id: req.id || req.name || index, 
+        height: segHeight,
+        fillPercent, 
+        fillStyle: getGradientColor(fillPercent),
+        trackClass: 'bg-gray-200 dark:bg-gray-700',
+        initials, 
+        side, 
+        mid 
+      };
     });
-  }, [getColorForName]);
+  }, []);
 
   // Lock page scroll when mobile sheet is open
   useEffect(() => {
@@ -307,23 +231,8 @@ export default function VerticalProgressWithBubbles({
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
-  // Track translation (animate unless actively dragging)
-  const slideStyle = (() => {
-    const basePct = -(viewIndex * 100);
-    const frame = barFrameRef.current;
-    const width = frame ? frame.clientWidth || 1 : 1;
-    const dragPct = dragging ? (dragX / width) * 100 : 0;
-    const tx = basePct + dragPct;
-    return {
-      transform: `translateX(${tx}%)`,
-      transition: dragging ? 'none' : 'transform 300ms ease',
-      willChange: 'transform',
-    };
-  })();
-
   // ---------- PORTAL HELPERS ----------
   const DesktopPopoverPortal = ({ seg, children }) => {
-    // anchor to the bar's rect + seg.mid% along height
     const [rect, setRect] = useState(null);
     useEffect(() => {
       const update = () => setRect(barFrameRef.current?.getBoundingClientRect() || null);
@@ -344,7 +253,6 @@ export default function VerticalProgressWithBubbles({
 
     return createPortal(
       <>
-        {/* transparent scrim to close on outside click */}
         <button
           aria-label="Close popover"
           onClick={() => setOpenBubbleKey(null)}
@@ -366,238 +274,162 @@ export default function VerticalProgressWithBubbles({
             {children}
           </div>
         </div>
-
       </>,
       document.body
     );
   };
 
-        const MobileSheetPortal = ({ children }) => {
-        const [vh, setVh] = React.useState(() =>
-          typeof window !== 'undefined'
-            ? (window.visualViewport?.height || window.innerHeight)
-            : 800
-        );
+  const MobileSheetPortal = ({ children }) => {
+    const [vh, setVh] = React.useState(() =>
+      typeof window !== 'undefined'
+        ? (window.visualViewport?.height || window.innerHeight)
+        : 800
+    );
 
-        React.useEffect(() => {
-          const update = () => {
-            const h = window.visualViewport?.height || window.innerHeight;
-            setVh(h);
-          };
-          update();
-          window.addEventListener('resize', update);
-          window.addEventListener('orientationchange', update);
-          window.visualViewport?.addEventListener('resize', update);
-          return () => {
-            window.removeEventListener('resize', update);
-            window.removeEventListener('orientationchange', update);
-            window.visualViewport?.removeEventListener('resize', update);
-          };
-        }, []);
-
-        // Make the sheet at most ~88% of the *current* viewport height.
-        const sheetMaxPx = Math.round(vh * 0.88);
-
-        return createPortal(
-          <>
-            <button
-              aria-label="Close panel"
-              onClick={() => setOpenBubbleKey(null)}
-              className="fixed inset-0 z-[1098] bg-black/50 backdrop-blur-[1px]"
-            />
-            <div
-              role="dialog"
-              aria-modal="true"
-              className="fixed inset-x-0 bottom-0 z-[1099] rounded-t-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl pt-3 pb-4 px-4"
-              style={{
-                maxHeight: `${sheetMaxPx}px`,
-                height: 'auto',
-                // Respect the iPhone notch and home indicator:
-                paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)',
-                overflow: 'hidden',             // contain inner scroller
-                overscrollBehavior: 'contain',  // stop background page bounce
-              }}
-            >
-              <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-gray-300 dark:bg-gray-600" />
-              {/* Make the content scroll within the sheet, not the page */}
-              <div style={{ maxHeight: 'inherit', overflowY: 'auto' }}>
-                {children}
-              </div>
-            </div>
-          </>,
-          document.body
-        );
+    React.useEffect(() => {
+      const update = () => {
+        const h = window.visualViewport?.height || window.innerHeight;
+        setVh(h);
       };
+      update();
+      window.addEventListener('resize', update);
+      window.addEventListener('orientationchange', update);
+      window.visualViewport?.addEventListener('resize', update);
+      return () => {
+        window.removeEventListener('resize', update);
+        window.removeEventListener('orientationchange', update);
+        window.visualViewport?.removeEventListener('resize', update);
+      };
+    }, []);
 
+    const sheetMaxPx = Math.round(vh * 0.88);
+
+    return createPortal(
+      <>
+        <button
+          aria-label="Close panel"
+          onClick={() => setOpenBubbleKey(null)}
+          className="fixed inset-0 z-[1098] bg-black/50 backdrop-blur-[1px]"
+        />
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-x-0 bottom-0 z-[1099] rounded-t-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl pt-3 pb-4 px-4"
+          style={{
+            maxHeight: `${sheetMaxPx}px`,
+            height: 'auto',
+            paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)',
+            overflow: 'hidden',
+            overscrollBehavior: 'contain',
+          }}
+        >
+          <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-gray-300 dark:bg-gray-600" />
+          <div style={{ maxHeight: 'inherit', overflowY: 'auto' }}>
+            {children}
+          </div>
+        </div>
+      </>,
+      document.body
+    );
+  };
 
   const titleColor = (COLOR[color] || COLOR.blue).title;
 
   return (
     <section className="flex flex-col items-center gap-2 sm:gap-3 select-none w-full max-w-full" ref={shellRef}>
-      {/* Header with carousel controls */}
+      {/* Header */}
       <div className="flex items-center gap-2">
-        {enableCarousel && !isMobile ? (
-          <>
-            <button
-              type="button"
-              onClick={() => go('prev')}
-              aria-label="Previous view"
-              className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-            >
-              <ChevronLeft size={18}/>
-            </button>
-            <h3 className={`text-sm font-semibold text-center ${titleColor}`}>
-              {title}{enableCarousel && <span className="text-gray-500 dark:text-gray-400"> • {safeViews[viewIndex]}</span>}
-            </h3>
-            <button
-              type="button"
-              onClick={() => go('next')}
-              aria-label="Next view"
-              className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-            >
-              <ChevronRight size={18}/>
-            </button>
-          </>
-        ) : (
-          <h3 className={`text-sm font-semibold text-center ${titleColor}`}>
-            {title}{enableCarousel && <span className="text-gray-500 dark:text-gray-400"> • {safeViews[viewIndex]}</span>}
-          </h3>
-        )}
+        <h3 className={`text-sm font-semibold text-center ${titleColor}`}>
+          {title}
+        </h3>
       </div>
 
-      {/* Mobile edge-peek */}
-      {enableCarousel && isMobile && safeViews.length > 1 && (
-        <div className="relative w-full h-0">
-          <div className="absolute right-0 -top-2 translate-x-1/4 text-[10px] text-gray-400 select-none">
-            {safeViews[(viewIndex + 1) % safeViews.length].split(' ')[0]} ›
-          </div>
-        </div>
-      )}
-
-      {/* BAR FRAME (visible window) */}
+      {/* BAR FRAME - Single view, no carousel */}
       <div
-        className="relative h-80 w-28 sm:h-80 sm:w-28 mx-1 sm:mx-2 border-2 border-gray-300 dark:border-gray-900 rounded-md overflow-hidden" //chnange bar dimensions here
+        className="relative h-80 w-28 sm:h-80 sm:w-28 mx-1 sm:mx-2 border-2 border-gray-300 dark:border-gray-900 rounded-md overflow-hidden"
         ref={barFrameRef}
-        aria-label={`${title} ${safeViews[viewIndex]} progress`}
+        aria-label={`${title} progress`}
         role="group"
       >
-        {/* SLIDE TRACK */}
-        <div className="absolute inset-0 flex" style={slideStyle}>
-          {perViewData.map(({ name: viewName, reqs, percent: viewPct }, slideIdx) => {
-            const segments = buildSegments(reqs);
-            return (
-              <div key={viewName} className="shrink-0 grow-0 basis-full relative">
-                {/* Per-view percent label */}
-                <div className="absolute -right-5 -top-7 translate-x-full">
-                  <div className="px-2 py-1 text-xs rounded-lg bg-gray-800 text-white dark:bg-gray-900 dark:text-gray-100 shadow-lg font-medium">
-                    {Math.round(clamp(viewPct, 0, 100))}%
-                  </div>
-                </div>
+        {/* Progress percentage label */}
+        <div className="absolute -right-5 -top-7 translate-x-full">
+          <div className="px-2 py-1 text-xs rounded-lg bg-gray-800 text-white dark:bg-gray-900 dark:text-gray-100 shadow-lg font-medium">
+            {Math.round(displayPercent)}%
+          </div>
+        </div>
 
-                {/* Segments */}
-                {segments.map((seg, index) => {
-                  const segKey = `${seg.id}-${slideIdx}`;
-                  const isOpen = openBubbleKey === segKey;
-                  return (
-                    <div key={segKey} className="relative w-full" style={{ height: `${seg.height}%` }}>
-                      {/* Track */}
-                      <div className={`absolute inset-0 ${seg.trackClass} ${index === 0 ? 'rounded-t-sm' : ''} ${index === segments.length - 1 ? 'rounded-b-sm' : ''}`} />
-                      {/* Fill */}
-                      <div
-                        className={`absolute bottom-0 left-0 w-full ${seg.fillClass} ${index === 0 ? 'rounded-t-sm' : ''} ${index === segments.length - 1 ? 'rounded-b-sm' : ''}`}
-                        style={{ height: `${seg.fillPercent}%`, transition: 'height .25s ease' }}
-                      />
-                      {/* Divider */}
-                      {index < segments.length - 1 && (
-                        <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gray-400 dark:bg-black z-10" />
-                      )}
-                      {/* Label */}
-                      <div className="absolute inset-0 flex items-center justify-center z-20">
-                        <span
-                          className="uppercase font-bold text-xs text-white drop-shadow-sm"
-                          style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}
-                        >
-                          {seg.initials}
-                        </span>
-                      </div>
-                      {/* Click target */}
-                      <button
-                        type="button"
-                        onClick={() => setOpenBubbleKey(isOpen ? null : segKey)}
-                        aria-expanded={isOpen ? 'true' : 'false'}
-                        aria-label={`${seg.requirement.name} requirement (${seg.requirement.status})`}
-                        className="absolute inset-0 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 z-30"
-                      />
-
-                      {/* POPOVER via PORTAL (so it escapes overflow/transform) */}
-                      {isOpen && (
-                        isMobile ? (
-                          <MobileSheetPortal>
-                            <RequirementDetails
-                              requirement={seg.requirement}
-                              onClose={() => setOpenBubbleKey(null)}
-                              onAddCourse={onAddCourse}
-                              plan={plan}
-                              compact
-                            />
-                          </MobileSheetPortal>
-                        ) : (
-                          <DesktopPopoverPortal seg={seg}>
-                            <RequirementDetails
-                              requirement={seg.requirement}
-                              onClose={() => setOpenBubbleKey(null)}
-                              onAddCourse={onAddCourse}
-                              plan={plan}
-                            />
-                          </DesktopPopoverPortal>
-                        )
-                      )}
-                    </div>
-                  );
-                })}
+        {/* Single view segments */}
+        {buildSegments(displayRequirements).map((seg, index) => {
+          const segKey = `${seg.id}-single`;
+          const isOpen = openBubbleKey === segKey;
+          const segments = buildSegments(displayRequirements);
+          
+          return (
+            <div key={segKey} className="relative w-full" style={{ height: `${seg.height}%` }}>
+              {/* Track */}
+              <div className={`absolute inset-0 ${seg.trackClass} ${index === 0 ? 'rounded-t-sm' : ''} ${index === segments.length - 1 ? 'rounded-b-sm' : ''}`} />
+              
+              {/* Fill */}
+              <div
+                className={`absolute bottom-0 left-0 w-full ${index === 0 ? 'rounded-t-sm' : ''} ${index === segments.length - 1 ? 'rounded-b-sm' : ''}`}
+                style={{
+                  height: `${seg.fillPercent}%`,
+                  transition: 'height .25s ease',
+                  ...seg.fillStyle
+                }}
+              />
+              
+              {/* Divider */}
+              {index < segments.length - 1 && (
+                <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gray-400 dark:bg-black z-10" />
+              )}
+              
+              {/* Label */}
+              <div className="absolute inset-0 flex items-center justify-center z-20">
+                <span
+                  className="uppercase font-bold text-xs text-white drop-shadow-sm"
+                  style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}
+                >
+                  {seg.initials}
+                </span>
               </div>
-            );
-          })}
-        </div>
+              
+              {/* Click target */}
+              <button
+                type="button"
+                onClick={() => setOpenBubbleKey(isOpen ? null : segKey)}
+                aria-expanded={isOpen ? 'true' : 'false'}
+                aria-label={`${seg.requirement.name} requirement (${seg.requirement.status})`}
+                className="absolute inset-0 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 z-30"
+              />
 
-        {/* Desktop arrow overlays */}
-        {enableCarousel && !isMobile && (
-          <>
-            <button
-              type="button"
-              onClick={() => go('prev')}
-              className="absolute left-[-36px] top-1/2 -translate-y-1/2 p-1 rounded-md bg-white/70 dark:bg-gray-900/60 hover:bg-white dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm"
-              aria-label="Previous"
-              title="Previous"
-            >
-              <ChevronLeft size={16}/>
-            </button>
-            <button
-              type="button"
-              onClick={() => go('next')}
-              className="absolute right-[-36px] top-1/2 -translate-y-1/2 p-1 rounded-md bg-white/70 dark:bg-gray-900/60 hover:bg-white dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm"
-              aria-label="Next"
-              title="Next"
-            >
-              <ChevronRight size={16}/>
-            </button>
-          </>
-        )}
+              {/* POPOVER via PORTAL */}
+              {isOpen && (
+                isMobile ? (
+                  <MobileSheetPortal>
+                    <RequirementDetails
+                      requirement={seg.requirement}
+                      onClose={() => setOpenBubbleKey(null)}
+                      onAddCourse={onAddCourse}
+                      plan={plan}
+                      compact
+                    />
+                  </MobileSheetPortal>
+                ) : (
+                  <DesktopPopoverPortal seg={seg}>
+                    <RequirementDetails
+                      requirement={seg.requirement}
+                      onClose={() => setOpenBubbleKey(null)}
+                      onAddCourse={onAddCourse}
+                      plan={plan}
+                    />
+                  </DesktopPopoverPortal>
+                )
+              )}
+            </div>
+          );
+        })}
       </div>
-
-      {/* Dots */}
-      {enableCarousel && (
-        <div className="flex items-center gap-1 mt-1">
-          {safeViews.map((_, i) => (
-            <button
-              key={i}
-              aria-label={`Go to ${safeViews[i]}`}
-              onClick={() => go(i)}
-              className={`h-1.5 rounded-full transition-all ${i === viewIndex ? 'w-4 bg-gray-700 dark:bg-gray-200' : 'w-2 bg-gray-300 dark:bg-gray-600'}`}
-            />
-          ))}
-        </div>
-      )}
     </section>
   );
 }
@@ -714,7 +546,6 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
 
   return (
     <div className="p-4 overflow-y-auto" style={{ maxHeight: 'inherit' }}>
-
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="flex-1 min-w-0">
@@ -863,4 +694,3 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
     </div>
   );
 }
-

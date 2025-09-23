@@ -68,36 +68,42 @@ const PlanBuilder = ({
 
     // recompute requirement completion per view using the selected plan
     const recomputeReqsForView = useCallback((baseReqs, which, plan) => {
-      if (!Array.isArray(baseReqs) || !plan?.courses?.length) return baseReqs || [];
+        if (!Array.isArray(baseReqs) || !plan?.courses?.length) return baseReqs || [];
 
-      const buckets = {};
-      const allow = (status) => {
-        if (which === 'All Courses') return true;
-        if (which === 'Planned') return status === 'planned';
-        if (which === 'In Progress') return status === 'in_progress';
-        if (which === 'Completed') return status === 'completed';
-        return true;
-      };
-
-      for (const pc of plan.courses) {
-        if (!allow(pc.status)) continue;
-        const cat = pc.requirement_category || 'Uncategorized';
-        const credits = pc.credits || pc.course?.credits || 0;
-        buckets[cat] = (buckets[cat] || 0) + credits;
-      }
-
-      return (baseReqs || []).map((req) => {
-        const need = req.totalCredits ?? req.credits_required ?? 0;
-        const got  = buckets[req.category || req.name] || 0;
-        const status = need > 0 ? (got >= need ? 'met' : (got > 0 ? 'part' : 'none')) : 'none';
-        return {
-          ...req,
-          completedCredits: got,
-          credits_completed: got,
-          status,
+        const buckets = {};
+        const allow = (status) => {
+          if (which === 'All Courses') return true;
+          if (which === 'Planned') return status === 'planned';
+          if (which === 'In Progress') return status === 'in_progress';
+          if (which === 'Completed') return status === 'completed';
+          return true;
         };
-      });
-    }, []);
+
+        // Calculate credits per requirement category for the filtered courses
+        for (const pc of plan.courses) {
+          if (!allow(pc.status)) continue;
+          const cat = pc.requirement_category || 'Uncategorized';
+          const credits = pc.credits || pc.course?.credits || 0;
+          buckets[cat] = (buckets[cat] || 0) + credits;
+        }
+
+        // Update each requirement with filtered completion data
+        return (baseReqs || []).map((req) => {
+          const need = req.totalCredits ?? req.credits_required ?? 0;
+          // Use req.category (not req.name) to match requirement_category
+          const categoryKey = req.category || req.name || 'Uncategorized';
+          const got = buckets[categoryKey] || 0;
+          
+          const status = need > 0 ? (got >= need ? 'met' : (got > 0 ? 'part' : 'none')) : 'none';
+          
+          return {
+            ...req,
+            completedCredits: got,
+            credits_completed: got,
+            status,
+          };
+        });
+      }, []);
     const getInstitutionNames = (plan, program) => {
       if (!plan?.courses || !program) {
         return {
@@ -733,7 +739,7 @@ const PlanBuilder = ({
       <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-[95vw] sm:w-full max-h-[80vh] overflow-y-auto transition-colors mx-auto">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 gap-3 sm:gap-0">
           <h2 className="text-2xl sm:text-3xl font-semibold mx-auto text-gray-900 dark:text-white">
-            Academic Plans
+            {selectedPlan ? (selectedPlan.plan_name || 'Untitled Plan') : 'Your Academic Plans'}
           </h2>
 
 
@@ -831,17 +837,6 @@ const PlanBuilder = ({
                 </button>
               )}
             </div>
-            
-            <div className="mb-4 space-y-2">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
-                  {selectedPlan.plan_name}
-                </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-300 truncate">
-                  {selectedPlan.student_name}
-                </p>
-              </div>
-            </div>
 
             {/* Enhanced Degree Progress with Carousel */}
             <div className="mt-4 px-2 sm:px-3 lg:px-4 py-3 sm:py-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-800/60 w-full max-w-full overflow-x-hidden">
@@ -909,6 +904,7 @@ const PlanBuilder = ({
                                       plan={selectedPlan}
                                       onAddCourse={handleCourseSelect}
                                       enableCarousel={false}
+                                      currentView={VIEWS[viewIndex]}
                                     />
                                     <VerticalProgressWithBubbles
                                       title={transferInstitution}
@@ -919,6 +915,7 @@ const PlanBuilder = ({
                                       plan={selectedPlan}
                                       onAddCourse={handleCourseSelect}
                                       enableCarousel={false}
+                                      currentView={VIEWS[viewIndex]}
                                     />
                                   </div>
                                 </div>
