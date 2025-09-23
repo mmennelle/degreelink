@@ -476,7 +476,7 @@ export default function VerticalProgressWithBubbles({
 
       {/* BAR FRAME (visible window) */}
       <div
-        className="relative h-48 w-16 sm:h-64 sm:w-20 mx-1 sm:mx-2 border-2 border-gray-300 dark:border-gray-600 rounded-md overflow-hidden"
+        className="relative h-80 w-28 sm:h-80 sm:w-28 mx-1 sm:mx-2 border-2 border-gray-300 dark:border-gray-900 rounded-md overflow-hidden" //chnange bar dimensions here
         ref={barFrameRef}
         aria-label={`${title} ${safeViews[viewIndex]} progress`}
         role="group"
@@ -509,7 +509,7 @@ export default function VerticalProgressWithBubbles({
                       />
                       {/* Divider */}
                       {index < segments.length - 1 && (
-                        <div className="absolute bottom-0 left-0 w-full h-px bg-gray-400 dark:bg-gray-500 z-10" />
+                        <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gray-400 dark:bg-black z-10" />
                       )}
                       {/* Label */}
                       <div className="absolute inset-0 flex items-center justify-center z-20">
@@ -598,11 +598,6 @@ export default function VerticalProgressWithBubbles({
           ))}
         </div>
       )}
-
-      <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-1">
-        <CheckCircle2 size={14} className={c.legend} />
-        <span>requirement progress</span>
-      </div>
     </section>
   );
 }

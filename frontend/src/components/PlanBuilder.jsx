@@ -63,6 +63,7 @@ const PlanBuilder = ({
       }, []);
       return isMobile;
     };
+    
     const isMobile = useIsMobile();
 
     // recompute requirement completion per view using the selected plan
@@ -97,7 +98,47 @@ const PlanBuilder = ({
         };
       });
     }, []);
+    const getInstitutionNames = (plan, program) => {
+      if (!plan?.courses || !program) {
+        return {
+          currentInstitution: 'Current Program',
+          transferInstitution: 'Transfer Program'
+        };
+      }
 
+      const targetInstitution = program.institution;
+      const creditsByInstitution = {};
+      
+      // Calculate credits by institution for completed courses only
+      const completedCourses = plan.courses.filter(pc => pc.status === 'completed');
+      
+      completedCourses.forEach(pc => {
+        const inst = pc.course?.institution;
+        const credits = pc.credits || (pc.course?.credits ?? 0);
+        if (inst && credits > 0) {
+          creditsByInstitution[inst] = (creditsByInstitution[inst] || 0) + credits;
+        }
+      });
+
+      // Find the institution with the most credits (excluding target institution)
+      let currentInstitution = null;
+      let maxCredits = 0;
+      
+      Object.entries(creditsByInstitution).forEach(([inst, creds]) => {
+        if (inst !== targetInstitution && creds > maxCredits) {
+          currentInstitution = inst;
+          maxCredits = creds;
+        }
+      });
+
+  // If we have a current institution override, use that
+  const finalCurrentInstitution = currentInstitutionOverride || currentInstitution;
+
+  return {
+    currentInstitution: finalCurrentInstitution || 'Current Program',
+    transferInstitution: targetInstitution || 'Transfer Program'
+  };
+};
     const percentFromReqs = (reqs) => {
       let need = 0, got = 0;
       (reqs || []).forEach(r => {
@@ -853,32 +894,36 @@ const PlanBuilder = ({
                       <div className="overflow-hidden">
                         {/* Track */}
                         <div className="flex" style={trackStyle}>
-                          {slides.map((s) => (
-                            <div key={s.name} className="basis-full shrink-0">
-                              <div className="flex items-start justify-center gap-3 sm:gap-6 lg:gap-8 w-full max-w-full px-1 sm:px-0">
-                                <VerticalProgressWithBubbles
-                                  title="Current Program"
-                                  percent={s.current.percent}
-                                  requirements={s.current.requirements}
-                                  color="blue"
-                                  program={getProgram()}
-                                  plan={selectedPlan}
-                                  onAddCourse={handleCourseSelect}
-                                  enableCarousel={false}  // parent controls the carousel now
-                                />
-                                <VerticalProgressWithBubbles
-                                  title="Transfer Program"
-                                  percent={s.transfer.percent}
-                                  requirements={s.transfer.requirements}
-                                  color="violet"
-                                  program={getProgram()}
-                                  plan={selectedPlan}
-                                  onAddCourse={handleCourseSelect}
-                                  enableCarousel={false}  // parent controls the carousel now
-                                />
-                              </div>
-                            </div>
-                          ))}
+                          {slides.map((s) => {
+                              const { currentInstitution, transferInstitution } = getInstitutionNames(selectedPlan, getProgram());
+                              
+                              return (
+                                <div key={s.name} className="basis-full shrink-0">
+                                  <div className="flex items-start justify-center gap-3 sm:gap-6 lg:gap-8 w-full max-w-full px-1 sm:px-0">
+                                    <VerticalProgressWithBubbles
+                                      title={currentInstitution}
+                                      percent={s.current.percent}
+                                      requirements={s.current.requirements}
+                                      color="blue"
+                                      program={getProgram()}
+                                      plan={selectedPlan}
+                                      onAddCourse={handleCourseSelect}
+                                      enableCarousel={false}
+                                    />
+                                    <VerticalProgressWithBubbles
+                                      title={transferInstitution}
+                                      percent={s.transfer.percent}
+                                      requirements={s.transfer.requirements}
+                                      color="violet"
+                                      program={getProgram()}
+                                      plan={selectedPlan}
+                                      onAddCourse={handleCourseSelect}
+                                      enableCarousel={false}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
                         </div>
                       </div>
                     </div>
