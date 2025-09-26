@@ -401,23 +401,71 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, program, 
   console.log('RequirementDetails - programRequirement:', programRequirement);
   console.log('RequirementDetails - plan courses:', plan?.courses);
 
-  const requirementCourses = React.useMemo(() => {
-    if (!plan?.courses) {
-      console.log('RequirementDetails - No plan.courses available');
-      return [];
-    }
-    
-    const filtered = plan.courses.filter(pc => {
-      const category = pc.requirement_category || 'Uncategorized';
-      const matches = category === name;
-      console.log(`RequirementDetails - Course ${pc.course?.code} category: "${category}", requirement name: "${name}", matches: ${matches}`);
-      return matches;
-    });
-    
-    console.log(`RequirementDetails - Found ${filtered.length} matching courses for requirement "${name}"`);
-    return filtered;
-  }, [plan?.courses, name]);
+  // Update the requirementCourses useMemo in RequirementDetails:
 
+const requirementCourses = React.useMemo(() => {
+  if (!plan?.courses) {
+    console.log('RequirementDetails - No plan.courses available');
+    return [];
+  }
+  
+  // Helper function to normalize category names for matching
+  const normalizeCategory = (category) => {
+    if (!category) return '';
+    return category.toLowerCase()
+      .replace(/[\/\-\s]+/g, ' ') // Replace separators with spaces
+      .replace(/\s+/g, ' ')       // Collapse multiple spaces
+      .trim();
+  };
+  
+  // Helper function to check if categories are related
+  const categoriesMatch = (reqCategory, courseCategory) => {
+    const reqNorm = normalizeCategory(reqCategory);
+    const courseNorm = normalizeCategory(courseCategory);
+    
+    // Exact match
+    if (reqNorm === courseNorm) return true;
+    
+    // Check if one contains the other
+    if (reqNorm.includes(courseNorm) || courseNorm.includes(reqNorm)) return true;
+    
+    // Keyword-based matching for common cases
+    const mathKeywords = ['math', 'mathematics', 'analytical', 'reasoning', 'calculus', 'algebra'];
+    const englishKeywords = ['english', 'composition', 'writing', 'literature'];
+    const scienceKeywords = ['biology', 'chemistry', 'physics', 'science'];
+    const socialKeywords = ['social', 'psychology', 'sociology', 'history'];
+    
+    const checkKeywordMatch = (keywords) => {
+      const reqHasKeyword = keywords.some(kw => reqNorm.includes(kw));
+      const courseHasKeyword = keywords.some(kw => courseNorm.includes(kw));
+      return reqHasKeyword && courseHasKeyword;
+    };
+    
+    if (checkKeywordMatch(mathKeywords)) return true;
+    if (checkKeywordMatch(englishKeywords)) return true;
+    if (checkKeywordMatch(scienceKeywords)) return true;
+    if (checkKeywordMatch(socialKeywords)) return true;
+    
+    return false;
+  };
+  
+  const filtered = plan.courses.filter(pc => {
+    const courseCategory = pc.requirement_category || 'Uncategorized';
+    const matches = categoriesMatch(name, courseCategory);
+    
+    console.log(`RequirementDetails - Course ${pc.course?.code}:`);
+    console.log(`  Course category: "${courseCategory}"`);
+    console.log(`  Requirement name: "${name}"`);
+    console.log(`  Normalized course: "${normalizeCategory(courseCategory)}"`);
+    console.log(`  Normalized requirement: "${normalizeCategory(name)}"`);
+    console.log(`  Matches: ${matches}`);
+    
+    return matches;
+  });
+  
+  console.log(`RequirementDetails - Found ${filtered.length} matching courses for requirement "${name}"`);
+  return filtered;
+}, [plan?.courses, name]);
 const generateSuggestions = useCallback(async () => {
     console.log('RequirementDetails - generateSuggestions called');
     console.log('RequirementDetails - program:', program);
