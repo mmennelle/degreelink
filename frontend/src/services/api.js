@@ -111,21 +111,12 @@ class ApiService {
     }
     
     // Plan progress with view filtering support
-    async getPlanProgress(id, options = {}) {
-      try {
-        const params = new URLSearchParams();
-        if (options.view) {
-          params.append('view', options.view);
-        }
-        
-        const url = `/plans/${id}/progress${params.toString() ? `?${params.toString()}` : ''}`;
-        return await this.request(url);
-      } catch (error) {
-        console.error('Error getting plan progress:', error);
-        throw error;
-      }
+    async getPlanProgress(planId, viewFilter = 'All Courses') {
+      const query = new URLSearchParams();
+      if (viewFilter) query.set('view', viewFilter);
+      return this.request(`/plans/${planId}/progress${query.toString() ? `?${query.toString()}` : ''}`);
     }
-    
+  
     async uploadRequirements(file) {
       const formData = new FormData();
       formData.append('file', file);

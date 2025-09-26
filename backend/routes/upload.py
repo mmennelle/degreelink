@@ -219,7 +219,10 @@ def upload_equivalencies():
 
 @bp.route('/requirements', methods=['POST'])
 def upload_requirements():
-    
+    """
+    Upload program requirements from CSV file.
+    Uses a three-pass approach to ensure correct program institution assignment.
+    """
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
     
@@ -238,29 +241,89 @@ def upload_requirements():
         stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
         csv_reader = csv.DictReader(stream)
 
+        # FIRST PASS: Collect all rows and analyze program data
+        programs_data = {}
+        all_rows = []
+        
+        for row_num, row in enumerate(csv_reader, start=2):
+            all_rows.append((row_num, row))
+            
+            program_name = (row.get('program_name') or '').strip()
+            institution = (row.get('institution') or '').strip()
+            
+            if not program_name:
+                continue
+                
+            if program_name not in programs_data:
+                programs_data[program_name] = {
+                    'institution': institution,
+                    'first_row': row,
+                    'all_institutions': {institution}
+                }
+            else:
+                programs_data[program_name]['all_institutions'].add(institution)
+                # If we find a different institution, log it but keep the first one
+                if programs_data[program_name]['institution'] != institution:
+                    print(f"Warning: Multiple institutions found for program '{program_name}': "
+                          f"{programs_data[program_name]['all_institutions']}")
+
         # Track created counts
         programs_created = 0
         requirements_created = 0
         groups_created = 0
         options_created = 0
-        errors: list[str] = []
+        errors = []
 
-        # Caches to reuse requirement and group objects when subsequent rows
-        # pertain to the same category or group.  These help ensure that
-        # grouped requirement rows accumulate options correctly without
-        # repeatedly querying the database.
+        # SECOND PASS: Create or update programs with correct institutions
+        for program_name, prog_data in programs_data.items():
+            if not program_name:
+                continue
+                
+            program = Program.query.filter_by(name=program_name).first()
+            if not program:
+                # Infer degree type from program name patterns
+                degree_type = 'BS'  # Default
+                if any(pattern in program_name.upper() for pattern in ['A.S', 'AS ', 'ASSOCIATE']):
+                    degree_type = 'AS'
+                elif any(pattern in program_name.upper() for pattern in ['A.A', 'AA ']):
+                    degree_type = 'AA'
+                elif any(pattern in program_name.upper() for pattern in ['B.A', 'BA ', 'BACHELOR OF ARTS']):
+                    degree_type = 'BA'
+                
+                first_row = prog_data['first_row']
+                program = Program(
+                    name=program_name,
+                    degree_type=degree_type,
+                    institution=prog_data['institution'],  # Use the correct institution from CSV
+                    total_credits_required=int(first_row.get('program_total_credits', 120) or 120),
+                    description=first_row.get('program_description', '') or f'Imported program: {program_name}'
+                )
+                db.session.add(program)
+                programs_created += 1
+            else:
+                # Update existing program institution if it was wrong
+                if program.institution != prog_data['institution']:
+                    print(f"Updating institution for program '{program_name}' from "
+                          f"'{program.institution}' to '{prog_data['institution']}'")
+                    program.institution = prog_data['institution']
+        
+        # Commit programs first to ensure they exist
+        db.session.commit()
+
+        # THIRD PASS: Process requirements with caching for performance
         current_requirement = None
         current_group = None
         marked_current_versions = set()
 
-        for row_num, row in enumerate(csv_reader, start=2):
+        for row_num, row in all_rows:
             try:
-                # Normalise and extract fields
+                # Normalize and extract fields
                 program_name = (row.get('program_name') or '').strip()
                 category = (row.get('category') or '').strip()
                 requirement_type = (row.get('requirement_type') or 'simple').strip().lower()
                 semester = (row.get('semester') or '').strip() or None
-                # Year may be empty or not an integer
+                
+                # Parse year safely
                 year_raw = (row.get('year') or '').strip()
                 year = None
                 if year_raw:
@@ -283,29 +346,26 @@ def upload_requirements():
                         ('group_name', 'Group name'),
                         ('courses_required', 'Courses required'),
                         ('credits_required_group', 'Credits required for group'),
-                        ('course_option', 'Course option'),
-                        ('institution', 'Institution for course option')
+                        ('course_option', 'Course option')
                     ]
+                    missing_fields = []
                     for field, label in required_group_fields:
                         value = (row.get(field) or '').strip()
                         # Accept sentinel values for course_option
                         if field == 'course_option' and value.lower() in ('nan', 'na', 'n/a'):
                             value = ''
                         if not value:
-                            errors.append(f"Row {row_num}: {label} is required for grouped/conditional requirements")
-                # Find or create program
+                            missing_fields.append(label)
+                    
+                    if missing_fields:
+                        errors.append(f"Row {row_num}: Missing required fields for grouped/conditional requirements: {', '.join(missing_fields)}")
+                        continue
+
+                # Find the program (should exist now)
                 program = Program.query.filter_by(name=program_name).first()
                 if not program:
-                    program = Program(
-                        name=program_name,
-                        degree_type='BS',
-                        institution=row.get('program_institution', '') or 'University of New Orleans',
-                        total_credits_required=int(row.get('program_total_credits', 120) or 0),
-                        description=row.get('program_description', '') or f'Imported program: {program_name}'
-                    )
-                    db.session.add(program)
-                    db.session.commit()
-                    programs_created += 1
+                    errors.append(f"Row {row_num}: Program {program_name} not found")
+                    continue
 
                 # Determine requirement credits
                 try:
@@ -315,17 +375,21 @@ def upload_requirements():
                     req_credits = 0
 
                 # Retrieve or create requirement for program/semester/year/category
-                # Reset cache if category changes
-                if (not current_requirement or current_requirement.category != category or
-                        current_requirement.semester != semester or current_requirement.year != year or
-                        current_requirement.program_id != program.id):
-                    # Attempt to load existing requirement
+                # Reset cache if any key field changes
+                if (not current_requirement or 
+                    current_requirement.category != category or
+                    current_requirement.semester != semester or 
+                    current_requirement.year != year or
+                    current_requirement.program_id != program.id):
+                    
+                    # Try to find existing requirement
                     current_requirement = ProgramRequirement.query.filter_by(
                         program_id=program.id,
                         category=category,
                         semester=semester,
                         year=year
                     ).first()
+
                 if not current_requirement:
                     current_requirement = ProgramRequirement(
                         program_id=program.id,
@@ -340,30 +404,32 @@ def upload_requirements():
                     db.session.add(current_requirement)
                     requirements_created += 1
 
-                # If this row marks the requirement version as current, clear other versions for the program
-                # If this row is marked current, remember its (program, semester, year)
-                    if is_current:
-                        current_requirement.is_current = True
-                        marked_current_versions.add((program.id, semester, year))
-
+                # Track current versions for later batch update
+                if is_current:
+                    current_requirement.is_current = True
+                    marked_current_versions.add((program.id, semester, year))
 
                 # Handle grouped/conditional requirement groups
                 group_name = (row.get('group_name') or '').strip()
                 if requirement_type in ['grouped', 'conditional'] and group_name:
                     # Reset group cache if group_name changes or requirement changes
-                    if (not current_group or current_group.group_name != group_name or
-                            current_group.requirement_id != current_requirement.id):
+                    if (not current_group or 
+                        current_group.group_name != group_name or
+                        current_group.requirement_id != current_requirement.id):
+                        
                         current_group = RequirementGroup.query.filter_by(
                             requirement_id=current_requirement.id,
                             group_name=group_name
                         ).first()
+
                     if not current_group:
                         try:
                             courses_required = int(row.get('courses_required') or 0)
                         except ValueError:
                             errors.append(f"Row {row_num}: Invalid courses_required value")
                             courses_required = 0
-                        # credits_required_group may be blank
+
+                        # Parse credits_required_group (may be empty)
                         crg_raw = (row.get('credits_required_group') or '').strip()
                         credits_required_group = None
                         if crg_raw:
@@ -371,6 +437,7 @@ def upload_requirements():
                                 credits_required_group = int(crg_raw)
                             except ValueError:
                                 errors.append(f"Row {row_num}: Invalid credits_required_group value")
+
                         current_group = RequirementGroup(
                             requirement_id=current_requirement.id,
                             group_name=group_name,
@@ -385,41 +452,49 @@ def upload_requirements():
                     raw_course_option = (row.get('course_option') or '').strip()
                     # Skip sentinel values indicating missing options
                     if raw_course_option and raw_course_option.lower() not in ('nan', 'na', 'n/a'):
-                        normalised_code = raw_course_option.upper().replace('-', ' ').strip()
+                        normalized_code = raw_course_option.upper().replace('-', ' ').strip()
+                        
                         existing_option = GroupCourseOption.query.filter_by(
                             group_id=current_group.id,
-                            course_code=normalised_code
+                            course_code=normalized_code
                         ).first()
+                        
                         if not existing_option:
+                            # Parse is_preferred safely
+                            is_preferred_str = (row.get('is_preferred') or '').strip().lower()
+                            is_preferred = is_preferred_str in ('true', '1', 'yes')
+                            
                             option = GroupCourseOption(
                                 group_id=current_group.id,
-                                course_code=normalised_code,
+                                course_code=normalized_code,
                                 institution=(row.get('institution') or '').strip() or None,
-                                is_preferred=((row.get('is_preferred') or '').strip().lower() in ('true', '1', 'yes')),
+                                is_preferred=is_preferred,
                                 notes=(row.get('option_notes') or '').strip()
                             )
                             db.session.add(option)
                             options_created += 1
+
             except Exception as e:
                 errors.append(f"Row {row_num}: {str(e)}")
 
-        # Commit all creations in a single transaction
-# After parsing all rows: set current flags atomically per version
-            from models.program import ProgramRequirement
-            for prog_id, sem, yr in marked_current_versions:
-                # All rows of this version are current…
-                ProgramRequirement.query.filter_by(
-                    program_id=prog_id, semester=sem, year=yr
-                ).update({ProgramRequirement.is_current: True})
-                # …and all other versions for this program are not.
-                ProgramRequirement.query.filter(
-                    ProgramRequirement.program_id == prog_id,
-                    (ProgramRequirement.semester != sem) | (ProgramRequirement.year != yr)
-                ).update({ProgramRequirement.is_current: False})
+        # FOURTH PASS: Set current flags atomically per version
+        from models.program import ProgramRequirement
+        for prog_id, sem, yr in marked_current_versions:
+            # Set all requirements of this version as current
+            ProgramRequirement.query.filter_by(
+                program_id=prog_id, 
+                semester=sem, 
+                year=yr
+            ).update({ProgramRequirement.is_current: True})
+            
+            # Set all other versions for this program as not current
+            ProgramRequirement.query.filter(
+                ProgramRequirement.program_id == prog_id,
+                (ProgramRequirement.semester != sem) | (ProgramRequirement.year != yr)
+            ).update({ProgramRequirement.is_current: False})
 
-            # Commit one time at the end
-            db.session.commit()
-
+        # Final commit
+        db.session.commit()
 
         return jsonify({
             'message': 'Requirements upload completed',

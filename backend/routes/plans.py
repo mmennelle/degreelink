@@ -76,10 +76,6 @@ def get_plan_by_code(plan_code):
     # Return full plan data
     plan_data = plan.to_dict()
     plan_data['progress'] = plan.calculate_progress()
-    plan_data['unmet_requirements'] = plan.get_unmet_requirements()
-    plan_data['course_suggestions'] = plan.suggest_courses_for_requirements()
-    
-    return jsonify(plan_data)
 
 @bp.route('/verify-code/<plan_code>', methods=['GET'])
 @require_plan_access
@@ -528,22 +524,24 @@ def get_plan_progress(plan_id):
         return jsonify({'error': 'Access denied. Use plan code to access this plan.'}), 403
     
     plan = Plan.query.get_or_404(plan_id)
-    view_filter = request.args.get('view', 'All Courses')  # ADDED view filtering
-    
-    # Calculate progress for both programs with view filter
-    current_progress = plan.calculate_progress_for_program(plan.current_program, view_filter) if plan.current_program else {
-        'percent': 0, 'requirements': [], 'total_credits_earned': 0, 'total_credits_required': 0
+    view_filter = request.args.get('view', 'All Courses')
+    current = plan.calculate_progress(plan.current_program, view_filter) if plan.current_program else {
+        'percent': 0, 'requirements': [], 'total_credits_earned': 0, 'total_credits_required': 0,
+    }
+    transfer = plan.calculate_progress(plan.target_program, view_filter) if plan.target_program else {
+        'percent': 0, 'requirements': [], 'total_credits_earned': 0, 'total_credits_required': 0,
     }
     
-    target_progress = plan.calculate_progress_for_program(plan.target_program, view_filter) if plan.target_program else {
-        'percent': 0, 'requirements': [], 'total_credits_earned': 0, 'total_credits_required': 0
-    }
+    #  Debug: Log what we're returning
+    print(f"Progress for plan {plan_id}, view '{view_filter}':")
+    print(f"  Current: {len(current['requirements'])} requirements")
+    print(f"  Target: {len(transfer['requirements'])} requirements")
     
     return jsonify({
         'plan_id': plan_id,
         'view_filter': view_filter,
-        'current': current_progress,
-        'transfer': target_progress,
+        'current': current,
+        'transfer': transfer,
         'unmet_requirements': plan.get_unmet_requirements(),
         'suggestions': plan.suggest_courses_for_requirements()
     })

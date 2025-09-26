@@ -91,92 +91,170 @@ class Plan(db.Model):
             'current_program': self.current_program.to_dict() if self.current_program else None  
         }
     
-    def calculate_progress_for_program(self, program, view_filter='All Courses'):
-        """Calculate progress for a specific program with view filtering"""
-        if not program:
-            return {
-                'percent': 0,
-                'requirements': [],
-                'total_credits_earned': 0,
-                'total_credits_required': 0
-            }
+    @staticmethod
+    def normalize_category(category):
+        """Normalize category names to handle variations"""
+        if not category:
+            return 'Uncategorized'
         
-        # Filter courses based on view and relevance to this program
-        relevant_courses = []
-        for course in self.courses:
-            # Check if course status matches the view filter
-            if view_filter != 'All Courses':
-                status_filter = view_filter.lower().replace(' ', '_')
-                if course.status != status_filter:
-                    continue
-            
-            # Check if course is relevant to this program (institution match or equivalency)
-            is_relevant = self._is_course_relevant_to_program(course, program)
-            if is_relevant:
-                relevant_courses.append(course)
+        category_lower = category.lower().strip()
         
-        # Calculate requirement progress
-        requirement_progress = []
-        total_requirements_met = 0
-        
-        for requirement in program.requirements:
-            req_credits_required = getattr(requirement, 'credits_required', 0) or 0
-            completed_credits = 0
-            applied_courses = []
-            
-            # Find courses that apply to this requirement
-            for course in relevant_courses:
-                if course.requirement_category == requirement.category:
-                    course_credits = course.credits or (course.course.credits if course.course else 0) or 0
-                    completed_credits += course_credits
-                    
-                    # For target program, show equivalent course if exists
-                    if program.id == self.program_id:  # Target program
-                        equiv_course = self._get_equivalent_course(course, program)
-                        if equiv_course:
-                            applied_courses.append(equiv_course.code)
-                        else:
-                            applied_courses.append(course.course.code if course.course else '')
-                    else:  # Current program
-                        applied_courses.append(course.course.code if course.course else '')
-            
-            is_complete = completed_credits >= req_credits_required
-            if is_complete:
-                total_requirements_met += 1
-                
-            percent = (completed_credits / req_credits_required * 100) if req_credits_required > 0 else 0
-            
-            requirement_progress.append({
-                'id': getattr(requirement, 'id', None),
-                'name': getattr(requirement, 'category', ''),
-                'category': getattr(requirement, 'category', ''),
-                'status': 'met' if is_complete else ('part' if completed_credits > 0 else 'none'),
-                'completedCredits': completed_credits,
-                'totalCredits': req_credits_required,
-                'courses': applied_courses,
-                'description': getattr(requirement, 'description', ''),
-                'requirement_type': getattr(requirement, 'requirement_type', ''),
-                'programRequirement': requirement.to_dict() if requirement else None
-            })
-        
-        # Calculate totals
-        total_credits_earned = sum(
-            (course.credits or (course.course.credits if course.course else 0) or 0)
-            for course in relevant_courses
-            if course.status == 'completed'
-        )
-        
-        total_credits_required = getattr(program, 'total_credits_required', 0) or 0
-        completion_percentage = (total_credits_earned / total_credits_required * 100) if total_credits_required > 0 else 0
-        
-        return {
-            'percent': min(round(completion_percentage), 100),
-            'requirements': requirement_progress,
-            'total_credits_earned': total_credits_earned,
-            'total_credits_required': total_credits_required,
-            'requirements_met': total_requirements_met,
-            'total_requirements': len(program.requirements)
+        # Map variations to standard names
+        mappings = {
+            'math/analytical reasoning': 'Mathematics',
+            'mathematical reasoning': 'Mathematics',
+            'math': 'Mathematics',
+            'mathematics': 'Mathematics',
+            'english composition': 'English',
+            'composition': 'English',
+            'english': 'English',
+            'science': 'Science',
+            'sciences': 'Science',
+            'biology': 'Science',
+            'chemistry': 'Science',
+            'physics': 'Physics',
+            'physical science': 'Physics',
+            'humanities': 'Humanities',
+            'social sciences': 'Social Sciences',
+            'social science': 'Social Sciences',
+            'arts': 'Arts',
+            'fine arts': 'Arts'
         }
+        
+        return mappings.get(category_lower, category)
+
+    
+    def calculate_progress(self, program=None, view_filter='All Courses'):
+        """
+        If `program` is None, return progress for both current and target programs.
+        If `program` is provided, return progress for that single program.
+        """
+        def canon(s):
+            # Fallback to normalize_category if you have one
+            try:
+                return self.normalize_category(s)
+            except Exception:
+                import re
+                s = (s or '').lower()
+                s = re.sub(r'\W+', ' ', s).strip()
+                return s
+
+        def status_key(s):
+            k = (s or '').strip().lower()
+            if k in ('all courses', ''):
+                return None
+            return k.replace(' ', '_')
+
+        # Overview: compute both current and transfer progress
+        if program is None:
+            return {
+                'current': self.calculate_progress(self.current_program, view_filter)
+                        if self.current_program else {
+                            'percent': 0,
+                            'requirements': [],
+                            'total_credits_earned': 0,
+                            'total_credits_required': 0,
+                        },
+                'transfer': self.calculate_progress(self.target_program, view_filter)
+                            if self.target_program else {
+                                'percent': 0,
+                                'requirements': [],
+                                'total_credits_earned': 0,
+                                'total_credits_required': 0,
+                            },
+            }
+
+        # Single-program mode
+        prog_id = getattr(program, 'id', None)
+        prog_institution = getattr(program, 'institution', None)
+        status_filter = status_key(view_filter)
+
+        # Filter plan courses by status and relevance
+        relevant_courses = []
+        for pc in self.courses or []:
+            if status_filter and (pc.status or '').lower() != status_filter:
+                continue
+            try:
+                is_relevant = self._is_course_relevant_to_program(pc, program)
+            except Exception:
+                is_relevant = True
+            if is_relevant:
+                relevant_courses.append(pc)
+
+        requirements_data = []
+        for req in program.requirements or []:
+            req_total = getattr(req, 'credits_required', 0) or 0
+            completed = 0
+            applied = []
+
+            req_canon = canon(getattr(req, 'category', ''))
+            group_ids = []
+            if getattr(req, 'requirement_type', '') == 'grouped':
+                try:
+                    group_ids = [g.id for g in (req.groups or [])]
+                except Exception:
+                    group_ids = []
+
+            for pc in relevant_courses:
+                course_canon = canon(getattr(pc, 'requirement_category', ''))
+                cat_match = (course_canon == req_canon)
+                group_match = (group_ids and getattr(pc, 'requirement_group_id', None) in group_ids)
+                if not (cat_match or group_match):
+                    continue
+
+                credits = (pc.credits
+                        or (pc.course.credits if pc.course else 0)
+                        or 0)
+                completed += credits
+                ci = {
+                    'id': pc.course.id if pc.course else None,
+                    'code': pc.course.code if pc.course else '',
+                    'title': pc.course.title if pc.course else '',
+                    'credits': credits,
+                    'status': pc.status,
+                    'grade': pc.grade,
+                }
+                if prog_id == getattr(self, 'program_id', None):
+                    # Only show equivalent info for the target program
+                    try:
+                        eq = self._get_equivalent_course(pc, program)
+                        if eq:
+                            ci['equivalent_code'] = eq.code
+                            ci['equivalent_title'] = eq.title
+                    except Exception:
+                        pass
+                applied.append(ci)
+
+            clamped = min(completed, req_total)
+            req_status = ('met' if (req_total > 0 and clamped >= req_total) else
+                        ('part' if clamped > 0 else 'none'))
+            requirements_data.append({
+                'id': getattr(req, 'id', None),
+                'name': getattr(req, 'category', ''),
+                'category': getattr(req, 'category', ''),
+                'status': req_status,
+                'completedCredits': clamped,
+                'totalCredits': req_total,
+                'courses': applied,
+                'description': getattr(req, 'description', ''),
+                'requirement_type': getattr(req, 'requirement_type', ''),
+            })
+
+        total_required = sum(r['totalCredits'] for r in requirements_data)
+        total_earned = sum(r['completedCredits'] for r in requirements_data)
+        percent = (total_earned / total_required * 100) if total_required else 0
+
+        return {
+            'program_id': prog_id,
+            'institution': prog_institution,
+            'view': view_filter,
+            'percent': percent,
+            'requirements': requirements_data,
+            'total_credits_earned': total_earned,
+            'total_credits_required': total_required,
+        }
+
+
     
     def _is_course_relevant_to_program(self, plan_course, program):
         """Check if a course is relevant to a specific program"""
@@ -217,30 +295,18 @@ class Plan(db.Model):
         
         return None
     
-    def calculate_progress(self):
-        """Main progress calculation method - returns both current and target progress"""
-        current_progress = self.calculate_progress_for_program(self.current_program) if self.current_program else {
-            'percent': 0, 'requirements': [], 'total_credits_earned': 0, 'total_credits_required': 0
-        }
-        
-        target_progress = self.calculate_progress_for_program(self.target_program) if self.target_program else {
-            'percent': 0, 'requirements': [], 'total_credits_earned': 0, 'total_credits_required': 0
-        }
-        
-        return {
-            'current': current_progress,
-            'transfer': target_progress
-        }
     def get_unmet_requirements(self):
         unmet = []
         if not self.target_program:
             return unmet
             
-        for requirement in self.target_program.requirements:
+        canon = self.normalize_category
+        for requirement in self.current_program.requirements:
             completed_credits = sum(
-                course.credits or course.course.credits or 0
-                for course in self.courses 
-                if course.status == 'completed' and course.requirement_category == requirement.category
+                (pc.credits or (pc.course.credits if pc.course else 0) or 0)
+                for pc in self.courses
+                if pc.status == 'completed'
+                and canon(getattr(pc, 'requirement_category', '')) == canon(requirement.category)
             )
             if completed_credits < requirement.credits_required:
                 unmet.append({

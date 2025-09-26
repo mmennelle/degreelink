@@ -376,6 +376,9 @@ export default function VerticalProgressWithBubbles({
   );
 }
 
+// Add this debug logging to your RequirementDetails component
+// Replace the existing RequirementDetails function with this enhanced version:
+
 function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact = false }) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showCourses, setShowCourses] = useState(false);
@@ -391,38 +394,86 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
     programRequirement
   } = requirement;
 
+  // DEBUG: Log requirement data
+  console.log('RequirementDetails - Full requirement object:', requirement);
+  console.log('RequirementDetails - programRequirement:', programRequirement);
+  console.log('RequirementDetails - plan courses:', plan?.courses);
+
   const requirementCourses = React.useMemo(() => {
-    if (!plan?.courses) return [];
-    return plan.courses.filter(pc => (pc.requirement_category || 'Uncategorized') === name);
+    if (!plan?.courses) {
+      console.log('RequirementDetails - No plan.courses available');
+      return [];
+    }
+    
+    const filtered = plan.courses.filter(pc => {
+      const category = pc.requirement_category || 'Uncategorized';
+      const matches = category === name;
+      console.log(`RequirementDetails - Course ${pc.course?.code} category: "${category}", requirement name: "${name}", matches: ${matches}`);
+      return matches;
+    });
+    
+    console.log(`RequirementDetails - Found ${filtered.length} matching courses for requirement "${name}"`);
+    return filtered;
   }, [plan?.courses, name]);
 
   const generateSuggestions = useCallback(async () => {
-    if (!programRequirement || loadingSuggestions || !plan) return;
+    console.log('RequirementDetails - generateSuggestions called');
+    console.log('RequirementDetails - programRequirement:', programRequirement);
+    console.log('RequirementDetails - loadingSuggestions:', loadingSuggestions);
+    console.log('RequirementDetails - plan:', plan);
+    
+    if (!programRequirement || loadingSuggestions || !plan) {
+      console.log('RequirementDetails - Early return from generateSuggestions');
+      return;
+    }
+    
     setLoadingSuggestions(true);
     try {
       const out = [];
+      
+      console.log('RequirementDetails - programRequirement.requirement_type:', programRequirement.requirement_type);
+      console.log('RequirementDetails - programRequirement.groups:', programRequirement.groups);
+      
       if (programRequirement.requirement_type === 'grouped' && programRequirement.groups) {
+        console.log('RequirementDetails - Processing grouped requirement');
         for (const group of programRequirement.groups) {
-          if (!group.course_options) continue;
+          console.log('RequirementDetails - Processing group:', group);
+          if (!group.course_options) {
+            console.log('RequirementDetails - No course_options in group');
+            continue;
+          }
+          
           for (const option of group.course_options) {
+            console.log('RequirementDetails - Processing option:', option);
             try {
-              const res = await fetch(`/api/courses?search=${encodeURIComponent(option.course_code)}&institution=${encodeURIComponent(option.institution || '')}`);
+              const searchUrl = `/api/courses?search=${encodeURIComponent(option.course_code)}&institution=${encodeURIComponent(option.institution || '')}`;
+              console.log('RequirementDetails - Fetching:', searchUrl);
+              
+              const res = await fetch(searchUrl);
               if (res.ok) {
                 const data = await res.json();
                 const course = data.courses?.[0];
                 if (course) {
+                  console.log('RequirementDetails - Found course:', course);
                   out.push({
                     id: course.id, code: course.code, title: course.title, credits: course.credits,
                     institution: course.institution, description: course.description,
                     group_name: group.group_name, is_preferred: option.is_preferred, notes: option.notes,
                     requirement_category: name, detectedCategory: name
                   });
+                } else {
+                  console.log('RequirementDetails - No course found in response:', data);
                 }
+              } else {
+                console.log('RequirementDetails - Fetch failed:', res.status, res.statusText);
               }
-            } catch {}
+            } catch (error) {
+              console.log('RequirementDetails - Fetch error:', error);
+            }
           }
         }
       } else {
+        console.log('RequirementDetails - Processing simple requirement, using keyword search');
         const mappings = {
           'english': ['ENG', 'ENGL', 'composition', 'writing'],
           'composition': ['ENG', 'ENGL', 'composition', 'writing'],
@@ -437,12 +488,19 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
           'social': ['SOC', 'PSY', 'POLI', 'social'],
           'humanities': ['ENG', 'HIST', 'PHIL', 'ART', 'humanities']
         };
+        
         const nameLower = name.toLowerCase();
         const terms = Object.entries(mappings).find(([k]) => nameLower.includes(k))?.[1] || [name];
+        console.log('RequirementDetails - Using search terms:', terms);
+        
         try {
-          const res = await fetch(`/api/courses?search=${encodeURIComponent(terms[0])}&per_page=8`);
+          const searchUrl = `/api/courses?search=${encodeURIComponent(terms[0])}&per_page=8`;
+          console.log('RequirementDetails - Fetching:', searchUrl);
+          
+          const res = await fetch(searchUrl);
           if (res.ok) {
             const data = await res.json();
+            console.log('RequirementDetails - Search response:', data);
             data.courses?.forEach(course => {
               out.push({
                 id: course.id, code: course.code, title: course.title, credits: course.credits,
@@ -450,17 +508,25 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
                 requirement_category: name, is_preferred: false, detectedCategory: name
               });
             });
+          } else {
+            console.log('RequirementDetails - Search failed:', res.status, res.statusText);
           }
-        } catch {}
+        } catch (error) {
+          console.log('RequirementDetails - Search error:', error);
+        }
       }
+      
+      console.log('RequirementDetails - Final suggestions:', out);
       setSuggestions(out);
-    } catch {
+    } catch (error) {
+      console.log('RequirementDetails - generateSuggestions error:', error);
       setSuggestions([]);
     } finally {
       setLoadingSuggestions(false);
     }
   }, [programRequirement, loadingSuggestions, name, plan]);
 
+  // Rest of your component remains the same...
   const getStatusChip = (status) => {
     switch (status) {
      case 'met':
@@ -545,30 +611,36 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
           >
             <span className="flex items-center">
               <BookOpen size={14} className="mr-1" />
-              Current Courses
+              Current Courses ({requirementCourses.length})
             </span>
             {showCourses ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
 
           {showCourses && (
             <div className={`mt-3 space-y-2 ${compact ? '' : 'max-h-32 overflow-y-auto'}`}>
-              {requirementCourses.map((pc) => (
-                <div key={pc.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <h6 className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                        {pc.course?.code}: {pc.course?.title}
-                      </h6>
-                      <p className="text-xs text-gray-600 dark:text-gray-400">
-                        {(pc.credits || pc.course?.credits) ?? 0} credits • {pc.course?.institution}
-                      </p>
+              {requirementCourses.length > 0 ? (
+                requirementCourses.map((pc) => (
+                  <div key={pc.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <h6 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {pc.course?.code}: {pc.course?.title}
+                        </h6>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                          {(pc.credits || pc.course?.credits) ?? 0} credits • {pc.course?.institution}
+                        </p>
+                      </div>
+                      <span className={`px-2 py-1 text-xs rounded border ${badgeByCourseStatus(pc.status)}`}>
+                        {pc.status === 'in_progress' ? 'In Progress' : pc.status === 'completed' ? 'Completed' : 'Planned'}
+                      </span>
                     </div>
-                    <span className={`px-2 py-1 text-xs rounded border ${badgeByCourseStatus(pc.status)}`}>
-                      {pc.status === 'in_progress' ? 'In Progress' : pc.status === 'completed' ? 'Completed' : 'Planned'}
-                    </span>
                   </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
+                  No courses added for this requirement yet
+                </p>
+              )}
             </div>
           )}
         </div>

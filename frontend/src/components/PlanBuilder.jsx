@@ -77,18 +77,25 @@ const PlanBuilder = ({
   }, [programsList]);
 
   // Get the current and target programs
-  const getCurrentProgram = useCallback(() => {
-    return selectedPlan?.current_program_id ? getProgram(selectedPlan.current_program_id) : null;
-  }, [selectedPlan, getProgram]);
+    const getCurrentProgram = useCallback(() => {
+      // Prefer the program the backend sends in selectedPlan.current_program
+      return selectedPlan?.current_program || getProgram(selectedPlan?.current_program_id);
+    }, [selectedPlan, getProgram]);
 
-  const getTargetProgram = useCallback(() => {
-    return selectedPlan?.program_id ? getProgram(selectedPlan.program_id) : null;
-  }, [selectedPlan, getProgram]);
+    const getTargetProgram = useCallback(() => {
+      // Prefer selectedPlan.target_program too
+      return selectedPlan?.target_program || getProgram(selectedPlan?.program_id);
+    }, [selectedPlan, getProgram]);
+
 
   // Get institution names for progress bars
   const getInstitutionNames = useCallback(() => {
     const currentProgram = getCurrentProgram();
     const targetProgram = getTargetProgram();
+
+    console.log('Current program:', currentProgram);
+    console.log('Target program:', targetProgram);
+    console.log('Selected plan:', selectedPlan);
     
     return {
       currentInstitution: currentProgram?.institution || 'Current Program',
@@ -195,43 +202,48 @@ const PlanBuilder = ({
     }
   }, []);
 
-  useEffect(() => {
-    let alive = true;
-    async function loadProgress() {
-      if (!selectedPlanId) { 
-        setProgress(null); 
-        return; 
-      }
-      
-      setProgressLoading(true);
-      try {
-        // Get progress with current view filter
-        const currentView = VIEWS[viewIndex];
-        const progressData = await api.getPlanProgress(selectedPlanId, { view: currentView });
-        
-        if (alive) {
-          setProgress({
-            current: progressData.current || { percent: 0, requirements: [] },
-            transfer: progressData.transfer || { percent: 0, requirements: [] }
-          });
-        }
-
-      } catch (e) {
-        console.error('Progress loading failed:', e);
-        if (alive) {
-          setProgress({
-            current: { percent: 0, requirements: [] },
-            transfer: { percent: 0, requirements: [] },
-          });
-        }
-      } finally {
-        if (alive) setProgressLoading(false);
-      }
+useEffect(() => {
+  let alive = true;
+  async function loadProgress() {
+    if (!selectedPlanId) { 
+      setProgress(null); 
+      return; 
     }
     
-    loadProgress();
-    return () => { alive = false; };
-  }, [selectedPlanId, selectedPlan, viewIndex]);
+    setProgressLoading(true);
+    try {
+      // Get progress with current view filter
+      const currentView = VIEWS[viewIndex];
+      
+      const progressData = await api.getPlanProgress(selectedPlanId, currentView);
+      
+      if (alive) {
+        //  Ensure we have the expected structure
+        setProgress({
+          current: progressData.current || { percent: 0, requirements: [] },
+          transfer: progressData.transfer || { percent: 0, requirements: [] }
+        });
+        
+        //  Debug logging to see what we're getting
+        console.log('Progress loaded for view:', currentView, progressData);
+      }
+
+    } catch (e) {
+      console.error('Progress loading failed:', e);
+      if (alive) {
+        setProgress({
+          current: { percent: 0, requirements: [] },
+          transfer: { percent: 0, requirements: [] },
+        });
+      }
+    } finally {
+      if (alive) setProgressLoading(false);
+    }
+  }
+  
+  loadProgress();
+  return () => { alive = false; };
+}, [selectedPlanId, selectedPlan, viewIndex, refreshTrigger]); //  Add refreshTrigger dependency
 
   useEffect(() => {
     if (selectedPlanId && plans.length > 0) {
@@ -555,6 +567,7 @@ const PlanBuilder = ({
                           <div key={slide.name} className="basis-full shrink-0">
                             <div className="flex items-start justify-center gap-3 sm:gap-6 lg:gap-8 w-full max-w-full px-1 sm:px-0">
                               <VerticalProgressWithBubbles
+                                
                                 title={slide.current.institution}
                                 percent={slide.current.percent}
                                 requirements={slide.current.requirements}
@@ -565,6 +578,7 @@ const PlanBuilder = ({
                                 currentView={VIEWS[viewIndex]}
                               />
                               <VerticalProgressWithBubbles
+                                
                                 title={slide.transfer.institution}
                                 percent={slide.transfer.percent}
                                 requirements={slide.transfer.requirements}
