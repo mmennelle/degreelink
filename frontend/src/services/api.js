@@ -110,8 +110,20 @@ class ApiService {
       return this.request(`/programs/${programId}/requirements/${requirementId}/suggestions`);
     }
     
-    async getPlanProgress(id) {
-      return this.request(`/plans/${id}/progress`);
+    // Plan progress with view filtering support
+    async getPlanProgress(id, options = {}) {
+      try {
+        const params = new URLSearchParams();
+        if (options.view) {
+          params.append('view', options.view);
+        }
+        
+        const url = `/plans/${id}/progress${params.toString() ? `?${params.toString()}` : ''}`;
+        return await this.request(url);
+      } catch (error) {
+        console.error('Error getting plan progress:', error);
+        throw error;
+      }
     }
     
     async uploadRequirements(file) {
@@ -229,17 +241,43 @@ class ApiService {
       });
     }
   
-    async addCourseToPlan(planId, data) {
-      return this.request(`/plans/${planId}/courses`, {
-        method: 'POST',
-        body: JSON.stringify(data)
-      });
+    //course addition with new fields
+    async addCourseToPlan(planId, courseData) {
+      try {
+        return await this.request(`/plans/${planId}/courses`, {
+          method: 'POST',
+          body: JSON.stringify({
+            course_id: courseData.course_id,
+            semester: courseData.semester,
+            year: courseData.year,
+            status: courseData.status,
+            requirement_category: courseData.requirement_category,
+            requirement_group_id: courseData.requirement_group_id, 
+            credits: courseData.credits, 
+            grade: courseData.grade, 
+            notes: courseData.notes
+          })
+        });
+      } catch (error) {
+        console.error('Error adding course to plan:', error);
+        throw error;
+      }
     }
   
+    // Enhanced course update with new fields
     async updatePlanCourse(planId, courseId, data) {
       return this.request(`/plans/${planId}/courses/${courseId}`, {
         method: 'PUT',
-        body: JSON.stringify(data)
+        body: JSON.stringify({
+          semester: data.semester,
+          year: data.year,
+          status: data.status,
+          grade: data.grade,
+          credits: data.credits, 
+          requirement_category: data.requirement_category,
+          requirement_group_id: data.requirement_group_id, 
+          notes: data.notes
+        })
       });
     }
   

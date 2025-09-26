@@ -1,6 +1,9 @@
 from . import db
 from datetime import datetime
 from sqlalchemy.sql import func
+from .course import Course
+from .equivalency import Equivalency
+#from .program import Program
 import json
 import secrets
 import string
@@ -11,14 +14,24 @@ class Plan(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     student_name = db.Column(db.String(200), nullable=False)
     student_email = db.Column(db.String(200))
+    
+    # Target program (where student wants to transfer to)
     program_id = db.Column(db.Integer, db.ForeignKey('programs.id'), nullable=False)
+    
+    # Current program (where student is currently enrolled) - ADDED
+    current_program_id = db.Column(db.Integer, db.ForeignKey('programs.id'), nullable=True)
+    
     plan_name = db.Column(db.String(200), nullable=False)
-    plan_code = db.Column(db.String(8), unique=True, nullable=False, index=True)  # New secure code field
+    plan_code = db.Column(db.String(8), unique=True, nullable=False, index=True)
     status = db.Column(db.String(50), default='draft')  
     created_at = db.Column(db.DateTime, server_default=func.now())
     updated_at = db.Column(db.DateTime, server_default=func.now(), onupdate=func.now())
     
     courses = db.relationship('PlanCourse', backref='plan', cascade='all, delete-orphan')
+    
+    # Relationships for both programs
+    target_program = db.relationship('Program', foreign_keys=[program_id], backref='target_plans')
+    current_program = db.relationship('Program', foreign_keys=[current_program_id], backref='current_plans')
     
     def __init__(self, **kwargs):
         # Generate secure code before calling parent constructor
@@ -67,17 +80,163 @@ class Plan(db.Model):
             'student_name': self.student_name,
             'student_email': self.student_email,
             'program_id': self.program_id,
+            'current_program_id': self.current_program_id,  
             'plan_name': self.plan_name,
-            'plan_code': self.plan_code,  # Include the plan code in serialization
+            'plan_code': self.plan_code,
             'status': self.status,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'courses': [course.to_dict() for course in self.courses]
+            'courses': [course.to_dict() for course in self.courses],
+            'target_program': self.target_program.to_dict() if self.target_program else None,  
+            'current_program': self.current_program.to_dict() if self.current_program else None  
         }
     
+    def calculate_progress_for_program(self, program, view_filter='All Courses'):
+        """Calculate progress for a specific program with view filtering"""
+        if not program:
+            return {
+                'percent': 0,
+                'requirements': [],
+                'total_credits_earned': 0,
+                'total_credits_required': 0
+            }
+        
+        # Filter courses based on view and relevance to this program
+        relevant_courses = []
+        for course in self.courses:
+            # Check if course status matches the view filter
+            if view_filter != 'All Courses':
+                status_filter = view_filter.lower().replace(' ', '_')
+                if course.status != status_filter:
+                    continue
+            
+            # Check if course is relevant to this program (institution match or equivalency)
+            is_relevant = self._is_course_relevant_to_program(course, program)
+            if is_relevant:
+                relevant_courses.append(course)
+        
+        # Calculate requirement progress
+        requirement_progress = []
+        total_requirements_met = 0
+        
+        for requirement in program.requirements:
+            req_credits_required = getattr(requirement, 'credits_required', 0) or 0
+            completed_credits = 0
+            applied_courses = []
+            
+            # Find courses that apply to this requirement
+            for course in relevant_courses:
+                if course.requirement_category == requirement.category:
+                    course_credits = course.credits or (course.course.credits if course.course else 0) or 0
+                    completed_credits += course_credits
+                    
+                    # For target program, show equivalent course if exists
+                    if program.id == self.program_id:  # Target program
+                        equiv_course = self._get_equivalent_course(course, program)
+                        if equiv_course:
+                            applied_courses.append(equiv_course.code)
+                        else:
+                            applied_courses.append(course.course.code if course.course else '')
+                    else:  # Current program
+                        applied_courses.append(course.course.code if course.course else '')
+            
+            is_complete = completed_credits >= req_credits_required
+            if is_complete:
+                total_requirements_met += 1
+                
+            percent = (completed_credits / req_credits_required * 100) if req_credits_required > 0 else 0
+            
+            requirement_progress.append({
+                'id': getattr(requirement, 'id', None),
+                'name': getattr(requirement, 'category', ''),
+                'category': getattr(requirement, 'category', ''),
+                'status': 'met' if is_complete else ('part' if completed_credits > 0 else 'none'),
+                'completedCredits': completed_credits,
+                'totalCredits': req_credits_required,
+                'courses': applied_courses,
+                'description': getattr(requirement, 'description', ''),
+                'requirement_type': getattr(requirement, 'requirement_type', ''),
+                'programRequirement': requirement.to_dict() if requirement else None
+            })
+        
+        # Calculate totals
+        total_credits_earned = sum(
+            (course.credits or (course.course.credits if course.course else 0) or 0)
+            for course in relevant_courses
+            if course.status == 'completed'
+        )
+        
+        total_credits_required = getattr(program, 'total_credits_required', 0) or 0
+        completion_percentage = (total_credits_earned / total_credits_required * 100) if total_credits_required > 0 else 0
+        
+        return {
+            'percent': min(round(completion_percentage), 100),
+            'requirements': requirement_progress,
+            'total_credits_earned': total_credits_earned,
+            'total_credits_required': total_credits_required,
+            'requirements_met': total_requirements_met,
+            'total_requirements': len(program.requirements)
+        }
+    
+    def _is_course_relevant_to_program(self, plan_course, program):
+        """Check if a course is relevant to a specific program"""
+        if not plan_course.course or not program:
+            return False
+        
+        course_institution = plan_course.course.institution
+        program_institution = program.institution
+        
+        # Direct institution match
+        if course_institution == program_institution:
+            return True
+        
+        # Check for equivalency if this is the target program
+        if program.id == self.program_id:  # Target program
+            equiv_course = self._get_equivalent_course(plan_course, program)
+            return equiv_course is not None
+        
+        return False
+    
+    def _get_equivalent_course(self, plan_course, target_program):
+        """Get the equivalent course at the target program"""
+        from .equivalency import Equivalency
+        from .course import Course
+        
+        if not plan_course.course:
+            return None
+        
+        # Find equivalency mapping
+        equivalency = Equivalency.query.filter_by(
+            from_course_id=plan_course.course.id
+        ).first()
+        
+        if equivalency and equivalency.to_course:
+            # Check if equivalent course is at target institution
+            if equivalency.to_course.institution == target_program.institution:
+                return equivalency.to_course
+        
+        return None
+    
+    def calculate_progress(self):
+        """Main progress calculation method - returns both current and target progress"""
+        current_progress = self.calculate_progress_for_program(self.current_program) if self.current_program else {
+            'percent': 0, 'requirements': [], 'total_credits_earned': 0, 'total_credits_required': 0
+        }
+        
+        target_progress = self.calculate_progress_for_program(self.target_program) if self.target_program else {
+            'percent': 0, 'requirements': [], 'total_credits_earned': 0, 'total_credits_required': 0
+        }
+        
+        return {
+            'current': current_progress,
+            'transfer': target_progress
+        }
     def get_unmet_requirements(self):
         unmet = []
-        for requirement in self.program.requirements:
+        if not self.target_program:
+            return unmet
+            
+        for requirement in self.target_program.requirements:
             completed_credits = sum(
                 course.credits or course.course.credits or 0
                 for course in self.courses 
@@ -91,94 +250,9 @@ class Plan(db.Model):
                 })
         return unmet
 
-    def calculate_progress(self):
-        # Defensive: ensure program and requirements exist
-        program = getattr(self, 'program', None)
-        requirements = getattr(program, 'requirements', []) if program else []
-        required_credits = getattr(program, 'total_credits_required', 0) or 0
-
-        total_credits = sum(
-            (course.credits or (course.course.credits if course.course else 0) or 0)
-            for course in self.courses
-            if course.status == 'completed'
-        )
-
-        completed_courses = [course for course in self.courses if course.status == 'completed']
-        planned_courses = [course for course in self.courses if course.status == 'planned']
-        in_progress_courses = [course for course in self.courses if course.status == 'in_progress']
-
-        category_breakdown = {}
-        for course in completed_courses:
-            category = course.requirement_category or 'Uncategorized'
-            if category not in category_breakdown:
-                category_breakdown[category] = {
-                    'courses': [],
-                    'total_credits': 0,
-                    'course_count': 0
-                }
-            course_credits = course.credits or (course.course.credits if course.course else 0) or 0
-            category_breakdown[category]['courses'].append({
-                'code': course.course.code if course.course else '',
-                'title': course.course.title if course.course else '',
-                'credits': course_credits,
-                'grade': course.grade
-            })
-            category_breakdown[category]['total_credits'] += course_credits
-            category_breakdown[category]['course_count'] += 1
-
-        requirement_progress = []
-        total_requirements_met = 0
-        for requirement in requirements:
-            req_credits_required = getattr(requirement, 'credits_required', 0) or 0
-            completed_credits = sum(
-                (course.credits or (course.course.credits if course.course else 0) or 0)
-                for course in completed_courses
-                if course.requirement_category == requirement.category
-            )
-            is_complete = completed_credits >= req_credits_required
-            if is_complete:
-                total_requirements_met += 1
-            percent = (completed_credits / req_credits_required * 100) if req_credits_required > 0 else 0
-            requirement_progress.append({
-                'id': getattr(requirement, 'id', None),
-                'category': getattr(requirement, 'category', ''),
-                'credits_required': req_credits_required,
-                'credits_completed': completed_credits,
-                'credits_remaining': max(0, req_credits_required - completed_credits),
-                'completion_percentage': percent,
-                'is_complete': is_complete,
-                'description': getattr(requirement, 'description', ''),
-                'requirement_type': getattr(requirement, 'requirement_type', '')
-            })
-
-        transfer_analysis = self._analyze_transfer_equivalencies(completed_courses)
-        gpa_info = self._calculate_gpa(completed_courses)
-
-        # Defensive: avoid division by zero and NaN
-        completion_percentage = (total_credits / required_credits * 100) if required_credits > 0 else 0
-        requirements_count = len(requirements)
-        requirements_completion_percentage = (total_requirements_met / requirements_count * 100) if requirements_count > 0 else 0
-
-        return {
-            'total_credits_earned': total_credits,
-            'total_credits_required': required_credits,
-            'completion_percentage': completion_percentage,
-            'remaining_credits': max(0, required_credits - total_credits),
-            'category_breakdown': category_breakdown,
-            'requirement_progress': requirement_progress,
-            'requirements_met': total_requirements_met,
-            'total_requirements': requirements_count,
-            'requirements_completion_percentage': requirements_completion_percentage,
-            'completed_courses_count': len(completed_courses),
-            'planned_courses_count': len(planned_courses),
-            'in_progress_courses_count': len(in_progress_courses),
-            'transfer_analysis': transfer_analysis,
-            'gpa_info': gpa_info
-        }
 
     def suggest_courses_for_requirements(self):
-        from .course import Course
-        from .equivalency import Equivalency
+       
         
         suggestions = []
         completed_course_ids = [course.course_id for course in self.courses if course.status == 'completed']
@@ -189,7 +263,7 @@ class Plan(db.Model):
             credits_needed = unmet_req['credits_needed']
             
             program_requirement = next(
-                (req for req in self.program.requirements if req.category == category), 
+                (req for req in self.target_program.requirements if req.category == category), 
                 None
             )
             
@@ -230,7 +304,7 @@ class Plan(db.Model):
             for course_option in group.course_options:
                 course = Course.query.filter_by(
                     code=course_option.course_code,
-                    institution=course_option.institution or self.program.institution
+                    institution=course_option.institution or self.target_program.institution
                 ).first()
                 
                 if course and course.id not in completed_course_ids:
@@ -250,7 +324,7 @@ class Plan(db.Model):
         return suggestions
 
     def _get_simple_requirement_suggestions(self, category, completed_course_ids, credits_needed):
-        from .course import Course
+        
         
         category_mappings = {
             'Core Biology': ['Biology', 'Biological Sciences'],
@@ -267,7 +341,7 @@ class Plan(db.Model):
         suggestions = []
         
         courses = Course.query.filter(
-            Course.institution == self.program.institution,
+            Course.institution == self.target_program.institution,
             Course.department.in_(departments),
             ~Course.id.in_(completed_course_ids)
         ).limit(10).all()
@@ -432,6 +506,7 @@ class PlanCourse(db.Model):
     grade = db.Column(db.String(10))
     credits = db.Column(db.Integer)  
     requirement_category = db.Column(db.String(100))  
+    requirement_group_id = db.Column(db.Integer, db.ForeignKey('requirement_groups.id'), nullable=True)  
     notes = db.Column(db.Text)
     
     course = db.relationship('Course', backref='plan_courses')
@@ -448,5 +523,6 @@ class PlanCourse(db.Model):
             'grade': self.grade,
             'credits': self.credits or (self.course.credits if self.course else 0),
             'requirement_category': self.requirement_category,
+            'requirement_group_id': self.requirement_group_id,  
             'notes': self.notes
         }

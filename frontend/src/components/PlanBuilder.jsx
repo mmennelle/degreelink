@@ -70,201 +70,58 @@ const PlanBuilder = ({
   // Use external programs if provided, otherwise use internal
   const programsList = programs.length > 0 ? programs : internalPrograms;
 
-  const getProgram = useCallback((programId = null) => {
-    if (!selectedPlan && !programId) return null;
-    const targetId = programId || selectedPlan.program_id;
-    return programsList.find(p => p.id === targetId);
-  }, [selectedPlan, programsList]);
+  // Get program by ID
+  const getProgram = useCallback((programId) => {
+    if (!programId) return null;
+    return programsList.find(p => p.id === programId);
+  }, [programsList]);
 
-  // ======= UNIFIED PROGRESS CALCULATION HELPERS =======
-  
-  // Single deduplication function
-  const dedupeRequirements = useCallback((list = []) => {
-    const catKey = (s) => (s || 'Uncategorized').trim().toLowerCase();
-    const byKey = new Map();
-    
-    for (const req of list) {
-      const key = catKey(req.category || req.name);
-      const base = {
-        id: req.id || key,
-        name: req.name || req.category || 'Unknown Requirement',
-        category: req.category || req.name,
-        status: req.status || (req.is_complete ? 'met' :
-                (req.credits_completed || req.completedCredits || 0) > 0 ? 'part' : 'none'),
-        completedCredits: req.credits_completed || req.completedCredits || 0,
-        totalCredits: req.credits_required || req.totalCredits || 0,
-        courses: req.courses || req.applied || [],
-        description: req.description || '',
-        requirement_type: req.requirement_type || 'simple',
-        programRequirement: req.programRequirement || null,
-      };
+  // Get the current and target programs
+  const getCurrentProgram = useCallback(() => {
+    return selectedPlan?.current_program_id ? getProgram(selectedPlan.current_program_id) : null;
+  }, [selectedPlan, getProgram]);
 
-      if (!byKey.has(key)) {
-        byKey.set(key, base);
-      } else {
-        const existing = byKey.get(key);
-        const totalA = existing.totalCredits || 0;
-        const totalB = base.totalCredits || 0;
-        const doneA = existing.completedCredits || 0;
-        const doneB = base.completedCredits || 0;
-        const maxTotal = Math.max(totalA, totalB);
-        const maxDone = Math.max(doneA, doneB);
-
-        byKey.set(key, {
-          ...existing,
-          name: existing.name || base.name,
-          description: existing.description || base.description,
-          requirement_type: existing.requirement_type || base.requirement_type,
-          totalCredits: maxTotal,
-          completedCredits: maxDone,
-          courses: Array.from(new Set([...existing.courses, ...base.courses])),
-          status: maxTotal <= 0 ? 'none' : (maxDone >= maxTotal ? 'met' : (maxDone > 0 ? 'part' : 'none')),
-        });
-      }
-    }
-    return Array.from(byKey.values());
-  }, []);
-
-        const buildRequirementsForProgram = useCallback((plan, program) => {
-          if (!plan || !program?.requirements) return [];
-          // Determine if a course should count toward this program
-          const isRelevantCourse = (pc) => {
-            const courseInst = pc.course?.institution;
-            const progInst   = program.institution;
-            if (!courseInst || !progInst) return false;
-            return courseInst === progInst ||
-                  pc.equivalent_to_program_id === program.id ||
-                  pc.transfers_to_program_id  === program.id;
-          };
-          // Aggregate credits by category for completed, relevant courses
-          const creditsByCategory = {};
-          (plan.courses || []).forEach(pc => {
-            if (pc.status !== 'completed' || !isRelevantCourse(pc)) return;
-            const category = pc.requirement_category || 'Uncategorized';
-            const credits  = pc.credits || pc.course?.credits || 0;
-            creditsByCategory[category] = (creditsByCategory[category] || 0) + credits;
-          });
-          // Build the requirement objects for display
-          return program.requirements.map(req => {
-            const completed = creditsByCategory[req.category] || 0;
-            const total     = req.credits_required || 0;
-            const status    = total > 0
-              ? completed >= total ? 'met' :
-                completed > 0      ? 'part' : 'none'
-              : 'none';
-            const appliedCourses = (plan.courses || [])
-              .filter(pc =>
-                pc.status === 'completed' &&
-                (pc.requirement_category || 'Uncategorized') === req.category &&
-                isRelevantCourse(pc)
-              )
-              .map(pc => pc.course?.code || pc.course?.title || `Course ${pc.id}`);
-            return {
-              id: req.id || req.category,
-              name: req.category,
-              category: req.category,
-              status,
-              completedCredits: completed,
-              totalCredits: total,
-              courses: appliedCourses,
-              description: req.description,
-              requirement_type: req.requirement_type,
-              programRequirement: req,
-            };
-          });
-        }, []);
+  const getTargetProgram = useCallback(() => {
+    return selectedPlan?.program_id ? getProgram(selectedPlan.program_id) : null;
+  }, [selectedPlan, getProgram]);
 
   // Get institution names for progress bars
-  const getInstitutionNames = useCallback((plan, targetProgram) => {
-  const currentProgram = plan?.current_program_id ? getProgram(plan.current_program_id) : null;
-  return {
-    currentInstitution: currentProgram?.institution || 'Current Program',
-    transferInstitution: targetProgram?.institution || 'Transfer Program',
-  };
-}, [getProgram]);
-
-
-const recomputeReqsForView = useCallback((baseReqs, viewFilter, plan, program) => {
-  if (!Array.isArray(baseReqs) || !plan?.courses?.length) return baseReqs || [];
-  const allowStatus = status =>
-    viewFilter === 'All Courses' || status === viewFilter.toLowerCase().replace(' ', '_');
-  const isRelevantCourse = pc => {
-    const courseInst = pc.course?.institution;
-    const progInst   = program?.institution;
-    if (!courseInst || !progInst) return false;
-    return courseInst === progInst ||
-           pc.equivalent_to_program_id === program?.id ||
-           pc.transfers_to_program_id  === program?.id;
-  };
-  const creditsByCategory = {};
-  for (const pc of plan.courses) {
-    if (!allowStatus(pc.status) || !isRelevantCourse(pc)) continue;
-    const category = pc.requirement_category || 'Uncategorized';
-    const credits  = pc.credits || pc.course?.credits || 0;
-    creditsByCategory[category] = (creditsByCategory[category] || 0) + credits;
-  }
-  return baseReqs.map(req => {
-    const key      = req.category || req.name || 'Uncategorized';
-    const done     = creditsByCategory[key] || 0;
-    const required = req.totalCredits || 0;
-    const status   = required > 0
-      ? done >= required ? 'met' :
-        done > 0        ? 'part' : 'none'
-      : 'none';
-    return { ...req, completedCredits: done, status };
-  });
-}, []);
-
-  // Calculate percentage from requirements
-  const percentFromReqs = (reqs) => {
-    let totalRequired = 0, totalCompleted = 0;
-    (reqs || []).forEach(r => {
-      const required = r.totalCredits || 0;
-      const completed = Math.min(r.completedCredits || 0, required);
-      totalRequired += required;
-      totalCompleted += completed;
-    });
-    return totalRequired > 0 ? Math.min(Math.round((totalCompleted / totalRequired) * 100), 100) : 0;
-  };
-
-  // Build the 4 slides: each slide holds both bars (Current + Transfer) with proper mapping
-  const slides = useMemo(() => {
-  if (!progress || !selectedPlan) return [];
-
-  const targetProgram = getProgram();
-  const { currentInstitution, transferInstitution } = getInstitutionNames(selectedPlan, targetProgram);
-
-  return VIEWS.map(viewName => {
-    const currentProgram = selectedPlan.current_program_id ? getProgram(selectedPlan.current_program_id) : null;
-    let currentReqs;
-
-    if (currentProgram) {
-      const baseCurrentReqs = buildRequirementsForProgram(selectedPlan, currentProgram);
-      currentReqs = recomputeReqsForView(baseCurrentReqs, viewName, selectedPlan, currentProgram);
-    } else {
-      const baseCurrentReqs = progress?.current?.requirements || [];
-      currentReqs = recomputeReqsForView(baseCurrentReqs, viewName, selectedPlan, currentProgram);
-    }
-
-    const baseTransferReqs = buildRequirementsForProgram(selectedPlan, targetProgram);
-    const transferReqs = recomputeReqsForView(baseTransferReqs, viewName, selectedPlan, targetProgram);
-
+  const getInstitutionNames = useCallback(() => {
+    const currentProgram = getCurrentProgram();
+    const targetProgram = getTargetProgram();
+    
     return {
-      name: viewName,
-      current: {
-        requirements: dedupeRequirements(currentReqs),
-        percent: percentFromReqs(currentReqs),
-        institution: currentInstitution,
-      },
-      transfer: {
-        requirements: dedupeRequirements(transferReqs),
-        percent: percentFromReqs(transferReqs),
-        institution: transferInstitution,
-      },
+      currentInstitution: currentProgram?.institution || 'Current Program',
+      transferInstitution: targetProgram?.institution || 'Transfer Program',
     };
-  });
-}, [progress, selectedPlan, getProgram, getInstitutionNames, buildRequirementsForProgram, recomputeReqsForView, dedupeRequirements]);
+  }, [getCurrentProgram, getTargetProgram]);
 
+  // Build the 4 slides: each slide holds both bars (Current + Transfer) with proper filtering
+  const slides = useMemo(() => {
+    if (!progress || !selectedPlan) return [];
+
+    const { currentInstitution, transferInstitution } = getInstitutionNames();
+
+    return VIEWS.map(viewName => {
+      // Get progress data for current view filter
+      const currentData = progress.current || { percent: 0, requirements: [] };
+      const transferData = progress.transfer || { percent: 0, requirements: [] };
+
+      return {
+        name: viewName,
+        current: {
+          requirements: currentData.requirements || [],
+          percent: currentData.percent || 0,
+          institution: currentInstitution,
+        },
+        transfer: {
+          requirements: transferData.requirements || [],
+          percent: transferData.percent || 0,
+          institution: transferInstitution,
+        },
+      };
+    });
+  }, [progress, selectedPlan, getInstitutionNames]);
 
   const go = useCallback((dirOrIndex) => {
     setViewIndex((i) => {
@@ -348,72 +205,14 @@ const recomputeReqsForView = useCallback((baseReqs, viewFilter, plan, program) =
       
       setProgressLoading(true);
       try {
-        // Try to get progress from backend first
-        let progressData = null;
-        try {
-          progressData = await api.getPlanProgress(selectedPlanId);
-        } catch (apiError) {
-          console.warn('API progress failed, using local calculation:', apiError);
-        }
-
-        const program = getProgram();
-        const currentProgram = selectedPlan?.current_program_id ? getProgram(selectedPlan.current_program_id) : null;
-
-        const normalize = (side) => ({
-          percent: Math.round(
-            side?.percent ??
-            side?.requirements_completion_percentage ??
-            side?.completion_percentage ??
-            0
-          ),
-          requirements: (side?.requirements ?? side?.requirement_progress ?? []).map((r) => {
-            const completed = r.completedCredits ?? r.credits_completed ?? 0;
-            const total = r.totalCredits ?? r.credits_required ?? 0;
-            const status = r.status ?? (total > 0 ? (completed >= total ? 'met' : (completed > 0 ? 'part' : 'none')) : 'none');
-
-            return {
-              id: r.id || r.code || r.category || r.name,
-              name: r.name || r.category || `Requirement ${r.id ?? ''}`,
-              category: r.category || r.name,
-              status,
-              completedCredits: completed,
-              totalCredits: total,
-              courses: r.courses || r.applied || [],
-              description: r.description,
-              requirement_type: r.requirement_type,
-              programRequirement: program?.requirements?.find(pr => 
-                pr.category === (r.category || r.name)
-              ) || null
-            };
-          }),
-        });
-
-        let apiCurrent = { percent: 0, requirements: [] };
-        let apiTransfer = { percent: 0, requirements: [] };
+        // Get progress with current view filter
+        const currentView = VIEWS[viewIndex];
+        const progressData = await api.getPlanProgress(selectedPlanId, { view: currentView });
         
-        if (progressData) {
-          apiCurrent = normalize(progressData.current || progressData.progress || {});
-          apiTransfer = normalize(progressData.transfer || {});
-        }
-
-        // Build fallback requirements if API data is incomplete
-        if (!apiCurrent.requirements?.length && currentProgram) {
-          apiCurrent.requirements = buildRequirementsForProgram(selectedPlan, currentProgram);
-        }
-        if (!apiTransfer.requirements?.length && program) {
-          apiTransfer.requirements = buildRequirementsForProgram(selectedPlan, program);
-        }
-
         if (alive) {
           setProgress({
-            current: {
-              ...apiCurrent,
-              requirements: dedupeRequirements(apiCurrent.requirements)
-            },
-            transfer: {
-              ...apiTransfer,
-              requirements: dedupeRequirements(apiTransfer.requirements)
-            }
+            current: progressData.current || { percent: 0, requirements: [] },
+            transfer: progressData.transfer || { percent: 0, requirements: [] }
           });
         }
 
@@ -432,7 +231,7 @@ const recomputeReqsForView = useCallback((baseReqs, viewFilter, plan, program) =
     
     loadProgress();
     return () => { alive = false; };
-  }, [selectedPlanId, selectedPlan, getProgram, buildRequirementsForProgram, dedupeRequirements]);
+  }, [selectedPlanId, selectedPlan, viewIndex]);
 
   useEffect(() => {
     if (selectedPlanId && plans.length > 0) {
@@ -534,16 +333,16 @@ const recomputeReqsForView = useCallback((baseReqs, viewFilter, plan, program) =
       onAddToPlan(courses);
     } else {
       const coursesArray = Array.isArray(courses) ? courses : [courses];
-      const program = programsList.find(p => p.id === selectedPlan?.program_id);
+      const targetProgram = getTargetProgram();
       
       setAddCourseModal({
         isOpen: true,
         courses: coursesArray,
         plan: selectedPlan,
-        program: program
+        program: targetProgram
       });
     }
-  }, [onAddToPlan, selectedPlan, programsList]);
+  }, [onAddToPlan, selectedPlan, getTargetProgram]);
 
   const handleCoursesAdded = useCallback(async (courseDataArray) => {
     if (!selectedPlan) return;
@@ -756,30 +555,25 @@ const recomputeReqsForView = useCallback((baseReqs, viewFilter, plan, program) =
                           <div key={slide.name} className="basis-full shrink-0">
                             <div className="flex items-start justify-center gap-3 sm:gap-6 lg:gap-8 w-full max-w-full px-1 sm:px-0">
                               <VerticalProgressWithBubbles
-                                  // Current program bar (blue)
-                                  title={slide.current.institution}
-                                  percent={slide.current.percent}
-                                  requirements={slide.current.requirements}
-                                  color="blue"
-                                  /* Use the actual current program if defined; otherwise pass null so it doesn't adopt the target program */
-                                  program={selectedPlan.current_program_id ? getProgram(selectedPlan.current_program_id) : null}
-                                  plan={selectedPlan}
-                                  onAddCourse={handleCourseSelect}
-                                  currentView={VIEWS[viewIndex]}
-                                />
-                                <VerticalProgressWithBubbles
-                                  // Transfer/target program bar (violet)
-                                  title={slide.transfer.institution}
-                                  percent={slide.transfer.percent}
-                                  requirements={slide.transfer.requirements}
-                                  color="violet"
-                                  /* Always use the target program here */
-                                  program={getProgram()}
-                                  plan={selectedPlan}
-                                  onAddCourse={handleCourseSelect}
-                                  currentView={VIEWS[viewIndex]}
-                                />
-
+                                title={slide.current.institution}
+                                percent={slide.current.percent}
+                                requirements={slide.current.requirements}
+                                color="blue"
+                                program={getCurrentProgram()}
+                                plan={selectedPlan}
+                                onAddCourse={handleCourseSelect}
+                                currentView={VIEWS[viewIndex]}
+                              />
+                              <VerticalProgressWithBubbles
+                                title={slide.transfer.institution}
+                                percent={slide.transfer.percent}
+                                requirements={slide.transfer.requirements}
+                                color="violet"
+                                program={getTargetProgram()}
+                                plan={selectedPlan}
+                                onAddCourse={handleCourseSelect}
+                                currentView={VIEWS[viewIndex]}
+                              />
                             </div>
                           </div>
                         ))}
@@ -836,7 +630,7 @@ const recomputeReqsForView = useCallback((baseReqs, viewFilter, plan, program) =
                 onMultiSelect={handleCourseSelect}
                 planId={selectedPlan?.id}
                 onAddToPlan={handleCourseSelect}
-                program={getProgram()}
+                program={getTargetProgram()}
               />
             </div>
           </div>
