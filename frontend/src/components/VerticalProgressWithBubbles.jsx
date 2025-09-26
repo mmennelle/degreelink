@@ -354,6 +354,7 @@ export default function VerticalProgressWithBubbles({
                       onClose={() => setOpenBubbleKey(null)}
                       onAddCourse={onAddCourse}
                       plan={plan}
+                      program={program}  // Pass the program prop
                       compact
                     />
                   </MobileSheetPortal>
@@ -364,6 +365,7 @@ export default function VerticalProgressWithBubbles({
                       onClose={() => setOpenBubbleKey(null)}
                       onAddCourse={onAddCourse}
                       plan={plan}
+                      program={program}  // Pass the program prop
                     />
                   </DesktopPopoverPortal>
                 )
@@ -379,7 +381,7 @@ export default function VerticalProgressWithBubbles({
 // Add this debug logging to your RequirementDetails component
 // Replace the existing RequirementDetails function with this enhanced version:
 
-function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact = false }) {
+function RequirementDetails({ requirement, onClose, onAddCourse, plan, program, compact = false }) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showCourses, setShowCourses] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
@@ -416,14 +418,12 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
     return filtered;
   }, [plan?.courses, name]);
 
-  const generateSuggestions = useCallback(async () => {
+const generateSuggestions = useCallback(async () => {
     console.log('RequirementDetails - generateSuggestions called');
-    console.log('RequirementDetails - programRequirement:', programRequirement);
-    console.log('RequirementDetails - loadingSuggestions:', loadingSuggestions);
-    console.log('RequirementDetails - plan:', plan);
+    console.log('RequirementDetails - program:', program);
     
-    if (!programRequirement || loadingSuggestions || !plan) {
-      console.log('RequirementDetails - Early return from generateSuggestions');
+    if (loadingSuggestions || !plan) {
+      console.log('RequirementDetails - Early return: loading or no plan');
       return;
     }
     
@@ -431,92 +431,148 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
     try {
       const out = [];
       
-      console.log('RequirementDetails - programRequirement.requirement_type:', programRequirement.requirement_type);
-      console.log('RequirementDetails - programRequirement.groups:', programRequirement.groups);
+      // Get the institution to filter by
+      const targetInstitution = program?.institution;
+      console.log('RequirementDetails - Filtering by institution:', targetInstitution);
       
-      if (programRequirement.requirement_type === 'grouped' && programRequirement.groups) {
-        console.log('RequirementDetails - Processing grouped requirement');
-        for (const group of programRequirement.groups) {
-          console.log('RequirementDetails - Processing group:', group);
-          if (!group.course_options) {
-            console.log('RequirementDetails - No course_options in group');
-            continue;
-          }
-          
-          for (const option of group.course_options) {
-            console.log('RequirementDetails - Processing option:', option);
-            try {
-              const searchUrl = `/api/courses?search=${encodeURIComponent(option.course_code)}&institution=${encodeURIComponent(option.institution || '')}`;
-              console.log('RequirementDetails - Fetching:', searchUrl);
-              
-              const res = await fetch(searchUrl);
-              if (res.ok) {
-                const data = await res.json();
-                const course = data.courses?.[0];
-                if (course) {
-                  console.log('RequirementDetails - Found course:', course);
-                  out.push({
-                    id: course.id, code: course.code, title: course.title, credits: course.credits,
-                    institution: course.institution, description: course.description,
-                    group_name: group.group_name, is_preferred: option.is_preferred, notes: option.notes,
-                    requirement_category: name, detectedCategory: name
-                  });
-                } else {
-                  console.log('RequirementDetails - No course found in response:', data);
-                }
-              } else {
-                console.log('RequirementDetails - Fetch failed:', res.status, res.statusText);
-              }
-            } catch (error) {
-              console.log('RequirementDetails - Fetch error:', error);
-            }
-          }
-        }
-      } else {
-        console.log('RequirementDetails - Processing simple requirement, using keyword search');
+      // If we don't have programRequirement data, fall back to simple keyword-based search
+      if (!programRequirement) {
+        console.log('RequirementDetails - No programRequirement, using fallback keyword search');
+        
+        // Enhanced keyword mapping
         const mappings = {
           'english': ['ENG', 'ENGL', 'composition', 'writing'],
           'composition': ['ENG', 'ENGL', 'composition', 'writing'],
           'literature': ['ENG', 'ENGL', 'LIT', 'literature'],
           'mathematics': ['MATH', 'mathematics', 'calculus', 'algebra'],
           'math': ['MATH', 'mathematics', 'calculus', 'algebra'],
+          'analytical': ['MATH', 'statistics', 'logic'],
+          'reasoning': ['MATH', 'PHIL', 'logic'],
           'biology': ['BIOL', 'BIO', 'biology', 'life science'],
           'chemistry': ['CHEM', 'chemistry'],
           'physics': ['PHYS', 'physics'],
           'history': ['HIST', 'history'],
           'science': ['BIOL', 'CHEM', 'PHYS', 'science'],
           'social': ['SOC', 'PSY', 'POLI', 'social'],
-          'humanities': ['ENG', 'HIST', 'PHIL', 'ART', 'humanities']
+          'humanities': ['ENG', 'HIST', 'PHIL', 'ART', 'humanities'],
+          'arts': ['ART', 'MUSC', 'THEA', 'arts'],
+          'fine arts': ['ART', 'MUSC', 'THEA', 'arts']
         };
         
         const nameLower = name.toLowerCase();
-        const terms = Object.entries(mappings).find(([k]) => nameLower.includes(k))?.[1] || [name];
-        console.log('RequirementDetails - Using search terms:', terms);
+        console.log('RequirementDetails - Searching for category:', nameLower);
         
-        try {
-          const searchUrl = `/api/courses?search=${encodeURIComponent(terms[0])}&per_page=8`;
-          console.log('RequirementDetails - Fetching:', searchUrl);
-          
-          const res = await fetch(searchUrl);
-          if (res.ok) {
-            const data = await res.json();
-            console.log('RequirementDetails - Search response:', data);
-            data.courses?.forEach(course => {
-              out.push({
-                id: course.id, code: course.code, title: course.title, credits: course.credits,
-                institution: course.institution, description: course.description,
-                requirement_category: name, is_preferred: false, detectedCategory: name
-              });
-            });
-          } else {
-            console.log('RequirementDetails - Search failed:', res.status, res.statusText);
+        // Try to find matching keywords
+        let searchTerms = [];
+        for (const [key, terms] of Object.entries(mappings)) {
+          if (nameLower.includes(key)) {
+            searchTerms = terms;
+            break;
           }
-        } catch (error) {
-          console.log('RequirementDetails - Search error:', error);
+        }
+        
+        // If no specific mapping found, use the category name itself
+        if (searchTerms.length === 0) {
+          searchTerms = [name];
+        }
+        
+        console.log('RequirementDetails - Using search terms:', searchTerms);
+        
+        // Try each search term
+        for (const term of searchTerms.slice(0, 2)) { // Limit to first 2 terms
+          try {
+            // Build search URL with institution filter if available
+            let searchUrl = `/api/courses?search=${encodeURIComponent(term)}&per_page=10`;
+            if (targetInstitution) {
+              searchUrl += `&institution=${encodeURIComponent(targetInstitution)}`;
+            }
+            
+            console.log('RequirementDetails - Fetching:', searchUrl);
+            
+            const res = await fetch(searchUrl);
+            if (res.ok) {
+              const data = await res.json();
+              console.log('RequirementDetails - Search response for', term, ':', data);
+              
+              if (data.courses && data.courses.length > 0) {
+                data.courses.forEach(course => {
+                  // Additional client-side institution filtering as backup
+                  const courseMatchesInstitution = !targetInstitution || 
+                    course.institution === targetInstitution ||
+                    course.institution?.toLowerCase() === targetInstitution?.toLowerCase();
+                  
+                  if (courseMatchesInstitution) {
+                    // Avoid duplicates
+                    if (!out.find(existing => existing.id === course.id)) {
+                      out.push({
+                        id: course.id,
+                        code: course.code,
+                        title: course.title,
+                        credits: course.credits,
+                        institution: course.institution,
+                        description: course.description,
+                        requirement_category: name,
+                        is_preferred: false,
+                        detectedCategory: name,
+                        search_term: term // Debug info
+                      });
+                    }
+                  } else {
+                    console.log('RequirementDetails - Filtered out course from wrong institution:', 
+                                course.code, 'from', course.institution, 'wanted', targetInstitution);
+                  }
+                });
+              }
+            } else {
+              console.log('RequirementDetails - Search failed for', term, ':', res.status, res.statusText);
+            }
+          } catch (error) {
+            console.log('RequirementDetails - Search error for', term, ':', error);
+          }
+        }
+      } else {
+        // Original programRequirement-based logic with institution filtering
+        console.log('RequirementDetails - Using programRequirement data');
+        
+        if (programRequirement.requirement_type === 'grouped' && programRequirement.groups) {
+          for (const group of programRequirement.groups) {
+            if (!group.course_options) continue;
+            
+            for (const option of group.course_options) {
+              try {
+                let searchUrl = `/api/courses?search=${encodeURIComponent(option.course_code)}`;
+                
+                // Use option institution or fall back to program institution
+                const institutionToSearch = option.institution || targetInstitution;
+                if (institutionToSearch) {
+                  searchUrl += `&institution=${encodeURIComponent(institutionToSearch)}`;
+                }
+                
+                console.log('RequirementDetails - Fetching:', searchUrl);
+                
+                const res = await fetch(searchUrl);
+                if (res.ok) {
+                  const data = await res.json();
+                  const course = data.courses?.[0];
+                  if (course) {
+                    console.log('RequirementDetails - Found course:', course);
+                    out.push({
+                      id: course.id, code: course.code, title: course.title, credits: course.credits,
+                      institution: course.institution, description: course.description,
+                      group_name: group.group_name, is_preferred: option.is_preferred, notes: option.notes,
+                      requirement_category: name, detectedCategory: name
+                    });
+                  }
+                }
+              } catch (error) {
+                console.log('RequirementDetails - Fetch error:', error);
+              }
+            }
+          }
         }
       }
       
-      console.log('RequirementDetails - Final suggestions:', out);
+      console.log('RequirementDetails - Final suggestions (filtered by institution):', out);
       setSuggestions(out);
     } catch (error) {
       console.log('RequirementDetails - generateSuggestions error:', error);
@@ -524,8 +580,7 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
     } finally {
       setLoadingSuggestions(false);
     }
-  }, [programRequirement, loadingSuggestions, name, plan]);
-
+  }, [programRequirement, loadingSuggestions, name, plan, program]);
   // Rest of your component remains the same...
   const getStatusChip = (status) => {
     switch (status) {
