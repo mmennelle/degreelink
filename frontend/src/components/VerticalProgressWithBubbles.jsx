@@ -1,4 +1,4 @@
-// VerticalProgressWithBubbles.jsx - Simplified version without internal carousel
+// VerticalProgressWithBubbles.jsx - Refactored to be a pure presentation component
 import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Plus, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
@@ -69,60 +69,7 @@ export default function VerticalProgressWithBubbles({
   const [openBubbleKey, setOpenBubbleKey] = useState(null);
   const isMobile = useIsMobile();
 
-  // --- Requirement prep (dedupe then use as-is from parent) ---
-  const catKey = (s) => (s || 'Uncategorized').trim().toLowerCase();
-
-  const mergeReq = (a, b) => {
-    const totalA = a.totalCredits ?? a.credits_required ?? 0;
-    const totalB = b.totalCredits ?? b.credits_required ?? 0;
-    const doneA  = a.completedCredits ?? a.credits_completed ?? 0;
-    const doneB  = b.completedCredits ?? b.credits_completed ?? 0;
-    const maxTotal = Math.max(totalA, totalB);
-    const maxDone  = Math.max(doneA, doneB);
-
-    return {
-      ...a,
-      name: a.name || b.name,
-      description: a.description || b.description,
-      requirement_type: a.requirement_type || b.requirement_type,
-      totalCredits: maxTotal,
-      credits_required: maxTotal,
-      completedCredits: maxDone,
-      credits_completed: maxDone,
-      courses: Array.from(new Set([...(a.courses || []), ...(b.courses || [])])),
-      status: (() => {
-        if (maxTotal <= 0) return 'none';
-        if (maxDone >= maxTotal) return 'met';
-        return maxDone > 0 ? 'part' : 'none';
-      })(),
-    };
-  };
-
-  const dedupeByCategory = (list = [], program = null) => {
-    const byKey = new Map();
-    for (const req of list) {
-      const key = catKey(req.category || req.name);
-      const base = {
-        id: req.id || key,
-        name: req.category || req.name || 'Unknown Requirement',
-        status: req.status || (req.is_complete ? 'met' :
-                (req.credits_completed || req.completedCredits || 0) > 0 ? 'part' : 'none'),
-        completedCredits: req.credits_completed || req.completedCredits || 0,
-        totalCredits: req.credits_required || req.totalCredits || 0,
-        courses: req.courses || req.applied || [],
-        description: req.description || '',
-        requirement_type: req.requirement_type || 'simple',
-        programRequirement: program?.requirements?.find(
-          pr => (pr.category || pr.name) === (req.category || req.name)
-        ) || null,
-      };
-      if (!byKey.has(key)) byKey.set(key, base);
-      else byKey.set(key, mergeReq(byKey.get(key), base));
-    }
-    return Array.from(byKey.values());
-  };
-
-  // Use the requirements as-is from parent (already filtered)
+  // Use the requirements as-is from parent (already processed and filtered)
   const displayRequirements = useMemo(() => {
     console.log('VerticalProgress received requirements:', requirements.length, 'items for view:', currentView);
     console.log('Requirements data:', requirements.map(r => ({ 
@@ -131,20 +78,15 @@ export default function VerticalProgressWithBubbles({
       completed: r.completedCredits, 
       total: r.totalCredits 
     })));
-    return dedupeByCategory(requirements || [], program);
-  }, [requirements, program, currentView]);
+    // Return requirements as-is since parent handles all processing
+    return requirements || [];
+  }, [requirements, currentView]);
 
-  // Calculate percent from the filtered requirements
+  // Use percent exactly as passed from parent
   const displayPercent = useMemo(() => {
-    let need = 0, got = 0;
-    for (const r of displayRequirements) {
-      need += (r.totalCredits || 0);
-      got  += Math.min(r.completedCredits || 0, r.totalCredits || 0);
-    }
-    const calculatedPercent = need > 0 ? Math.min(Math.round((got / need) * 100), 100) : 0;
-    console.log(`Progress calculation for ${title}: ${got}/${need} = ${calculatedPercent}%`);
-    return calculatedPercent;
-  }, [displayRequirements, title]);
+    console.log(`Progress for ${title}: ${percent}% (provided by parent)`);
+    return percent || 0;
+  }, [percent, title]);
 
   function getRequirementInitials(name) {
     if (!name) return 'XX';

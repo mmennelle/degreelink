@@ -38,254 +38,342 @@ const PlanBuilder = ({
     plan: null,
     program: null
   });
+
   // ======= Synchronized status carousel (drives both bars together) =======
-    const VIEWS = ['All Courses', 'Planned', 'In Progress', 'Completed'];
-    const [viewIndex, setViewIndex] = useState(0);
-    const [dragging, setDragging] = useState(false);
-    const [dragX, setDragX] = useState(0);
-    const frameRef = useRef(null);
+  const VIEWS = ['All Courses', 'Planned', 'In Progress', 'Completed'];
+  const [viewIndex, setViewIndex] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const [dragX, setDragX] = useState(0);
+  const frameRef = useRef(null);
 
-    // simple mobile detector
-    const useIsMobile = () => {
-      const [isMobile, setIsMobile] = useState(
-        typeof window !== 'undefined' ? window.matchMedia('(max-width: 640px)').matches : false
-      );
-      useEffect(() => {
-        if (typeof window === 'undefined') return;
-        const mq = window.matchMedia('(max-width: 640px)');
-        const handler = e => setIsMobile(e.matches);
-        mq.addEventListener?.('change', handler);
-        mq.addListener?.(handler);
-        return () => {
-          mq.removeEventListener?.('change', handler);
-          mq.removeListener?.(handler);
-        };
-      }, []);
-      return isMobile;
-    };
-    
-    const isMobile = useIsMobile();
-
-    // recompute requirement completion per view using the selected plan
-    const recomputeReqsForView = useCallback((baseReqs, which, plan) => {
-        if (!Array.isArray(baseReqs) || !plan?.courses?.length) return baseReqs || [];
-
-        const buckets = {};
-        const allow = (status) => {
-          if (which === 'All Courses') return true;
-          if (which === 'Planned') return status === 'planned';
-          if (which === 'In Progress') return status === 'in_progress';
-          if (which === 'Completed') return status === 'completed';
-          return true;
-        };
-
-        // Calculate credits per requirement category for the filtered courses
-        for (const pc of plan.courses) {
-          if (!allow(pc.status)) continue;
-          const cat = pc.requirement_category || 'Uncategorized';
-          const credits = pc.credits || pc.course?.credits || 0;
-          buckets[cat] = (buckets[cat] || 0) + credits;
-        }
-
-        // Update each requirement with filtered completion data
-        return (baseReqs || []).map((req) => {
-          const need = req.totalCredits ?? req.credits_required ?? 0;
-          // Use req.category (not req.name) to match requirement_category
-          const categoryKey = req.category || req.name || 'Uncategorized';
-          const got = buckets[categoryKey] || 0;
-          
-          const status = need > 0 ? (got >= need ? 'met' : (got > 0 ? 'part' : 'none')) : 'none';
-          
-          return {
-            ...req,
-            completedCredits: got,
-            credits_completed: got,
-            status,
-          };
-        });
-      }, []);
-    const getInstitutionNames = (plan, program) => {
-      if (!plan?.courses || !program) {
-        return {
-          currentInstitution: 'Current Program',
-          transferInstitution: 'Transfer Program'
-        };
-      }
-
-      const targetInstitution = program.institution;
-      const creditsByInstitution = {};
-      
-      // Calculate credits by institution for completed courses only
-      const completedCourses = plan.courses.filter(pc => pc.status === 'completed');
-      
-      completedCourses.forEach(pc => {
-        const inst = pc.course?.institution;
-        const credits = pc.credits || (pc.course?.credits ?? 0);
-        if (inst && credits > 0) {
-          creditsByInstitution[inst] = (creditsByInstitution[inst] || 0) + credits;
-        }
-      });
-
-      // Find the institution with the most credits (excluding target institution)
-      let currentInstitution = null;
-      let maxCredits = 0;
-      
-      Object.entries(creditsByInstitution).forEach(([inst, creds]) => {
-        if (inst !== targetInstitution && creds > maxCredits) {
-          currentInstitution = inst;
-          maxCredits = creds;
-        }
-      });
-
-  // If we have a current institution override, use that
-  const finalCurrentInstitution = currentInstitutionOverride || currentInstitution;
-
-  return {
-    currentInstitution: finalCurrentInstitution || 'Current Program',
-    transferInstitution: targetInstitution || 'Transfer Program'
-  };
-};
-    const percentFromReqs = (reqs) => {
-      let need = 0, got = 0;
-      (reqs || []).forEach(r => {
-        const tot = r.totalCredits ?? r.credits_required ?? 0;
-        const done = r.completedCredits ?? r.credits_completed ?? 0;
-        need += tot;
-        got  += Math.min(done, tot);
-      });
-      return need > 0 ? Math.min(Math.round((got / need) * 100), 100) : 0;
-    };
-
-    // Build the 4 slides: each slide holds both bars (Current + Transfer)
-    const slides = useMemo(() => {
-      if (!progress) return [];
-      return VIEWS.map((v) => {
-        const currentReqs  = recomputeReqsForView(progress.current.requirements,  v, selectedPlan);
-        const transferReqs = recomputeReqsForView(progress.transfer.requirements, v, selectedPlan);
-        return {
-          name: v,
-          current:  { requirements: currentReqs,  percent: percentFromReqs(currentReqs) },
-          transfer: { requirements: transferReqs, percent: percentFromReqs(transferReqs) }
-        };
-      });
-    }, [progress, selectedPlan, recomputeReqsForView]);
-
-    const go = useCallback((dirOrIndex) => {
-      setViewIndex((i) => {
-        if (typeof dirOrIndex === 'number') return Math.max(0, Math.min(dirOrIndex, VIEWS.length - 1));
-        const n = VIEWS.length;
-        return (i + (dirOrIndex === 'next' ? 1 : -1) + n) % n;
-      });
-    }, []);
-
-    // mobile swipe for the whole two-bar frame
+  // Simple mobile detector
+  const useIsMobile = () => {
+    const [isMobile, setIsMobile] = useState(
+      typeof window !== 'undefined' ? window.matchMedia('(max-width: 640px)').matches : false
+    );
     useEffect(() => {
-      const el = frameRef.current;
-      if (!el) return;
-      let startX = 0, startY = 0, dx = 0, dy = 0, tracking = false;
-
-      const onStart = (e) => {
-        if (!isMobile) return;
-        const t = e.touches?.[0];
-        if (!t) return;
-        startX = t.clientX; startY = t.clientY; dx = 0; dy = 0;
-        tracking = true; setDragging(true); setDragX(0);
-      };
-      const onMove = (e) => {
-        if (!tracking) return;
-        const t = e.touches?.[0]; if (!t) return;
-        dx = t.clientX - startX; dy = t.clientY - startY;
-        if (Math.abs(dx) > Math.abs(dy) * 1.3) setDragX(dx);
-      };
-      const onEnd = () => {
-        if (!tracking) return;
-        tracking = false;
-        const width = el.clientWidth || 1;
-        const threshold = width * 0.25;
-        setDragging(false); setDragX(0);
-        if (dx < -threshold) go('next');
-        else if (dx > threshold) go('prev');
-      };
-
-      el.addEventListener('touchstart', onStart, { passive: true });
-      el.addEventListener('touchmove',  onMove,  { passive: true });
-      el.addEventListener('touchend',   onEnd);
-
+      if (typeof window === 'undefined') return;
+      const mq = window.matchMedia('(max-width: 640px)');
+      const handler = e => setIsMobile(e.matches);
+      mq.addEventListener?.('change', handler);
+      mq.addListener?.(handler);
       return () => {
-        el.removeEventListener('touchstart', onStart);
-        el.removeEventListener('touchmove',  onMove);
-        el.removeEventListener('touchend',   onEnd);
+        mq.removeEventListener?.('change', handler);
+        mq.removeListener?.(handler);
       };
-    }, [isMobile, go]);
-
-    // slide track transform (animate unless dragging)
-    const trackStyle = (() => {
-      const basePct = -(viewIndex * 100);
-      const width = frameRef.current ? frameRef.current.clientWidth || 1 : 1;
-      const dragPct = dragging ? (dragX / width) * 100 : 0;
-      const tx = basePct + dragPct;
-      return {
-        transform: `translateX(${tx}%)`,
-        transition: dragging ? 'none' : 'transform 300ms ease',
-        willChange: 'transform',
-      };
-    })();
-    // ======= END synchronized carousel =======
-
-    // Normalize category keys for deduping
-  const catKey = (s) => (s || 'Uncategorized').trim().toLowerCase();
-
-  // Merge/choose fields for duplicates
-  const mergeReq = (a, b) => {
-    const totalA = a.totalCredits ?? a.credits_required ?? 0;
-    const totalB = b.totalCredits ?? b.credits_required ?? 0;
-    const doneA  = a.completedCredits ?? a.credits_completed ?? 0;
-    const doneB  = b.completedCredits ?? b.credits_completed ?? 0;
-    return {
-      ...a,
-      name: a.name || b.name,
-      description: a.description || b.description,
-      requirement_type: a.requirement_type || b.requirement_type,
-      totalCredits: Math.max(totalA, totalB),
-      credits_required: Math.max(totalA, totalB),
-      completedCredits: Math.max(doneA, doneB),
-      credits_completed: Math.max(doneA, doneB),
-      courses: Array.from(new Set([...(a.courses||[]), ...(b.courses||[])])),
-      status: (() => {
-        const need = Math.max(totalA, totalB);
-        const got  = Math.max(doneA, doneB);
-        if (need <= 0) return 'none';
-        if (got >= need) return 'met';
-        return got > 0 ? 'part' : 'none';
-      })(),
-    };
+    }, []);
+    return isMobile;
   };
-
-  // De-duplicate by category key
-  const dedupeRequirements = (list=[]) => {
-    const byKey = new Map();
-    for (const r of list) {
-      const key = catKey(r.category || r.name);
-      if (!byKey.has(key)) {
-        byKey.set(key, { ...r, id: r.id || key, category: r.category || r.name || 'Uncategorized' });
-      } else {
-        byKey.set(key, mergeReq(byKey.get(key), r));
-      }
-    }
-    return Array.from(byKey.values());
-  };
-
-  // Override for the user's current institution
-  const [currentInstitutionOverride, setCurrentInstitutionOverride] = useState(null);
-  const [showCourses, setShowCourses] = useState(false);
+  
+  const isMobile = useIsMobile();
 
   // Use external programs if provided, otherwise use internal
   const programsList = programs.length > 0 ? programs : internalPrograms;
 
-  const getProgram = useCallback(() => {
-    if (!selectedPlan) return null;
-    return programsList.find(p => p.id === selectedPlan.program_id);
+  const getProgram = useCallback((programId = null) => {
+    if (!selectedPlan && !programId) return null;
+    const targetId = programId || selectedPlan.program_id;
+    return programsList.find(p => p.id === targetId);
   }, [selectedPlan, programsList]);
+
+  // ======= UNIFIED PROGRESS CALCULATION HELPERS =======
+  
+  // Single deduplication function
+  const dedupeRequirements = useCallback((list = []) => {
+    const catKey = (s) => (s || 'Uncategorized').trim().toLowerCase();
+    const byKey = new Map();
+    
+    for (const req of list) {
+      const key = catKey(req.category || req.name);
+      const base = {
+        id: req.id || key,
+        name: req.name || req.category || 'Unknown Requirement',
+        category: req.category || req.name,
+        status: req.status || (req.is_complete ? 'met' :
+                (req.credits_completed || req.completedCredits || 0) > 0 ? 'part' : 'none'),
+        completedCredits: req.credits_completed || req.completedCredits || 0,
+        totalCredits: req.credits_required || req.totalCredits || 0,
+        courses: req.courses || req.applied || [],
+        description: req.description || '',
+        requirement_type: req.requirement_type || 'simple',
+        programRequirement: req.programRequirement || null,
+      };
+
+      if (!byKey.has(key)) {
+        byKey.set(key, base);
+      } else {
+        const existing = byKey.get(key);
+        const totalA = existing.totalCredits || 0;
+        const totalB = base.totalCredits || 0;
+        const doneA = existing.completedCredits || 0;
+        const doneB = base.completedCredits || 0;
+        const maxTotal = Math.max(totalA, totalB);
+        const maxDone = Math.max(doneA, doneB);
+
+        byKey.set(key, {
+          ...existing,
+          name: existing.name || base.name,
+          description: existing.description || base.description,
+          requirement_type: existing.requirement_type || base.requirement_type,
+          totalCredits: maxTotal,
+          completedCredits: maxDone,
+          courses: Array.from(new Set([...existing.courses, ...base.courses])),
+          status: maxTotal <= 0 ? 'none' : (maxDone >= maxTotal ? 'met' : (maxDone > 0 ? 'part' : 'none')),
+        });
+      }
+    }
+    return Array.from(byKey.values());
+  }, []);
+
+  // Unified function to build requirements for a specific program
+  const buildRequirementsForProgram = useCallback((plan, program) => {
+  if (!plan || !program?.requirements) return [];
+
+  const isRelevantCourse = (pc) => {
+    const courseInstitution = pc.course?.institution;
+    const programInstitution = program.institution;
+    const institutionMatch = courseInstitution === programInstitution;
+    const equivMatch =
+      pc.equivalent_to_program_id === program.id ||
+      pc.transfers_to_program_id === program.id;
+    return institutionMatch || equivMatch;
+  };
+
+  const creditsByCategory = {};
+  (plan.courses || []).forEach(pc => {
+    if (pc.status !== 'completed' || !isRelevantCourse(pc)) return;
+    const category = pc.requirement_category || 'Uncategorized';
+    const credits = pc.credits || pc.course?.credits || 0;
+    creditsByCategory[category] = (creditsByCategory[category] || 0) + credits;
+  });
+
+  return program.requirements.map(req => {
+    const completedCredits = creditsByCategory[req.category] || 0;
+    const totalCredits = req.credits_required || 0;
+    const status = totalCredits > 0
+      ? (completedCredits >= totalCredits ? 'met' : (completedCredits > 0 ? 'part' : 'none'))
+      : 'none';
+
+    const appliedCourses = (plan.courses || [])
+      .filter(pc => pc.status === 'completed' &&
+                    (pc.requirement_category || 'Uncategorized') === req.category &&
+                    isRelevantCourse(pc))
+      .map(pc => pc.course?.code || pc.course?.title || `Course ${pc.id}`);
+
+    return {
+      id: req.id || req.category,
+      name: req.category,
+      category: req.category,
+      status,
+      completedCredits,
+      totalCredits,
+      courses: appliedCourses,
+      description: req.description,
+      requirement_type: req.requirement_type,
+      programRequirement: req
+    };
+  });
+}, []);
+
+
+  // Get institution names for progress bars
+  const getInstitutionNames = useCallback((plan, targetProgram) => {
+  const currentProgram = plan?.current_program_id ? getProgram(plan.current_program_id) : null;
+  if (currentProgram && targetProgram) {
+    return {
+      currentInstitution: currentProgram.institution || 'Current Program',
+      transferInstitution: targetProgram.institution || 'Transfer Program',
+    };
+  }
+
+    const targetInstitution = targetProgram.institution;
+    const completedCourses = plan.courses.filter(pc => pc.status === 'completed');
+    const creditsByInstitution = {};
+    
+    completedCourses.forEach(pc => {
+      const inst = pc.course?.institution;
+      const credits = pc.credits || (pc.course?.credits ?? 0);
+      if (inst && credits > 0) {
+        creditsByInstitution[inst] = (creditsByInstitution[inst] || 0) + credits;
+      }
+    });
+
+    // Find the institution with the most credits (excluding target)
+    let currentInstitution = null;
+    let maxCredits = 0;
+    
+    Object.entries(creditsByInstitution).forEach(([inst, creds]) => {
+      if (inst !== targetInstitution && creds > maxCredits) {
+        currentInstitution = inst;
+        maxCredits = creds;
+      }
+    });
+
+    return {
+      currentInstitution: currentInstitution || 'Current Program',
+      transferInstitution: targetInstitution || 'Transfer Program'
+    };
+  }, []);
+
+  // Recompute requirements for view filtering (All/Planned/In Progress/Completed)
+  const recomputeReqsForView = useCallback((baseReqs, viewFilter, plan, program) => {
+  if (!Array.isArray(baseReqs) || !plan?.courses?.length) return baseReqs || [];
+
+  const allowStatus = (status) => {
+    if (viewFilter === 'All Courses') return true;
+    if (viewFilter === 'Planned') return status === 'planned';
+    if (viewFilter === 'In Progress') return status === 'in_progress';
+    if (viewFilter === 'Completed') return status === 'completed';
+    return true;
+  };
+
+  const isRelevantCourse = (pc) => {
+    const courseInstitution = pc.course?.institution;
+    const programInstitution = program?.institution;
+    const institutionMatch = courseInstitution === programInstitution;
+    const equivMatch =
+      pc.equivalent_to_program_id === program?.id ||
+      pc.transfers_to_program_id === program?.id;
+    return institutionMatch || equivMatch;
+  };
+
+  const creditsByCategory = {};
+  for (const pc of plan.courses) {
+    if (!allowStatus(pc.status) || !isRelevantCourse(pc)) continue;
+    const category = pc.requirement_category || 'Uncategorized';
+    const credits = pc.credits || pc.course?.credits || 0;
+    creditsByCategory[category] = (creditsByCategory[category] || 0) + credits;
+  }
+
+  return baseReqs.map(req => {
+    const categoryKey = req.category || req.name || 'Uncategorized';
+    const completedCredits = creditsByCategory[categoryKey] || 0;
+    const totalCredits = req.totalCredits || 0;
+    const status = totalCredits > 0
+      ? (completedCredits >= totalCredits ? 'met' : (completedCredits > 0 ? 'part' : 'none'))
+      : 'none';
+    return {
+      ...req,
+      completedCredits,
+      status,
+    };
+  });
+}, []);
+
+
+  // Calculate percentage from requirements
+  const percentFromReqs = (reqs) => {
+    let totalRequired = 0, totalCompleted = 0;
+    (reqs || []).forEach(r => {
+      const required = r.totalCredits || 0;
+      const completed = Math.min(r.completedCredits || 0, required);
+      totalRequired += required;
+      totalCompleted += completed;
+    });
+    return totalRequired > 0 ? Math.min(Math.round((totalCompleted / totalRequired) * 100), 100) : 0;
+  };
+
+  // Build the 4 slides: each slide holds both bars (Current + Transfer) with proper mapping
+  const slides = useMemo(() => {
+  if (!progress || !selectedPlan) return [];
+
+  const targetProgram = getProgram();
+  const { currentInstitution, transferInstitution } = getInstitutionNames(selectedPlan, targetProgram);
+
+  return VIEWS.map(viewName => {
+    const currentProgram = selectedPlan.current_program_id ? getProgram(selectedPlan.current_program_id) : null;
+    let currentReqs;
+
+    if (currentProgram) {
+      const baseCurrentReqs = buildRequirementsForProgram(selectedPlan, currentProgram);
+      currentReqs = recomputeReqsForView(baseCurrentReqs, viewName, selectedPlan, currentProgram);
+    } else {
+      const baseCurrentReqs = progress?.current?.requirements || [];
+      currentReqs = recomputeReqsForView(baseCurrentReqs, viewName, selectedPlan, currentProgram);
+    }
+
+    const baseTransferReqs = buildRequirementsForProgram(selectedPlan, targetProgram);
+    const transferReqs = recomputeReqsForView(baseTransferReqs, viewName, selectedPlan, targetProgram);
+
+    return {
+      name: viewName,
+      current: {
+        requirements: dedupeRequirements(currentReqs),
+        percent: percentFromReqs(currentReqs),
+        institution: currentInstitution,
+      },
+      transfer: {
+        requirements: dedupeRequirements(transferReqs),
+        percent: percentFromReqs(transferReqs),
+        institution: transferInstitution,
+      },
+    };
+  });
+}, [progress, selectedPlan, getProgram, getInstitutionNames, buildRequirementsForProgram, recomputeReqsForView, dedupeRequirements]);
+
+
+  const go = useCallback((dirOrIndex) => {
+    setViewIndex((i) => {
+      if (typeof dirOrIndex === 'number') return Math.max(0, Math.min(dirOrIndex, VIEWS.length - 1));
+      const n = VIEWS.length;
+      return (i + (dirOrIndex === 'next' ? 1 : -1) + n) % n;
+    });
+  }, []);
+
+  // Mobile swipe for the whole two-bar frame
+  useEffect(() => {
+    const el = frameRef.current;
+    if (!el) return;
+    let startX = 0, startY = 0, dx = 0, dy = 0, tracking = false;
+
+    const onStart = (e) => {
+      if (!isMobile) return;
+      const t = e.touches?.[0];
+      if (!t) return;
+      startX = t.clientX; startY = t.clientY; dx = 0; dy = 0;
+      tracking = true; setDragging(true); setDragX(0);
+    };
+    const onMove = (e) => {
+      if (!tracking) return;
+      const t = e.touches?.[0]; if (!t) return;
+      dx = t.clientX - startX; dy = t.clientY - startY;
+      if (Math.abs(dx) > Math.abs(dy) * 1.3) setDragX(dx);
+    };
+    const onEnd = () => {
+      if (!tracking) return;
+      tracking = false;
+      const width = el.clientWidth || 1;
+      const threshold = width * 0.25;
+      setDragging(false); setDragX(0);
+      if (dx < -threshold) go('next');
+      else if (dx > threshold) go('prev');
+    };
+
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove',  onMove,  { passive: true });
+    el.addEventListener('touchend',   onEnd);
+
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove',  onMove);
+      el.removeEventListener('touchend',   onEnd);
+    };
+  }, [isMobile, go]);
+
+  // Slide track transform (animate unless dragging)
+  const trackStyle = (() => {
+    const basePct = -(viewIndex * 100);
+    const width = frameRef.current ? frameRef.current.clientWidth || 1 : 1;
+    const dragPct = dragging ? (dragX / width) * 100 : 0;
+    const tx = basePct + dragPct;
+    return {
+      transform: `translateX(${tx}%)`,
+      transition: dragging ? 'none' : 'transform 300ms ease',
+      willChange: 'transform',
+    };
+  })();
+
+  // ======= COMPONENT LIFECYCLE =======
 
   useEffect(() => {
     if (externalPlans === undefined) {
@@ -314,8 +402,8 @@ const PlanBuilder = ({
           console.warn('API progress failed, using local calculation:', apiError);
         }
 
-        const localPercents = selectedPlan ? getVerticalProgressData(selectedPlan) : { current: 0, transfer: 0 };
         const program = getProgram();
+        const currentProgram = selectedPlan?.current_program_id ? getProgram(selectedPlan.current_program_id) : null;
 
         const normalize = (side) => ({
           percent: Math.round(
@@ -336,8 +424,6 @@ const PlanBuilder = ({
               status,
               completedCredits: completed,
               totalCredits: total,
-              credits_completed: completed,
-              credits_required: total,
               courses: r.courses || r.applied || [],
               description: r.description,
               requirement_type: r.requirement_type,
@@ -356,18 +442,12 @@ const PlanBuilder = ({
           apiTransfer = normalize(progressData.transfer || {});
         }
 
-        // Use local fallbacks if API data is incomplete
-        if (!apiCurrent.percent && localPercents.current) {
-          apiCurrent.percent = Math.round(localPercents.current);
+        // Build fallback requirements if API data is incomplete
+        if (!apiCurrent.requirements?.length && currentProgram) {
+          apiCurrent.requirements = buildRequirementsForProgram(selectedPlan, currentProgram);
         }
-        if (!apiTransfer.percent && localPercents.transfer) {
-          apiTransfer.percent = Math.round(localPercents.transfer);
-        }
-
-        if (!apiCurrent.requirements?.length || !apiTransfer.requirements?.length) {
-          const reqs = dedupeRequirements(buildRequirementStatuses(selectedPlan, program));
-          if (!apiCurrent.requirements?.length) apiCurrent.requirements = reqs;
-          if (!apiTransfer.requirements?.length) apiTransfer.requirements = reqs;
+        if (!apiTransfer.requirements?.length && program) {
+          apiTransfer.requirements = buildRequirementsForProgram(selectedPlan, program);
         }
 
         if (alive) {
@@ -385,15 +465,10 @@ const PlanBuilder = ({
 
       } catch (e) {
         console.error('Progress loading failed:', e);
-        // Fallback to local calculation
-        const localPercents = selectedPlan ? getVerticalProgressData(selectedPlan) : { current: 0, transfer: 0 };
-        const program = getProgram();
-        const reqs = buildRequirementStatuses(selectedPlan, program);
-        
         if (alive) {
           setProgress({
-            current: { percent: Math.round(localPercents.current), requirements: reqs },
-            transfer: { percent: Math.round(localPercents.transfer), requirements: reqs },
+            current: { percent: 0, requirements: [] },
+            transfer: { percent: 0, requirements: [] },
           });
         }
       } finally {
@@ -403,7 +478,7 @@ const PlanBuilder = ({
     
     loadProgress();
     return () => { alive = false; };
-  }, [selectedPlanId, selectedPlan, getProgram]);
+  }, [selectedPlanId, selectedPlan, getProgram, buildRequirementsForProgram, dedupeRequirements]);
 
   useEffect(() => {
     if (selectedPlanId && plans.length > 0) {
@@ -542,46 +617,6 @@ const PlanBuilder = ({
     onCreatePlan?.();
   }
 
-  const updateCourseStatus = async (planCourseId, newStatus) => {
-    if (!selectedPlan) return;
-    
-    try {
-      await api.updatePlanCourse(selectedPlan.id, planCourseId, {
-        status: newStatus
-      });
-      await loadPlanDetails(selectedPlan.id);
-    } catch (error) {
-      console.error('Failed to update course status:', error);
-      alert(`Failed to update course status: ${error.message}`);
-    }
-  };
-
-  const updateCourseRequirement = async (planCourseId, newRequirement) => {
-    if (!selectedPlan) return;
-    
-    try {
-      await api.updatePlanCourse(selectedPlan.id, planCourseId, {
-        requirement_category: newRequirement
-      });
-      await loadPlanDetails(selectedPlan.id);
-    } catch (error) {
-      console.error('Failed to update course requirement:', error);
-      alert(`Failed to update course requirement: ${error.message}`);
-    }
-  };
-
-  const removeCourseFromPlan = async (planCourseId) => {
-    if (!selectedPlan || !confirm('Are you sure you want to remove this course from the plan?')) return;
-    
-    try {
-      await api.removeCourseFromPlan(selectedPlan.id, planCourseId);
-      await loadPlanDetails(selectedPlan.id);
-    } catch (error) {
-      console.error('Failed to remove course:', error);
-      alert(`Failed to remove course: ${error.message}`);
-    }
-  };
-
   const getStatusColor = (status) => {
     switch (status) {
       case 'completed':
@@ -599,128 +634,6 @@ const PlanBuilder = ({
     return status.split('_').map(word => 
       word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
-  };
-
-  const groupCoursesByRequirement = (courses) => {
-    const grouped = {};
-    courses.forEach(course => {
-      const category = course.requirement_category || 'Uncategorized';
-      if (!grouped[category]) {
-        grouped[category] = [];
-      }
-      grouped[category].push(course);
-    });
-    return grouped;
-  };
-
-  const getVerticalProgressData = (plan) => {
-    if (!plan || !plan.progress || !plan.courses) return { current: 0, transfer: 0 };
-    const progress = plan.progress;
-    const totalRequired = progress.total_credits_required || 0;
-    if (totalRequired <= 0) return { current: 0, transfer: 0 };
-    
-    const targetInstitution = getProgram()?.institution;
-    const eqToTarget = new Set();
-    if (progress.transfer_analysis && progress.transfer_analysis.transfer_courses) {
-      progress.transfer_analysis.transfer_courses.forEach(eq => {
-        if (eq.to_institution === targetInstitution) {
-          eqToTarget.add(eq.from_course);
-        }
-      });
-    }
-
-    const completedCourses = plan.courses.filter(pc => pc.status === 'completed');
-    const creditsByInstitution = {};
-    completedCourses.forEach(pc => {
-      const inst = pc.course?.institution;
-      const credits = pc.credits || (pc.course?.credits ?? 0);
-      if (!inst) return;
-      creditsByInstitution[inst] = (creditsByInstitution[inst] || 0) + credits;
-    });
-
-    let currentInstitution = currentInstitutionOverride || null;
-    if (!currentInstitution) {
-      let maxCredits = 0;
-      Object.entries(creditsByInstitution).forEach(([inst, creds]) => {
-        if (inst !== targetInstitution && creds > maxCredits) {
-          currentInstitution = inst;
-          maxCredits = creds;
-        }
-      });
-    }
-
-    let currentCredits = 0;
-    let transferCredits = 0;
-
-    completedCourses.forEach(pc => {
-      const inst = pc.course?.institution;
-      const code = pc.course?.code;
-      const credits = pc.credits || (pc.course?.credits ?? 0);
-      if (!inst || credits <= 0) return;
-
-      if (inst === targetInstitution) {
-        transferCredits += credits;
-      } else {
-        if (inst === currentInstitution) {
-          currentCredits += credits;
-        }
-        if (eqToTarget.has(code)) {
-          transferCredits += credits;
-        }
-      }
-    });
-
-    const currentPercentage = Math.min((currentCredits / totalRequired) * 100, 100);
-    const transferPercentage = Math.min((transferCredits / totalRequired) * 100, 100);
-    return { current: currentPercentage, transfer: transferPercentage };
-  };
-
-  const getProgressColor = (percentage) => {
-    if (percentage >= 100) return 'from-green-500 to-emerald-500';
-    if (percentage >= 75) return 'from-blue-500 to-green-500';
-    if (percentage >= 50) return 'from-yellow-500 to-blue-500';
-    if (percentage >= 25) return 'from-orange-500 to-yellow-500';
-    return 'from-red-500 to-orange-500';
-  };
-
-  const buildRequirementStatuses = (plan, program) => {
-    if (!plan || !program?.requirements) return [];
-
-    const byCat = {};
-    (plan.courses || []).forEach(pc => {
-      if (pc.status !== 'completed') return;
-      const cat = pc.requirement_category || 'Uncategorized';
-      const credits = pc.credits || pc.course?.credits || 0;
-      byCat[cat] = (byCat[cat] || 0) + credits;
-    });
-
-    return (program.requirements || []).map(req => {
-      const got = byCat[req.category] || 0;
-      const need = req.credits_required || 0;
-      let status = 'none';
-      if (need > 0) {
-        status = got >= need ? 'met' : (got > 0 ? 'part' : 'none');
-      }
-      
-      const appliedCourses = (plan.courses || [])
-        .filter(pc => pc.status === 'completed' && (pc.requirement_category || 'Uncategorized') === req.category)
-        .map(pc => pc.course?.code || pc.course?.title || `Course ${pc.id}`);
-
-      return {
-        id: req.id || req.category,
-        name: req.category,
-        category: req.category,
-        status,
-        completedCredits: got,
-        totalCredits: need,
-        credits_completed: got,
-        credits_required: need,
-        courses: appliedCourses,
-        description: req.description,
-        requirement_type: req.requirement_type,
-        programRequirement: req
-      };
-    });
   };
 
   if (loading && plans.length === 0) {
@@ -741,9 +654,6 @@ const PlanBuilder = ({
           <h2 className="text-2xl sm:text-3xl font-semibold mx-auto text-gray-900 dark:text-white">
             {selectedPlan ? (selectedPlan.plan_name || 'Untitled Plan') : 'Your Academic Plans'}
           </h2>
-
-
-          
         </div>
 
         {error && (
@@ -856,88 +766,80 @@ const PlanBuilder = ({
                   No progress data available.
                 </div>
               ) : (
-                // Synchronized two-bar carousel
-                (
-                  <div className="flex flex-col items-center gap-2">
-                    {/* Header controls */}
-                    <div className="flex items-center gap-2">
-                      {!isMobile && (
-                        <button
-                          onClick={() => go('prev')}
-                          aria-label="Previous view"
-                          className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-                        >
-                          <ChevronLeft size={18}/>
-                        </button>
-                      )}
-                      <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                        {VIEWS[viewIndex]}
-                      </div>
-                      {!isMobile && (
-                        <button
-                          onClick={() => go('next')}
-                          aria-label="Next view"
-                          className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-                        >
-                          <ChevronRight size={18}/>
-                        </button>
-                      )}
+                // Synchronized two-bar carousel with proper institution mapping
+                <div className="flex flex-col items-center gap-2">
+                  {/* Header controls */}
+                  <div className="flex items-center gap-2">
+                    {!isMobile && (
+                      <button
+                        onClick={() => go('prev')}
+                        aria-label="Previous view"
+                        className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                      >
+                        <ChevronLeft size={18}/>
+                      </button>
+                    )}
+                    <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                      {VIEWS[viewIndex]}
                     </div>
+                    {!isMobile && (
+                      <button
+                        onClick={() => go('next')}
+                        aria-label="Next view"
+                        className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                      >
+                        <ChevronRight size={18}/>
+                      </button>
+                    )}
+                  </div>
 
-                    {/* Frame */}
-                    <div ref={frameRef} className="relative w-full">
-                      <div className="overflow-hidden">
-                        {/* Track */}
-                        <div className="flex" style={trackStyle}>
-                          {slides.map((s) => {
-                              const { currentInstitution, transferInstitution } = getInstitutionNames(selectedPlan, getProgram());
-                              
-                              return (
-                                <div key={s.name} className="basis-full shrink-0">
-                                  <div className="flex items-start justify-center gap-3 sm:gap-6 lg:gap-8 w-full max-w-full px-1 sm:px-0">
-                                    <VerticalProgressWithBubbles
-                                      title={currentInstitution}
-                                      percent={s.current.percent}
-                                      requirements={s.current.requirements}
-                                      color="blue"
-                                      program={getProgram()}
-                                      plan={selectedPlan}
-                                      onAddCourse={handleCourseSelect}
-                                      enableCarousel={false}
-                                      currentView={VIEWS[viewIndex]}
-                                    />
-                                    <VerticalProgressWithBubbles
-                                      title={transferInstitution}
-                                      percent={s.transfer.percent}
-                                      requirements={s.transfer.requirements}
-                                      color="violet"
-                                      program={getProgram()}
-                                      plan={selectedPlan}
-                                      onAddCourse={handleCourseSelect}
-                                      enableCarousel={false}
-                                      currentView={VIEWS[viewIndex]}
-                                    />
-                                  </div>
-                                </div>
-                              );
-                            })}
-                        </div>
+                  {/* Frame */}
+                  <div ref={frameRef} className="relative w-full">
+                    <div className="overflow-hidden">
+                      {/* Track */}
+                      <div className="flex" style={trackStyle}>
+                        {slides.map((slide) => (
+                          <div key={slide.name} className="basis-full shrink-0">
+                            <div className="flex items-start justify-center gap-3 sm:gap-6 lg:gap-8 w-full max-w-full px-1 sm:px-0">
+                              <VerticalProgressWithBubbles
+                                title={slide.current.institution}
+                                percent={slide.current.percent}
+                                requirements={slide.current.requirements}
+                                color="blue"
+                                program={selectedPlan.current_program_id ? getProgram(selectedPlan.current_program_id) : getProgram()}
+                                plan={selectedPlan}
+                                onAddCourse={handleCourseSelect}
+                                currentView={VIEWS[viewIndex]}
+                              />
+                              <VerticalProgressWithBubbles
+                                title={slide.transfer.institution}
+                                percent={slide.transfer.percent}
+                                requirements={slide.transfer.requirements}
+                                color="violet"
+                                program={getProgram()}
+                                plan={selectedPlan}
+                                onAddCourse={handleCourseSelect}
+                                currentView={VIEWS[viewIndex]}
+                              />
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    </div>
-
-                    {/* Dots */}
-                    <div className="flex items-center gap-1">
-                      {VIEWS.map((v, i) => (
-                        <button
-                          key={v}
-                          aria-label={`Go to ${v}`}
-                          onClick={() => setViewIndex(i)}
-                          className={`h-1.5 rounded-full transition-all ${i === viewIndex ? 'w-4 bg-gray-700 dark:bg-gray-200' : 'w-2 bg-gray-300 dark:bg-gray-600'}`}
-                        />
-                      ))}
                     </div>
                   </div>
-                )
+
+                  {/* Dots */}
+                  <div className="flex items-center gap-1">
+                    {VIEWS.map((v, i) => (
+                      <button
+                        key={v}
+                        aria-label={`Go to ${v}`}
+                        onClick={() => setViewIndex(i)}
+                        className={`h-1.5 rounded-full transition-all ${i === viewIndex ? 'w-4 bg-gray-700 dark:bg-gray-200' : 'w-2 bg-gray-300 dark:bg-gray-600'}`}
+                      />
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
 
@@ -995,4 +897,5 @@ const PlanBuilder = ({
     </div>
   );
 };
+
 export default PlanBuilder;
