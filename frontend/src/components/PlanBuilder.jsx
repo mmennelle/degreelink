@@ -125,141 +125,95 @@ const PlanBuilder = ({
     return Array.from(byKey.values());
   }, []);
 
-  // Unified function to build requirements for a specific program
-  const buildRequirementsForProgram = useCallback((plan, program) => {
-  if (!plan || !program?.requirements) return [];
-
-  const isRelevantCourse = (pc) => {
-    const courseInstitution = pc.course?.institution;
-    const programInstitution = program.institution;
-    const institutionMatch = courseInstitution === programInstitution;
-    const equivMatch =
-      pc.equivalent_to_program_id === program.id ||
-      pc.transfers_to_program_id === program.id;
-    return institutionMatch || equivMatch;
-  };
-
-  const creditsByCategory = {};
-  (plan.courses || []).forEach(pc => {
-    if (pc.status !== 'completed' || !isRelevantCourse(pc)) return;
-    const category = pc.requirement_category || 'Uncategorized';
-    const credits = pc.credits || pc.course?.credits || 0;
-    creditsByCategory[category] = (creditsByCategory[category] || 0) + credits;
-  });
-
-  return program.requirements.map(req => {
-    const completedCredits = creditsByCategory[req.category] || 0;
-    const totalCredits = req.credits_required || 0;
-    const status = totalCredits > 0
-      ? (completedCredits >= totalCredits ? 'met' : (completedCredits > 0 ? 'part' : 'none'))
-      : 'none';
-
-    const appliedCourses = (plan.courses || [])
-      .filter(pc => pc.status === 'completed' &&
-                    (pc.requirement_category || 'Uncategorized') === req.category &&
-                    isRelevantCourse(pc))
-      .map(pc => pc.course?.code || pc.course?.title || `Course ${pc.id}`);
-
-    return {
-      id: req.id || req.category,
-      name: req.category,
-      category: req.category,
-      status,
-      completedCredits,
-      totalCredits,
-      courses: appliedCourses,
-      description: req.description,
-      requirement_type: req.requirement_type,
-      programRequirement: req
-    };
-  });
-}, []);
-
+        const buildRequirementsForProgram = useCallback((plan, program) => {
+          if (!plan || !program?.requirements) return [];
+          // Determine if a course should count toward this program
+          const isRelevantCourse = (pc) => {
+            const courseInst = pc.course?.institution;
+            const progInst   = program.institution;
+            if (!courseInst || !progInst) return false;
+            return courseInst === progInst ||
+                  pc.equivalent_to_program_id === program.id ||
+                  pc.transfers_to_program_id  === program.id;
+          };
+          // Aggregate credits by category for completed, relevant courses
+          const creditsByCategory = {};
+          (plan.courses || []).forEach(pc => {
+            if (pc.status !== 'completed' || !isRelevantCourse(pc)) return;
+            const category = pc.requirement_category || 'Uncategorized';
+            const credits  = pc.credits || pc.course?.credits || 0;
+            creditsByCategory[category] = (creditsByCategory[category] || 0) + credits;
+          });
+          // Build the requirement objects for display
+          return program.requirements.map(req => {
+            const completed = creditsByCategory[req.category] || 0;
+            const total     = req.credits_required || 0;
+            const status    = total > 0
+              ? completed >= total ? 'met' :
+                completed > 0      ? 'part' : 'none'
+              : 'none';
+            const appliedCourses = (plan.courses || [])
+              .filter(pc =>
+                pc.status === 'completed' &&
+                (pc.requirement_category || 'Uncategorized') === req.category &&
+                isRelevantCourse(pc)
+              )
+              .map(pc => pc.course?.code || pc.course?.title || `Course ${pc.id}`);
+            return {
+              id: req.id || req.category,
+              name: req.category,
+              category: req.category,
+              status,
+              completedCredits: completed,
+              totalCredits: total,
+              courses: appliedCourses,
+              description: req.description,
+              requirement_type: req.requirement_type,
+              programRequirement: req,
+            };
+          });
+        }, []);
 
   // Get institution names for progress bars
   const getInstitutionNames = useCallback((plan, targetProgram) => {
   const currentProgram = plan?.current_program_id ? getProgram(plan.current_program_id) : null;
-  if (currentProgram && targetProgram) {
-    return {
-      currentInstitution: currentProgram.institution || 'Current Program',
-      transferInstitution: targetProgram.institution || 'Transfer Program',
-    };
-  }
+  return {
+    currentInstitution: currentProgram?.institution || 'Current Program',
+    transferInstitution: targetProgram?.institution || 'Transfer Program',
+  };
+}, [getProgram]);
 
-    const targetInstitution = targetProgram.institution;
-    const completedCourses = plan.courses.filter(pc => pc.status === 'completed');
-    const creditsByInstitution = {};
-    
-    completedCourses.forEach(pc => {
-      const inst = pc.course?.institution;
-      const credits = pc.credits || (pc.course?.credits ?? 0);
-      if (inst && credits > 0) {
-        creditsByInstitution[inst] = (creditsByInstitution[inst] || 0) + credits;
-      }
-    });
 
-    // Find the institution with the most credits (excluding target)
-    let currentInstitution = null;
-    let maxCredits = 0;
-    
-    Object.entries(creditsByInstitution).forEach(([inst, creds]) => {
-      if (inst !== targetInstitution && creds > maxCredits) {
-        currentInstitution = inst;
-        maxCredits = creds;
-      }
-    });
-
-    return {
-      currentInstitution: currentInstitution || 'Current Program',
-      transferInstitution: targetInstitution || 'Transfer Program'
-    };
-  }, []);
-
-  // Recompute requirements for view filtering (All/Planned/In Progress/Completed)
-  const recomputeReqsForView = useCallback((baseReqs, viewFilter, plan, program) => {
+const recomputeReqsForView = useCallback((baseReqs, viewFilter, plan, program) => {
   if (!Array.isArray(baseReqs) || !plan?.courses?.length) return baseReqs || [];
-
-  const allowStatus = (status) => {
-    if (viewFilter === 'All Courses') return true;
-    if (viewFilter === 'Planned') return status === 'planned';
-    if (viewFilter === 'In Progress') return status === 'in_progress';
-    if (viewFilter === 'Completed') return status === 'completed';
-    return true;
+  const allowStatus = status =>
+    viewFilter === 'All Courses' || status === viewFilter.toLowerCase().replace(' ', '_');
+  const isRelevantCourse = pc => {
+    const courseInst = pc.course?.institution;
+    const progInst   = program?.institution;
+    if (!courseInst || !progInst) return false;
+    return courseInst === progInst ||
+           pc.equivalent_to_program_id === program?.id ||
+           pc.transfers_to_program_id  === program?.id;
   };
-
-  const isRelevantCourse = (pc) => {
-    const courseInstitution = pc.course?.institution;
-    const programInstitution = program?.institution;
-    const institutionMatch = courseInstitution === programInstitution;
-    const equivMatch =
-      pc.equivalent_to_program_id === program?.id ||
-      pc.transfers_to_program_id === program?.id;
-    return institutionMatch || equivMatch;
-  };
-
   const creditsByCategory = {};
   for (const pc of plan.courses) {
     if (!allowStatus(pc.status) || !isRelevantCourse(pc)) continue;
     const category = pc.requirement_category || 'Uncategorized';
-    const credits = pc.credits || pc.course?.credits || 0;
+    const credits  = pc.credits || pc.course?.credits || 0;
     creditsByCategory[category] = (creditsByCategory[category] || 0) + credits;
   }
-
   return baseReqs.map(req => {
-    const categoryKey = req.category || req.name || 'Uncategorized';
-    const completedCredits = creditsByCategory[categoryKey] || 0;
-    const totalCredits = req.totalCredits || 0;
-    const status = totalCredits > 0
-      ? (completedCredits >= totalCredits ? 'met' : (completedCredits > 0 ? 'part' : 'none'))
+    const key      = req.category || req.name || 'Uncategorized';
+    const done     = creditsByCategory[key] || 0;
+    const required = req.totalCredits || 0;
+    const status   = required > 0
+      ? done >= required ? 'met' :
+        done > 0        ? 'part' : 'none'
       : 'none';
-    return {
-      ...req,
-      completedCredits,
-      status,
-    };
+    return { ...req, completedCredits: done, status };
   });
 }, []);
-
 
   // Calculate percentage from requirements
   const percentFromReqs = (reqs) => {
@@ -802,25 +756,30 @@ const PlanBuilder = ({
                           <div key={slide.name} className="basis-full shrink-0">
                             <div className="flex items-start justify-center gap-3 sm:gap-6 lg:gap-8 w-full max-w-full px-1 sm:px-0">
                               <VerticalProgressWithBubbles
-                                title={slide.current.institution}
-                                percent={slide.current.percent}
-                                requirements={slide.current.requirements}
-                                color="blue"
-                                program={selectedPlan.current_program_id ? getProgram(selectedPlan.current_program_id) : getProgram()}
-                                plan={selectedPlan}
-                                onAddCourse={handleCourseSelect}
-                                currentView={VIEWS[viewIndex]}
-                              />
-                              <VerticalProgressWithBubbles
-                                title={slide.transfer.institution}
-                                percent={slide.transfer.percent}
-                                requirements={slide.transfer.requirements}
-                                color="violet"
-                                program={getProgram()}
-                                plan={selectedPlan}
-                                onAddCourse={handleCourseSelect}
-                                currentView={VIEWS[viewIndex]}
-                              />
+                                  // Current program bar (blue)
+                                  title={slide.current.institution}
+                                  percent={slide.current.percent}
+                                  requirements={slide.current.requirements}
+                                  color="blue"
+                                  /* Use the actual current program if defined; otherwise pass null so it doesn't adopt the target program */
+                                  program={selectedPlan.current_program_id ? getProgram(selectedPlan.current_program_id) : null}
+                                  plan={selectedPlan}
+                                  onAddCourse={handleCourseSelect}
+                                  currentView={VIEWS[viewIndex]}
+                                />
+                                <VerticalProgressWithBubbles
+                                  // Transfer/target program bar (violet)
+                                  title={slide.transfer.institution}
+                                  percent={slide.transfer.percent}
+                                  requirements={slide.transfer.requirements}
+                                  color="violet"
+                                  /* Always use the target program here */
+                                  program={getProgram()}
+                                  plan={selectedPlan}
+                                  onAddCourse={handleCourseSelect}
+                                  currentView={VIEWS[viewIndex]}
+                                />
+
                             </div>
                           </div>
                         ))}
