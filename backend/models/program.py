@@ -15,9 +15,9 @@ class Program(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    
+    # Define relationships - these are already defined in Plan model with foreign_keys specified
+    # Remove the ambiguous 'plans' relationship since Plan model handles this properly
     requirements = db.relationship('ProgramRequirement', backref='program', cascade='all, delete-orphan')
-    plans = db.relationship('Plan', backref='program')
     
     def __repr__(self):
         return f'<Program {self.name} ({self.degree_type})>'

@@ -354,6 +354,7 @@ export default function VerticalProgressWithBubbles({
                       onClose={() => setOpenBubbleKey(null)}
                       onAddCourse={onAddCourse}
                       plan={plan}
+                      program={program}  // Pass the program prop
                       compact
                     />
                   </MobileSheetPortal>
@@ -364,6 +365,7 @@ export default function VerticalProgressWithBubbles({
                       onClose={() => setOpenBubbleKey(null)}
                       onAddCourse={onAddCourse}
                       plan={plan}
+                      program={program}  // Pass the program prop
                     />
                   </DesktopPopoverPortal>
                 )
@@ -376,7 +378,10 @@ export default function VerticalProgressWithBubbles({
   );
 }
 
-function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact = false }) {
+// Add this debug logging to your RequirementDetails component
+// Replace the existing RequirementDetails function with this enhanced version:
+
+function RequirementDetails({ requirement, onClose, onAddCourse, plan, program, compact = false }) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showCourses, setShowCourses] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
@@ -391,76 +396,240 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
     programRequirement
   } = requirement;
 
-  const requirementCourses = React.useMemo(() => {
-    if (!plan?.courses) return [];
-    return plan.courses.filter(pc => (pc.requirement_category || 'Uncategorized') === name);
-  }, [plan?.courses, name]);
+  // DEBUG: Log requirement data
+  console.log('RequirementDetails - Full requirement object:', requirement);
+  console.log('RequirementDetails - programRequirement:', programRequirement);
+  console.log('RequirementDetails - plan courses:', plan?.courses);
 
-  const generateSuggestions = useCallback(async () => {
-    if (!programRequirement || loadingSuggestions || !plan) return;
+  // Update the requirementCourses useMemo in RequirementDetails:
+
+const requirementCourses = React.useMemo(() => {
+  if (!plan?.courses) {
+    console.log('RequirementDetails - No plan.courses available');
+    return [];
+  }
+  
+  // Helper function to normalize category names for matching
+  const normalizeCategory = (category) => {
+    if (!category) return '';
+    return category.toLowerCase()
+      .replace(/[\/\-\s]+/g, ' ') // Replace separators with spaces
+      .replace(/\s+/g, ' ')       // Collapse multiple spaces
+      .trim();
+  };
+  
+  // Helper function to check if categories are related
+  const categoriesMatch = (reqCategory, courseCategory) => {
+    const reqNorm = normalizeCategory(reqCategory);
+    const courseNorm = normalizeCategory(courseCategory);
+    
+    // Exact match
+    if (reqNorm === courseNorm) return true;
+    
+    // Check if one contains the other
+    if (reqNorm.includes(courseNorm) || courseNorm.includes(reqNorm)) return true;
+    
+    // Keyword-based matching for common cases
+    const mathKeywords = ['math', 'mathematics', 'analytical', 'reasoning', 'calculus', 'algebra'];
+    const englishKeywords = ['english', 'composition', 'writing', 'literature'];
+    const scienceKeywords = ['biology', 'chemistry', 'physics', 'science'];
+    const socialKeywords = ['social', 'psychology', 'sociology', 'history'];
+    
+    const checkKeywordMatch = (keywords) => {
+      const reqHasKeyword = keywords.some(kw => reqNorm.includes(kw));
+      const courseHasKeyword = keywords.some(kw => courseNorm.includes(kw));
+      return reqHasKeyword && courseHasKeyword;
+    };
+    
+    if (checkKeywordMatch(mathKeywords)) return true;
+    if (checkKeywordMatch(englishKeywords)) return true;
+    if (checkKeywordMatch(scienceKeywords)) return true;
+    if (checkKeywordMatch(socialKeywords)) return true;
+    
+    return false;
+  };
+  
+  const filtered = plan.courses.filter(pc => {
+    const courseCategory = pc.requirement_category || 'Uncategorized';
+    const matches = categoriesMatch(name, courseCategory);
+    
+    console.log(`RequirementDetails - Course ${pc.course?.code}:`);
+    console.log(`  Course category: "${courseCategory}"`);
+    console.log(`  Requirement name: "${name}"`);
+    console.log(`  Normalized course: "${normalizeCategory(courseCategory)}"`);
+    console.log(`  Normalized requirement: "${normalizeCategory(name)}"`);
+    console.log(`  Matches: ${matches}`);
+    
+    return matches;
+  });
+  
+  console.log(`RequirementDetails - Found ${filtered.length} matching courses for requirement "${name}"`);
+  return filtered;
+}, [plan?.courses, name]);
+const generateSuggestions = useCallback(async () => {
+    console.log('RequirementDetails - generateSuggestions called');
+    console.log('RequirementDetails - program:', program);
+    
+    if (loadingSuggestions || !plan) {
+      console.log('RequirementDetails - Early return: loading or no plan');
+      return;
+    }
+    
     setLoadingSuggestions(true);
     try {
       const out = [];
-      if (programRequirement.requirement_type === 'grouped' && programRequirement.groups) {
-        for (const group of programRequirement.groups) {
-          if (!group.course_options) continue;
-          for (const option of group.course_options) {
-            try {
-              const res = await fetch(`/api/courses?search=${encodeURIComponent(option.course_code)}&institution=${encodeURIComponent(option.institution || '')}`);
-              if (res.ok) {
-                const data = await res.json();
-                const course = data.courses?.[0];
-                if (course) {
-                  out.push({
-                    id: course.id, code: course.code, title: course.title, credits: course.credits,
-                    institution: course.institution, description: course.description,
-                    group_name: group.group_name, is_preferred: option.is_preferred, notes: option.notes,
-                    requirement_category: name, detectedCategory: name
-                  });
-                }
-              }
-            } catch {}
-          }
-        }
-      } else {
+      
+      // Get the institution to filter by
+      const targetInstitution = program?.institution;
+      console.log('RequirementDetails - Filtering by institution:', targetInstitution);
+      
+      // If we don't have programRequirement data, fall back to simple keyword-based search
+      if (!programRequirement) {
+        console.log('RequirementDetails - No programRequirement, using fallback keyword search');
+        
+        // Enhanced keyword mapping
         const mappings = {
           'english': ['ENG', 'ENGL', 'composition', 'writing'],
           'composition': ['ENG', 'ENGL', 'composition', 'writing'],
           'literature': ['ENG', 'ENGL', 'LIT', 'literature'],
           'mathematics': ['MATH', 'mathematics', 'calculus', 'algebra'],
           'math': ['MATH', 'mathematics', 'calculus', 'algebra'],
+          'analytical': ['MATH', 'statistics', 'logic'],
+          'reasoning': ['MATH', 'PHIL', 'logic'],
           'biology': ['BIOL', 'BIO', 'biology', 'life science'],
           'chemistry': ['CHEM', 'chemistry'],
           'physics': ['PHYS', 'physics'],
           'history': ['HIST', 'history'],
           'science': ['BIOL', 'CHEM', 'PHYS', 'science'],
           'social': ['SOC', 'PSY', 'POLI', 'social'],
-          'humanities': ['ENG', 'HIST', 'PHIL', 'ART', 'humanities']
+          'humanities': ['ENG', 'HIST', 'PHIL', 'ART', 'humanities'],
+          'arts': ['ART', 'MUSC', 'THEA', 'arts'],
+          'fine arts': ['ART', 'MUSC', 'THEA', 'arts']
         };
+        
         const nameLower = name.toLowerCase();
-        const terms = Object.entries(mappings).find(([k]) => nameLower.includes(k))?.[1] || [name];
-        try {
-          const res = await fetch(`/api/courses?search=${encodeURIComponent(terms[0])}&per_page=8`);
-          if (res.ok) {
-            const data = await res.json();
-            data.courses?.forEach(course => {
-              out.push({
-                id: course.id, code: course.code, title: course.title, credits: course.credits,
-                institution: course.institution, description: course.description,
-                requirement_category: name, is_preferred: false, detectedCategory: name
-              });
-            });
+        console.log('RequirementDetails - Searching for category:', nameLower);
+        
+        // Try to find matching keywords
+        let searchTerms = [];
+        for (const [key, terms] of Object.entries(mappings)) {
+          if (nameLower.includes(key)) {
+            searchTerms = terms;
+            break;
           }
-        } catch {}
+        }
+        
+        // If no specific mapping found, use the category name itself
+        if (searchTerms.length === 0) {
+          searchTerms = [name];
+        }
+        
+        console.log('RequirementDetails - Using search terms:', searchTerms);
+        
+        // Try each search term
+        for (const term of searchTerms.slice(0, 2)) { // Limit to first 2 terms
+          try {
+            // Build search URL with institution filter if available
+            let searchUrl = `/api/courses?search=${encodeURIComponent(term)}&per_page=10`;
+            if (targetInstitution) {
+              searchUrl += `&institution=${encodeURIComponent(targetInstitution)}`;
+            }
+            
+            console.log('RequirementDetails - Fetching:', searchUrl);
+            
+            const res = await fetch(searchUrl);
+            if (res.ok) {
+              const data = await res.json();
+              console.log('RequirementDetails - Search response for', term, ':', data);
+              
+              if (data.courses && data.courses.length > 0) {
+                data.courses.forEach(course => {
+                  // Additional client-side institution filtering as backup
+                  const courseMatchesInstitution = !targetInstitution || 
+                    course.institution === targetInstitution ||
+                    course.institution?.toLowerCase() === targetInstitution?.toLowerCase();
+                  
+                  if (courseMatchesInstitution) {
+                    // Avoid duplicates
+                    if (!out.find(existing => existing.id === course.id)) {
+                      out.push({
+                        id: course.id,
+                        code: course.code,
+                        title: course.title,
+                        credits: course.credits,
+                        institution: course.institution,
+                        description: course.description,
+                        requirement_category: name,
+                        is_preferred: false,
+                        detectedCategory: name,
+                        search_term: term // Debug info
+                      });
+                    }
+                  } else {
+                    console.log('RequirementDetails - Filtered out course from wrong institution:', 
+                                course.code, 'from', course.institution, 'wanted', targetInstitution);
+                  }
+                });
+              }
+            } else {
+              console.log('RequirementDetails - Search failed for', term, ':', res.status, res.statusText);
+            }
+          } catch (error) {
+            console.log('RequirementDetails - Search error for', term, ':', error);
+          }
+        }
+      } else {
+        // Original programRequirement-based logic with institution filtering
+        console.log('RequirementDetails - Using programRequirement data');
+        
+        if (programRequirement.requirement_type === 'grouped' && programRequirement.groups) {
+          for (const group of programRequirement.groups) {
+            if (!group.course_options) continue;
+            
+            for (const option of group.course_options) {
+              try {
+                let searchUrl = `/api/courses?search=${encodeURIComponent(option.course_code)}`;
+                
+                // Use option institution or fall back to program institution
+                const institutionToSearch = option.institution || targetInstitution;
+                if (institutionToSearch) {
+                  searchUrl += `&institution=${encodeURIComponent(institutionToSearch)}`;
+                }
+                
+                console.log('RequirementDetails - Fetching:', searchUrl);
+                
+                const res = await fetch(searchUrl);
+                if (res.ok) {
+                  const data = await res.json();
+                  const course = data.courses?.[0];
+                  if (course) {
+                    console.log('RequirementDetails - Found course:', course);
+                    out.push({
+                      id: course.id, code: course.code, title: course.title, credits: course.credits,
+                      institution: course.institution, description: course.description,
+                      group_name: group.group_name, is_preferred: option.is_preferred, notes: option.notes,
+                      requirement_category: name, detectedCategory: name
+                    });
+                  }
+                }
+              } catch (error) {
+                console.log('RequirementDetails - Fetch error:', error);
+              }
+            }
+          }
+        }
       }
+      
+      console.log('RequirementDetails - Final suggestions (filtered by institution):', out);
       setSuggestions(out);
-    } catch {
+    } catch (error) {
+      console.log('RequirementDetails - generateSuggestions error:', error);
       setSuggestions([]);
     } finally {
       setLoadingSuggestions(false);
     }
-  }, [programRequirement, loadingSuggestions, name, plan]);
-
+  }, [programRequirement, loadingSuggestions, name, plan, program]);
+  // Rest of your component remains the same...
   const getStatusChip = (status) => {
     switch (status) {
      case 'met':
@@ -545,30 +714,36 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, compact =
           >
             <span className="flex items-center">
               <BookOpen size={14} className="mr-1" />
-              Current Courses
+              Current Courses ({requirementCourses.length})
             </span>
             {showCourses ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
 
           {showCourses && (
             <div className={`mt-3 space-y-2 ${compact ? '' : 'max-h-32 overflow-y-auto'}`}>
-              {requirementCourses.map((pc) => (
-                <div key={pc.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <h6 className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                        {pc.course?.code}: {pc.course?.title}
-                      </h6>
-                      <p className="text-xs text-gray-600 dark:text-gray-400">
-                        {(pc.credits || pc.course?.credits) ?? 0} credits • {pc.course?.institution}
-                      </p>
+              {requirementCourses.length > 0 ? (
+                requirementCourses.map((pc) => (
+                  <div key={pc.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <h6 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {pc.course?.code}: {pc.course?.title}
+                        </h6>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                          {(pc.credits || pc.course?.credits) ?? 0} credits • {pc.course?.institution}
+                        </p>
+                      </div>
+                      <span className={`px-2 py-1 text-xs rounded border ${badgeByCourseStatus(pc.status)}`}>
+                        {pc.status === 'in_progress' ? 'In Progress' : pc.status === 'completed' ? 'Completed' : 'Planned'}
+                      </span>
                     </div>
-                    <span className={`px-2 py-1 text-xs rounded border ${badgeByCourseStatus(pc.status)}`}>
-                      {pc.status === 'in_progress' ? 'In Progress' : pc.status === 'completed' ? 'Completed' : 'Planned'}
-                    </span>
                   </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
+                  No courses added for this requirement yet
+                </p>
+              )}
             </div>
           )}
         </div>

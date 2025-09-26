@@ -76,10 +76,6 @@ def get_plan_by_code(plan_code):
     # Return full plan data
     plan_data = plan.to_dict()
     plan_data['progress'] = plan.calculate_progress()
-    plan_data['unmet_requirements'] = plan.get_unmet_requirements()
-    plan_data['course_suggestions'] = plan.suggest_courses_for_requirements()
-    
-    return jsonify(plan_data)
 
 @bp.route('/verify-code/<plan_code>', methods=['GET'])
 @require_plan_access
@@ -132,16 +128,24 @@ def create_plan():
     """Create a new plan - returns plan with secure code"""
     data = request.get_json()
     
-    # Validate program exists
-    program = Program.query.get(data.get('program_id'))
-    if not program:
-        return jsonify({'error': 'Program not found'}), 404
+    # Validate target program exists
+    target_program = Program.query.get(data.get('program_id'))
+    if not target_program:
+        return jsonify({'error': 'Target program not found'}), 404
+    
+    # Validate current program exists (if provided)
+    current_program_id = data.get('current_program_id')
+    if current_program_id:
+        current_program = Program.query.get(current_program_id)
+        if not current_program:
+            return jsonify({'error': 'Current program not found'}), 404
     
     try:
         plan = Plan(
             student_name=data.get('student_name'),
             student_email=data.get('student_email'),
-            program_id=data.get('program_id'),
+            program_id=data.get('program_id'),  # Target program
+            current_program_id=current_program_id,  # Current program (optional)
             plan_name=data.get('plan_name'),
             status=data.get('status', 'draft')
             # plan_code will be auto-generated in __init__
@@ -196,9 +200,14 @@ def update_plan(plan_id):
     data = request.get_json()
     
     # Only allow updating certain fields
-    allowed_fields = ['plan_name', 'student_email', 'status']
+    allowed_fields = ['plan_name', 'student_email', 'status', 'current_program_id']  # ADDED current_program_id
     for field in allowed_fields:
         if field in data:
+            if field == 'current_program_id' and data[field]:
+                # Validate program exists
+                program = Program.query.get(data[field])
+                if not program:
+                    return jsonify({'error': 'Current program not found'}), 404
             setattr(plan, field, data[field])
     
     try:
@@ -284,6 +293,9 @@ def add_course_to_plan(plan_id):
         year=data.get('year'),
         status=data.get('status', 'planned'),
         requirement_category=data.get('requirement_category'),
+        requirement_group_id=data.get('requirement_group_id'),  # ADDED
+        credits=data.get('credits'),  # ADDED
+        grade=data.get('grade'),  # ADDED
         notes=data.get('notes', '')
     )
     
@@ -333,6 +345,9 @@ def add_course_to_plan_by_code(plan_code):
         year=data.get('year'),
         status=data.get('status', 'planned'),
         requirement_category=data.get('requirement_category'),
+        requirement_group_id=data.get('requirement_group_id'),  # ADDED
+        credits=data.get('credits'),  # ADDED
+        grade=data.get('grade'),  # ADDED
         notes=data.get('notes', '')
     )
     
@@ -367,7 +382,9 @@ def update_plan_course(plan_id, plan_course_id):
     plan_course.year = data.get('year', plan_course.year)
     plan_course.status = data.get('status', plan_course.status)
     plan_course.grade = data.get('grade', plan_course.grade)
+    plan_course.credits = data.get('credits', plan_course.credits)  # ADDED
     plan_course.requirement_category = data.get('requirement_category', plan_course.requirement_category)
+    plan_course.requirement_group_id = data.get('requirement_group_id', plan_course.requirement_group_id)  # ADDED
     plan_course.notes = data.get('notes', plan_course.notes)
     
     try:
@@ -402,14 +419,14 @@ def get_degree_audit(plan_id):
     """
     Return a degree audit summary for a given plan.
 
-    This endpoint computes high‑level progress metrics using
+    This endpoint computes high-level progress metrics using
     ``Plan.calculate_progress()`` and lists unmet requirements via
     ``Plan.get_unmet_requirements()``.  The response JSON contains:
 
-      * ``plan_id`` – the ID of the plan.
-      * ``progress`` – a dictionary of progress metrics (total credits, requirement completion,
+      * ``plan_id`` — the ID of the plan.
+      * ``progress`` — a dictionary of progress metrics (total credits, requirement completion,
         category breakdown etc.).
-      * ``unmet_requirements`` – a list of outstanding requirement categories with credits still needed.
+      * ``unmet_requirements`` — a list of outstanding requirement categories with credits still needed.
 
     Access to this endpoint is guarded by ``check_plan_access()`` to ensure that only
     authorized sessions (students who have entered a plan code or advisors) can view
@@ -448,7 +465,10 @@ def download_degree_audit(plan_id):
 
     plan = Plan.query.get_or_404(plan_id)
     progress = plan.calculate_progress()
-    requirements = progress.get('requirement_progress', [])
+    
+    # Handle both current and transfer progress
+    current_requirements = progress.get('current', {}).get('requirements', [])
+    transfer_requirements = progress.get('transfer', {}).get('requirements', [])
 
     import io
     import csv
@@ -457,18 +477,32 @@ def download_degree_audit(plan_id):
     writer = csv.writer(output)
     # Write header
     writer.writerow([
-        'category', 'credits_required', 'credits_completed',
+        'program_type', 'category', 'credits_required', 'credits_completed',
         'credits_remaining', 'is_complete'
     ])
-    # Write each requirement row
-    for r in requirements:
+    
+    # Write current program requirements
+    for r in current_requirements:
         writer.writerow([
+            'current',
             r.get('category', ''),
-            r.get('credits_required', 0),
-            r.get('credits_completed', 0),
-            r.get('credits_remaining', 0),
-            'yes' if r.get('is_complete') else 'no'
+            r.get('totalCredits', 0),
+            r.get('completedCredits', 0),
+            max(0, r.get('totalCredits', 0) - r.get('completedCredits', 0)),
+            'yes' if r.get('status') == 'met' else 'no'
         ])
+    
+    # Write transfer program requirements
+    for r in transfer_requirements:
+        writer.writerow([
+            'transfer',
+            r.get('category', ''),
+            r.get('totalCredits', 0),
+            r.get('completedCredits', 0),
+            max(0, r.get('totalCredits', 0) - r.get('completedCredits', 0)),
+            'yes' if r.get('status') == 'met' else 'no'
+        ])
+    
     csv_data = output.getvalue()
     output.close()
 
@@ -484,17 +518,30 @@ def download_degree_audit(plan_id):
 
 @bp.route('/<int:plan_id>/progress', methods=['GET'])
 def get_plan_progress(plan_id):
-    """Get plan progress - requires prior code access"""
+    """Get plan progress with view filtering - requires prior code access"""
     
     if not check_plan_access(plan_id):
         return jsonify({'error': 'Access denied. Use plan code to access this plan.'}), 403
     
     plan = Plan.query.get_or_404(plan_id)
-    progress = plan.calculate_progress()
+    view_filter = request.args.get('view', 'All Courses')
+    current = plan.calculate_progress(plan.current_program, view_filter) if plan.current_program else {
+        'percent': 0, 'requirements': [], 'total_credits_earned': 0, 'total_credits_required': 0,
+    }
+    transfer = plan.calculate_progress(plan.target_program, view_filter) if plan.target_program else {
+        'percent': 0, 'requirements': [], 'total_credits_earned': 0, 'total_credits_required': 0,
+    }
+    
+    #  Debug: Log what we're returning
+    print(f"Progress for plan {plan_id}, view '{view_filter}':")
+    print(f"  Current: {len(current['requirements'])} requirements")
+    print(f"  Target: {len(transfer['requirements'])} requirements")
     
     return jsonify({
         'plan_id': plan_id,
-        'progress': progress,
+        'view_filter': view_filter,
+        'current': current,
+        'transfer': transfer,
         'unmet_requirements': plan.get_unmet_requirements(),
         'suggestions': plan.suggest_courses_for_requirements()
     })
