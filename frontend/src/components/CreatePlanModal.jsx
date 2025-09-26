@@ -7,8 +7,13 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
     student_name: '',
     student_email: '',
     plan_name: '',
-    program_id: 1, 
+    current_program_id: '',
+    program_id: '', 
   });
+
+  // Add state for programs
+  const [programs, setPrograms] = useState([]);
+  const [loadingPrograms, setLoadingPrograms] = useState(false);
 
   const dialogRef = useRef(null);
   const restoreFocusRef = useRef(null);
@@ -22,11 +27,34 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
     (tabbables[0] || root).focus();
   }, []);
 
+  // Fetch programs when modal opens
+  const fetchPrograms = async () => {
+    setLoadingPrograms(true);
+    try {
+      const response = await api.getPrograms(); // This needs to be implemented in your api service
+      const programsList = response.programs || [];
+      setPrograms(programsList);
+      
+      // Set default program_id to the first program if available
+      if (programsList.length > 0 && !formData.program_id) {
+        setFormData(prev => ({ ...prev, program_id: programsList[0].id }));
+      }
+    } catch (error) {
+      console.error('Failed to fetch programs:', error);
+      // You might want to show an error message to the user here
+    } finally {
+      setLoadingPrograms(false);
+    }
+  };
+
   useEffect(() => {
     if (!isOpen) return;
 
     restoreFocusRef.current = document.activeElement;
     const t = setTimeout(focusFirst, 0);
+
+    // Fetch programs when modal opens
+    fetchPrograms();
 
     const onKeyDown = (e) => {
       if (!dialogRef.current) return;
@@ -77,9 +105,16 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
 
   useEffect(() => {
     if (isOpen) {
-      setFormData(prev => ({ ...prev, student_name: '', plan_name: '' }));
+      setFormData(prev => ({ 
+        ...prev, 
+        student_name: '', 
+        plan_name: '', 
+        student_email: '',
+        current_program_id: programs.length > 0 ? programs[0].id : '',
+        program_id: programs.length > 0 ? programs[0].id : ''
+      }));
     }
-  }, [userMode, isOpen]);
+  }, [userMode, isOpen, programs]);
 
   const [creating, setCreating] = useState(false);
   const [errors, setErrors] = useState({});
@@ -93,6 +128,10 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
     
     if (!formData.plan_name.trim()) {
       newErrors.plan_name = 'Plan name is required';
+    }
+
+    if (!formData.program_id) {
+      newErrors.program_id = 'Please select a program';
     }
     
     if (formData.student_email && !isValidEmail(formData.student_email)) {
@@ -109,47 +148,48 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  
-  if (!validateForm()) {
-    return;
-  }
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
 
-  setCreating(true);
-  setErrors({});
+    setCreating(true);
+    setErrors({});
 
-  try {
-    const createdPlan = await api.createPlan(formData);
-    console.debug('createdPlan', createdPlan);
+    try {
+      const createdPlan = await api.createPlan(formData);
+      console.debug('createdPlan', createdPlan);
 
-    const plan = createdPlan?.plan ?? createdPlan;
-    console.log('About to call onPlanCreated with:', plan);
-    console.log('onPlanCreated function exists?', typeof onPlanCreated);
-    
-    // Reset form data
-    setFormData({
-      student_name: '',
-      student_email: '',
-      plan_name: '',
-      program_id: 1,
-    });
-    
-    onPlanCreated?.(plan);
-    
-    // Close the modal after a brief delay to allow the success modal to open
-    setTimeout(() => {
-      onClose();
-    }, 100);
-    
-  } catch (error) {
-    console.error('Failed to create plan:', error);
-    setErrors({ 
-      submit: error.message || 'Failed to create plan. Please try again.' 
-    });
-  } finally {
-    setCreating(false);
-  }
-};
+      const plan = createdPlan?.plan ?? createdPlan;
+      console.log('About to call onPlanCreated with:', plan);
+      console.log('onPlanCreated function exists?', typeof onPlanCreated);
+      
+      // Reset form data
+      setFormData({
+        student_name: '',
+        student_email: '',
+        plan_name: '',
+        current_program_id: programs.length > 0 ? programs[0].id : '',
+        program_id: programs.length > 0 ? programs[0].id : '',
+      });
+      
+      onPlanCreated?.(plan);
+      
+      // Close the modal after a brief delay to allow the success modal to open
+      setTimeout(() => {
+        onClose();
+      }, 100);
+      
+    } catch (error) {
+      console.error('Failed to create plan:', error);
+      setErrors({ 
+        submit: error.message || 'Failed to create plan. Please try again.' 
+      });
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -176,18 +216,18 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
 
   return (
     <div
-    className="fixed inset-0 bg-black/50 dark:bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
-    onMouseDown={onBackdrop}
-  >
-    <div
-      ref={dialogRef}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="create-plan-title"
-      aria-describedby="create-plan-description"
-      tabIndex={-1}
-      className="bg-white dark:bg-gray-800 rounded-t-lg sm:rounded-lg w-full sm:max-w-md h-[90vh] sm:h-auto overflow-y-auto outline-none transition-colors"
+      className="fixed inset-0 bg-black/50 dark:bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      onMouseDown={onBackdrop}
     >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="create-plan-title"
+        aria-describedby="create-plan-description"
+        tabIndex={-1}
+        className="bg-white dark:bg-gray-800 rounded-t-lg sm:rounded-lg w-full sm:max-w-md h-[90vh] sm:h-auto overflow-y-auto outline-none transition-colors"
+      >
         {/* Header */}
         <div className="sticky top-0 bg-white dark:bg-gray-800 px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700 rounded-t-lg">
           <div className="flex justify-between items-center">
@@ -285,21 +325,75 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
             )}
           </div>
 
+          {/* Current Program Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Current Program
+            </label>
+            <select
+              value={formData.current_program_id}
+              onChange={(e) => handleInputChange('current_program_id', parseInt(e.target.value))}
+              disabled={loadingPrograms || programs.length === 0}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                errors.current_program_id ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
+              }`}
+            >
+              {loadingPrograms ? (
+                <option value="">Loading programs...</option>
+              ) : programs.length === 0 ? (
+                <option value="">No programs available</option>
+              ) : (
+                <>
+                  <option value="">Select current program (optional)</option>
+                  {programs.map(program => (
+                    <option key={program.id} value={program.id}>
+                      {program.name} ({program.degree_type})
+                    </option>
+                  ))}
+                </>
+              )}
+            </select>
+            {errors.current_program_id && (
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.current_program_id}</p>
+            )}
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              The program you're currently enrolled in (if applicable)
+            </p>
+          </div>
+
           {/* Program Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Target Program
+              Transfer Target Program *
             </label>
             <select
               value={formData.program_id}
               onChange={(e) => handleInputChange('program_id', parseInt(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+              disabled={loadingPrograms || programs.length === 0}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                errors.program_id ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
+              }`}
             >
-              <option value={1}>Biology Major (BS) - UNO</option>
-              {/* This will need to be populated by the api */}
+              {loadingPrograms ? (
+                <option value="">Loading programs...</option>
+              ) : programs.length === 0 ? (
+                <option value="">No programs available</option>
+              ) : (
+                <>
+                  <option value="">Select a program</option>
+                  {programs.map(program => (
+                    <option key={program.id} value={program.id}>
+                      {program.name} ({program.degree_type})
+                    </option>
+                  ))}
+                </>
+              )}
             </select>
+            {errors.program_id && (
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.program_id}</p>
+            )}
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              The degree program this plan is designed for
+              The program you want to transfer into or complete
             </p>
           </div>
 
@@ -323,7 +417,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={creating || !formData.student_name.trim() || !formData.plan_name.trim()}
+              disabled={creating || !formData.student_name.trim() || !formData.plan_name.trim() || !formData.program_id || loadingPrograms}
               className="w-full sm:w-auto px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
             >
               {creating ? (
@@ -341,7 +435,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
         {/* Help Text */}
         <div className="p-4 sm:p-6 pt-0">
           <div className="p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-md">
-            <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-1">💡 Getting Started</h4>
+            <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-1">Getting Started</h4>
             <ul className="text-xs text-blue-700 dark:text-blue-400 space-y-1">
               <li>• Create a plan to organize your course transfer strategy</li>
               <li>• Add courses using the course search after creating your plan</li>
