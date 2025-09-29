@@ -1,0 +1,235 @@
+PostgreSQL Migration & Production Database Adoption Guide
+=========================================================
+
+This document provides a complete, repeatable workflow for moving the application
+from SQLite (dev default) to PostgreSQL for production use. It covers: setup,
+configuration, migration, verification, and optional enhancements.
+
+--------------------------------------------------
+1. Prerequisites
+--------------------------------------------------
+- Python environment with existing project dependencies installed.
+- Added Postgres driver to backend/requirements.txt:
+    psycopg[binary]==3.2.1
+  (Alternatively: psycopg2-binary==2.9.9)
+- Flask-Migrate already integrated (we have migrations).
+- Docker OR a running Postgres instance (local or managed).
+
+--------------------------------------------------
+2. Quick Start (TL;DR Flow)
+--------------------------------------------------
+1. Add driver to requirements and install.
+2. Start Postgres (docker compose up -d).
+3. Set DATABASE_URL env var.
+4. Run: flask db upgrade
+5. (Optional) Migrate existing SQLite data.
+6. Smoke test endpoints.
+7. Deploy with managed Postgres + same DATABASE_URL.
+
+--------------------------------------------------
+3. Local Postgres Setup (Docker Recommended)
+--------------------------------------------------
+Create a docker-compose.yml in repo root (if you want a persistent local DB):
+
+version: '3.9'
+services:
+  db:
+    image: postgres:16
+    container_name: course_equiv_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: course_equiv
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:
+
+Start:
+  docker compose up -d
+
+Check container:
+  docker ps
+
+--------------------------------------------------
+4. Environment Variables
+--------------------------------------------------
+Set (PowerShell example):
+  $env:DATABASE_URL = "postgresql+psycopg://appuser:devpass@127.0.0.1:5432/course_equiv"
+  $env:FLASK_APP = "app.py"
+  $env:FLASK_ENV = "development"
+
+In production use a secure password and DO NOT commit secrets.
+
+--------------------------------------------------
+5. Install Dependencies
+--------------------------------------------------
+Add to backend/requirements.txt if missing:
+  psycopg[binary]==3.2.1
+Then install:
+  pip install -r backend/requirements.txt
+
+Verify driver import inside Python REPL:
+  python -c "import psycopg"
+
+--------------------------------------------------
+6. Run Migrations Against Postgres
+--------------------------------------------------
+  cd backend
+  flask db upgrade
+
+This applies the existing Alembic migrations to the new Postgres database.
+
+List tables (requires psql installed):
+  psql -h 127.0.0.1 -U appuser -d course_equiv -c "\dt"
+
+If prompted for a password: devpass (as set above).
+
+--------------------------------------------------
+7. (Optional) Data Migration From SQLite
+--------------------------------------------------
+If you want to port existing data from instance/course_transfer.db:
+
+Option A: pgloader (fast & automated)
+  Create file: load.load
+  --------------------------------
+  LOAD DATABASE
+       FROM sqlite://backend/instance/course_transfer.db
+       INTO postgresql://appuser:devpass@127.0.0.1/course_equiv
+
+  WITH include drop, create no tables, batch rows = 500
+  SET work_mem to '64MB', maintenance_work_mem to '512 MB';
+  --------------------------------
+  Run: pgloader load.load
+
+Option B: Ad-hoc Python bridge script (outline)
+  - Create two engines: SQLite & Postgres
+  - For each model in order respecting FK dependencies:
+      read rows, instantiate new model objects, bulk_save_objects()
+  - Commit per batch (e.g., 500 rows) to reduce memory.
+
+Option C: CSV Export/Import (suitable for readonly tables)
+  - Export from SQLite via .mode csv in sqlite3 shell.
+  - COPY into Postgres (psql):
+      \copy courses(code,title,description,credits,institution,department,prerequisites,created_at,updated_at) \
+        FROM 'courses.csv' WITH (FORMAT csv, HEADER true)
+
+After any external load, re-run:
+  flask db upgrade
+To ensure migrations still match schema (idempotent when up to date).
+
+--------------------------------------------------
+8. Smoke Test Application
+--------------------------------------------------
+Start backend:
+  python backend/app.py
+
+Test endpoints:
+  curl http://127.0.0.1:5000/api/health
+  curl http://127.0.0.1:5000/api/programs
+
+Create a course (PowerShell):
+  Invoke-RestMethod -Method POST -Uri http://127.0.0.1:5000/api/courses -Body (@{code='TEST 101'; title='Sample'; credits=3; institution='Local U'} | ConvertTo-Json) -ContentType 'application/json'
+
+If admin token protection is active, add header:
+  -Headers @{ 'X-Admin-Token' = 'developmentAPI' }
+
+--------------------------------------------------
+9. Production Deployment Checklist
+--------------------------------------------------
+1. Provision managed Postgres (RDS / Render / Fly.io / Neon / Supabase).
+2. Set DATABASE_URL as environment variable on platform.
+3. Add mandatory SECRET_KEY (do NOT reuse dev default).
+4. Run migration task (flask db upgrade) during build or release phase.
+5. Confirm network access / TLS.
+6. Enable automated backups (daily snapshot + retention policy).
+7. Add monitoring (pg_stat_statements or provider dashboard).
+
+--------------------------------------------------
+10. Postgres-Specific Enhancements (Optional Later)
+--------------------------------------------------
+- Case-insensitive text: Enable extension CITEXT and change columns to citext where appropriate.
+- Fuzzy search: Enable pg_trgm + GIN index on course.title / description if you need advanced search.
+- JSONB attributes: Add dynamic metadata columns later without migrations for structured flexible data.
+- Materialized views: Cache heavy progress aggregations if load rises.
+- Advisory locks: Use for exclusive bulk upload operations.
+- Row Level Security: Control per-plan access at DB layer (complements app logic).
+
+--------------------------------------------------
+11. Index & Performance Verification
+--------------------------------------------------
+Check a query plan:
+  EXPLAIN ANALYZE SELECT * FROM equivalencies WHERE from_course_id = 42;
+Expect: Index Scan using <index_name> on equivalencies.
+
+Run ANALYZE after large imports:
+  VACUUM ANALYZE;
+(Postgres auto-analyzes eventually; manual helps immediately after bulk loads.)
+
+--------------------------------------------------
+12. Troubleshooting
+--------------------------------------------------
+| Issue | Symptom | Resolution |
+|-------|---------|------------|
+| psycopg missing | ImportError | Reinstall dependencies |
+| Wrong URL scheme | OperationalError | Use postgresql+psycopg://... |
+| Auth failure | password auth failed | Check POSTGRES_USER/PASSWORD env vs compose |
+| Migrations missing tables |  relation does not exist | Re-run flask db upgrade with DATABASE_URL set |
+| Duplicate data on reload | PK/unique errors | Drop/recreate DB or clean duplicates before re-import |
+| No admin header | 401 on protected routes | Ensure X-Admin-Token present (frontend env/localStorage) |
+
+--------------------------------------------------
+13. Rollback Strategy
+--------------------------------------------------
+1. Keep SQLite file as a fallback snapshot before switching.
+2. Before destructive operations: pg_dump -Fc > backup.dump
+3. To restore quickly: pg_restore -c -d course_equiv backup.dump
+4. For point-in-time (managed services): enable PITR (e.g., WAL archiving).
+
+--------------------------------------------------
+14. Migration Execution Template (Scriptable)
+--------------------------------------------------
+# (Adjust paths as needed)
+$env:DATABASE_URL = "postgresql+psycopg://appuser:devpass@127.0.0.1:5432/course_equiv"
+$env:FLASK_APP = "app.py"
+$env:FLASK_ENV = "production"
+pip install -r backend/requirements.txt
+flask db upgrade
+python backend/app.py
+
+--------------------------------------------------
+15. Minimal Code Change Summary
+--------------------------------------------------
+- Added driver (psycopg) to requirements.
+- Set DATABASE_URL env var (already supported in app.py).
+- No model changes required.
+- All indices & constraints reused automatically by Alembic.
+
+--------------------------------------------------
+16. Suggested Future Tasks (Optional Roadmap)
+--------------------------------------------------
+- Add composite indexes: (program_id, is_current), (plan_id, status) if query volume grows.
+- Introduce search service (FTS / trigram) for course discovery.
+- Externalize config: separate config.py with Dev/Test/Prod classes.
+- Add health + DB connectivity probe endpoint (/api/health already exists — expand with DB ping).
+
+--------------------------------------------------
+17. Verification Checklist (Mark Off)
+--------------------------------------------------
+[ ] psycopg installed
+[ ] DATABASE_URL exported
+[ ] docker compose or remote DB running
+[ ] flask db upgrade succeeded
+[ ] /api/health OK
+[ ] Course creation works
+[ ] Programs endpoint returns data
+[ ] Upload endpoints functional (with admin token)
+[ ] Backup strategy documented
+[ ] Production DB provisioned
+
+--------------------------------------------------
+End of Guide
+--------------------------------------------------
