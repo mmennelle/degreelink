@@ -10,7 +10,15 @@ import os
 from datetime import timedelta
 
 def create_app(config_name='default'):
-    load_dotenv()  # Load environment variables from .env file
+    # Load .env from current directory (backend/) first
+    load_dotenv()
+    # If ADMIN_API_TOKEN still missing, attempt to load parent project-level .env as fallback
+    if not os.environ.get('ADMIN_API_TOKEN'):
+        parent_env = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env'))
+        if os.path.exists(parent_env):
+            load_dotenv(parent_env, override=False)
+            if os.environ.get('ADMIN_API_TOKEN'):
+                print("[app] Loaded ADMIN_API_TOKEN from parent .env fallback")
     app = Flask(__name__)
     
     # Security configurations
@@ -93,6 +101,8 @@ def create_app(config_name='default'):
     @app.route('/api/health')
     def health_check():
         return jsonify({'status': 'healthy', 'message': 'Course Transfer API is running'})
+
+    # (Removed debug endpoint after resolution of token issue)
     
     # Security info endpoint
     @app.route('/api/security/info')
@@ -109,6 +119,18 @@ def create_app(config_name='default'):
             'session_timeout': '1 hour',
             'note': 'Keep your plan codes secure and private'
         })
+
+    # Lightweight debug endpoint (guarded) – only if ADMIN_DEBUG=1 and not production
+    if os.environ.get('ADMIN_DEBUG') == '1' and os.environ.get('FLASK_ENV') != 'production':
+        @app.route('/api/debug/admin-token-status')
+        def debug_admin_token_status():
+            token = os.environ.get('ADMIN_API_TOKEN')
+            provided = request.headers.get('X-Admin-Token')
+            return jsonify({
+                'configured': bool(token),
+                'header_present': provided is not None,
+                'match': bool(token and provided and token == provided)
+            })
     
     # Create tables
     with app.app_context():

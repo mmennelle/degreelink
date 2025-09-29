@@ -9,11 +9,13 @@ class ApiService {
         || window.localStorage.getItem('ADMIN_API_TOKEN')
         || window.localStorage.getItem('adminToken');
     }
-    if (!this.adminToken) {
-      // Silent hint in dev only
-      if (import.meta?.env?.MODE !== 'production') {
-        console.warn('[ApiService] Admin token not found in env or localStorage. Protected endpoints will 401.');
-      }
+    if (!this.adminToken && import.meta?.env?.MODE !== 'production') {
+      console.warn('[ApiService] Admin token not found at init (may be set later).');
+    }
+
+    // Expose for debugging in development
+    if (import.meta?.env?.MODE !== 'production' && typeof window !== 'undefined') {
+      window.__API_SERVICE__ = this;
     }
   }
 
@@ -28,9 +30,22 @@ class ApiService {
       ...options.headers,
     };
 
+    // If we somehow initialized before env/localStorage was ready, try lazy refresh
+    if (!this.adminToken && typeof window !== 'undefined') {
+      const refreshed = window.localStorage.getItem('VITE_ADMIN_API_TOKEN')
+        || window.localStorage.getItem('ADMIN_API_TOKEN')
+        || window.localStorage.getItem('adminToken');
+      if (refreshed) {
+        this.adminToken = refreshed.trim();
+        if (import.meta?.env?.MODE !== 'production') {
+          console.info('[ApiService] Admin token lazily loaded at request time (length=' + this.adminToken.length + ')');
+        }
+      }
+    }
+
     // Inject admin token if available and not explicitly disabled
     if (this.adminToken && !headers['X-Admin-Token']) {
-      headers['X-Admin-Token'] = this.adminToken;
+      headers['X-Admin-Token'] = this.adminToken.trim();
     }
     // Dev aid: warn if making a known protected mutation without token
     const method = (options.method || 'GET').toUpperCase();
@@ -45,7 +60,10 @@ class ApiService {
     ];
     const requiresAdmin = method !== 'GET' && protectedPatterns.some(r => r.test(endpoint));
     if (requiresAdmin && !this.adminToken) {
-      console.warn('[ApiService] Missing admin token for protected request:', method, endpoint);
+      console.warn('[ApiService] Missing admin token for protected request:', method, endpoint, '(no X-Admin-Token header will be sent)');
+    } else if (requiresAdmin && this.adminToken && import.meta?.env?.MODE !== 'production') {
+      // Light debug trace in dev
+      console.debug('[ApiService] Protected request with admin token len=' + this.adminToken.length + ':', method, endpoint);
     }
 
     const config = {
@@ -54,6 +72,7 @@ class ApiService {
     };
 
     const response = await fetch(url, config);
+    // Removed verbose post-fetch debug logging
     const raw = await response.text(); // read once
     let data = null;
     try { data = raw ? JSON.parse(raw) : null; } catch {}
