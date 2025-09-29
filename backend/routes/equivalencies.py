@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from auth import require_admin
 from models import db, Equivalency, Course
 from sqlalchemy.orm import aliased
 
@@ -43,6 +44,7 @@ def get_equivalencies():
     })
 
 @bp.route('', methods=['POST'])
+@require_admin
 def create_equivalency():
     
     data = request.get_json()
@@ -81,6 +83,7 @@ def create_equivalency():
     
 
 @bp.route('/no-equivalent', methods=['POST'])
+@require_admin
 def create_no_equivalent():
     """Create an explicit 'no equivalent' record"""
     data = request.get_json()
@@ -119,6 +122,7 @@ def create_no_equivalent():
         return jsonify({'error': 'Failed to create no equivalent record'}), 500
 
 @bp.route('/<int:equiv_id>', methods=['PUT'])
+@require_admin
 def update_equivalency(equiv_id):
     
     equivalency = Equivalency.query.get_or_404(equiv_id)
@@ -136,6 +140,7 @@ def update_equivalency(equiv_id):
         return jsonify({'error': 'Failed to update equivalency'}), 500
 
 @bp.route('/<int:equiv_id>', methods=['DELETE'])
+@require_admin
 def delete_equivalency(equiv_id):
     
     equivalency = Equivalency.query.get_or_404(equiv_id)

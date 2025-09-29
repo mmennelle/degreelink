@@ -5,8 +5,8 @@ class Equivalency(db.Model):
     __tablename__ = 'equivalencies'
     
     id = db.Column(db.Integer, primary_key=True)
-    from_course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False)
-    to_course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False)
+    from_course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False, index=True)
+    to_course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False, index=True)
     equivalency_type = db.Column(db.String(50), default='direct') 
     notes = db.Column(db.Text)
     approved_by = db.Column(db.String(100))

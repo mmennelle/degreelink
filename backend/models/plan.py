@@ -564,15 +564,15 @@ class PlanCourse(db.Model):
     __table_args__ = {'extend_existing': True}
     
     id = db.Column(db.Integer, primary_key=True)
-    plan_id = db.Column(db.Integer, db.ForeignKey('plans.id'), nullable=False)
-    course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False)
+    plan_id = db.Column(db.Integer, db.ForeignKey('plans.id'), nullable=False, index=True)
+    course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False, index=True)
     semester = db.Column(db.String(50))  
     year = db.Column(db.Integer)
-    status = db.Column(db.String(50), default='planned')  
+    status = db.Column(db.String(50), default='planned', index=True)  
     grade = db.Column(db.String(10))
     credits = db.Column(db.Integer)  
-    requirement_category = db.Column(db.String(100))  
-    requirement_group_id = db.Column(db.Integer, db.ForeignKey('requirement_groups.id'), nullable=True)  
+    requirement_category = db.Column(db.String(100), index=True)  
+    requirement_group_id = db.Column(db.Integer, db.ForeignKey('requirement_groups.id'), nullable=True, index=True)  
     notes = db.Column(db.Text)
     
     course = db.relationship('Course', backref='plan_courses')

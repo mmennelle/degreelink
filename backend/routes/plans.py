@@ -1,8 +1,10 @@
 from flask import Blueprint, request, jsonify, session
+from auth import require_admin
 from models import db, Plan, PlanCourse, Program, Course
 import secrets
 import time
 from functools import wraps
+from services.progress_service import ProgressService
 
 bp = Blueprint('plans', __name__, url_prefix='/api/plans')
 
@@ -75,7 +77,12 @@ def get_plan_by_code(plan_code):
     
     # Return full plan data
     plan_data = plan.to_dict()
-    plan_data['progress'] = plan.calculate_progress()
+    svc = ProgressService(plan)
+    try:
+        plan_data['progress'] = svc.full_progress()
+    except Exception:
+        plan_data['progress_error'] = 'progress_calculation_failed'
+    return jsonify(plan_data)
 
 @bp.route('/verify-code/<plan_code>', methods=['GET'])
 @require_plan_access
@@ -124,6 +131,7 @@ def check_plan_access(plan_id):
     return accessed_plan_id == plan_id
 
 @bp.route('', methods=['POST'])
+@require_admin
 def create_plan():
     """Create a new plan - returns plan with secure code"""
     data = request.get_json()
@@ -190,6 +198,7 @@ def get_plan(plan_id):
     return jsonify(plan_data)
 
 @bp.route('/<int:plan_id>', methods=['PUT'])
+@require_admin
 def update_plan(plan_id):
     """Update plan - requires prior code access"""
     
@@ -218,6 +227,7 @@ def update_plan(plan_id):
         return jsonify({'error': 'Failed to update plan'}), 500
 
 @bp.route('/<int:plan_id>', methods=['DELETE'])
+@require_admin
 def delete_plan(plan_id):
     """Delete a plan - requires prior code access"""
     
@@ -241,6 +251,7 @@ def delete_plan(plan_id):
 
 @bp.route('/by-code/<plan_code>', methods=['DELETE'])
 @require_plan_access
+@require_admin
 def delete_plan_by_code(plan_code):
     """Delete a plan using its secure code"""
     
@@ -436,8 +447,9 @@ def get_degree_audit(plan_id):
         return jsonify({'error': 'Access denied. Use plan code to access this plan.'}), 403
 
     plan = Plan.query.get_or_404(plan_id)
-    progress = plan.calculate_progress()
-    unmet = plan.get_unmet_requirements()
+    svc = ProgressService(plan)
+    progress = svc.full_progress()
+    unmet = svc.unmet()
     return jsonify({'plan_id': plan_id, 'progress': progress, 'unmet_requirements': unmet})
 
 
@@ -464,7 +476,8 @@ def download_degree_audit(plan_id):
         return jsonify({'error': 'Unsupported format'}), 400
 
     plan = Plan.query.get_or_404(plan_id)
-    progress = plan.calculate_progress()
+    svc = ProgressService(plan)
+    progress = svc.full_progress()
     
     # Handle both current and transfer progress
     current_requirements = progress.get('current', {}).get('requirements', [])
@@ -525,25 +538,15 @@ def get_plan_progress(plan_id):
     
     plan = Plan.query.get_or_404(plan_id)
     view_filter = request.args.get('view', 'All Courses')
-    current = plan.calculate_progress(plan.current_program, view_filter) if plan.current_program else {
-        'percent': 0, 'requirements': [], 'total_credits_earned': 0, 'total_credits_required': 0,
-    }
-    transfer = plan.calculate_progress(plan.target_program, view_filter) if plan.target_program else {
-        'percent': 0, 'requirements': [], 'total_credits_earned': 0, 'total_credits_required': 0,
-    }
-    
-    #  Debug: Log what we're returning
-    print(f"Progress for plan {plan_id}, view '{view_filter}':")
-    print(f"  Current: {len(current['requirements'])} requirements")
-    print(f"  Target: {len(transfer['requirements'])} requirements")
-    
+    svc = ProgressService(plan)
+    full = svc.full_progress(view_filter=view_filter)
     return jsonify({
         'plan_id': plan_id,
         'view_filter': view_filter,
-        'current': current,
-        'transfer': transfer,
-        'unmet_requirements': plan.get_unmet_requirements(),
-        'suggestions': plan.suggest_courses_for_requirements()
+        'current': full.get('current'),
+        'transfer': full.get('transfer'),
+        'unmet_requirements': svc.unmet(),
+        'suggestions': svc.suggestions()
     })
 
 @bp.route('/session/clear', methods=['POST'])

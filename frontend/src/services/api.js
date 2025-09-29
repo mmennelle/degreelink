@@ -1,28 +1,73 @@
 class ApiService {
-    constructor() {
-      this.baseURL = '/api';
+  constructor() {
+    // Allow override via Vite env (e.g. VITE_API_BASE="http://127.0.0.1:5000/api")
+    this.baseURL = import.meta?.env?.VITE_API_BASE || '/api';
+    this.adminToken = import.meta?.env?.VITE_ADMIN_API_TOKEN || null;
+    // Fallbacks: localStorage keys if env not injected
+    if (!this.adminToken && typeof window !== 'undefined') {
+      this.adminToken = window.localStorage.getItem('VITE_ADMIN_API_TOKEN')
+        || window.localStorage.getItem('ADMIN_API_TOKEN')
+        || window.localStorage.getItem('adminToken');
     }
-  
-    async request(endpoint, options = {}) {
-      const url = `${this.baseURL}${endpoint}`;
-      const config = {
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
-        ...options,
-      };
-      
-      const response = await fetch(url, config);
-      const raw = await response.text();           // read once
-      let data = null;
-      try { data = raw ? JSON.parse(raw) : null; } catch {}
-      if (!response.ok) {
-        const msg = data?.error || data?.message || data?.detail || `HTTP ${response.status}: ${response.statusText}`;
-        throw new Error(msg);
+    if (!this.adminToken) {
+      // Silent hint in dev only
+      if (import.meta?.env?.MODE !== 'production') {
+        console.warn('[ApiService] Admin token not found in env or localStorage. Protected endpoints will 401.');
       }
-      return data;
     }
+  }
+
+  async request(endpoint, options = {}) {
+    const url = `${this.baseURL}${endpoint}`;
+
+    const isFormData = options.body instanceof FormData;
+
+    const headers = {
+      // Only set JSON content type if NOT using FormData (browser will set correct multipart boundary)
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+      ...options.headers,
+    };
+
+    // Inject admin token if available and not explicitly disabled
+    if (this.adminToken && !headers['X-Admin-Token']) {
+      headers['X-Admin-Token'] = this.adminToken;
+    }
+    // Dev aid: warn if making a known protected mutation without token
+    const method = (options.method || 'GET').toUpperCase();
+    const protectedPatterns = [
+      /\/upload\//,
+      /\/courses$/,
+      /\/courses\/\d+$/,
+      /\/equivalencies/,
+      /\/plans$/,
+      /\/plans\/\d+$/,
+      /set-current/, /requirements\//
+    ];
+    const requiresAdmin = method !== 'GET' && protectedPatterns.some(r => r.test(endpoint));
+    if (requiresAdmin && !this.adminToken) {
+      console.warn('[ApiService] Missing admin token for protected request:', method, endpoint);
+    }
+
+    const config = {
+      ...options,
+      headers,
+    };
+
+    const response = await fetch(url, config);
+    const raw = await response.text(); // read once
+    let data = null;
+    try { data = raw ? JSON.parse(raw) : null; } catch {}
+
+    if (!response.ok) {
+      // Server may return { error: { message, code } } or flat
+      let msg = data?.error || data?.message || data?.detail || `HTTP ${response.status}: ${response.statusText}`;
+      if (typeof msg === 'object') {
+        msg = msg.message || msg.code || JSON.stringify(msg);
+      }
+      throw new Error(msg);
+    }
+    return data;
+  }
     
     // Session Management Methods
     async getSessionStatus() {
@@ -117,15 +162,15 @@ class ApiService {
       return this.request(`/plans/${planId}/progress${query.toString() ? `?${query.toString()}` : ''}`);
     }
   
-    async uploadRequirements(file) {
-      const formData = new FormData();
-      formData.append('file', file);
-      return this.request('/upload/requirements', {
-        method: 'POST',
-        headers: {}, 
-        body: formData
-      });
-    }
+  async uploadRequirements(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request('/upload/requirements', {
+      method: 'POST',
+      // no manual content-type
+      body: formData
+    });
+  }
 
     // Program version management
     async getProgramVersions(programId) {
@@ -303,25 +348,23 @@ class ApiService {
       });
     }
   
-    async uploadCourses(file) {
-      const formData = new FormData();
-      formData.append('file', file);
-      return this.request('/upload/courses', {
-        method: 'POST',
-        headers: {}, 
-        body: formData
-      });
-    }
+  async uploadCourses(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request('/upload/courses', {
+      method: 'POST',
+      body: formData
+    });
+  }
   
-    async uploadEquivalencies(file) {
-      const formData = new FormData();
-      formData.append('file', file);
-      return this.request('/upload/equivalencies', {
-        method: 'POST',
-        headers: {}, 
-        body: formData
-      });
-    }
+  async uploadEquivalencies(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request('/upload/equivalencies', {
+      method: 'POST',
+      body: formData
+    });
+  }
 }
 
 const api = new ApiService();

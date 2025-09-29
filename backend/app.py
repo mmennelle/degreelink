@@ -1,13 +1,16 @@
 # Updated app.py with session security
 
-from flask import Flask, jsonify, session
+from flask import Flask, jsonify, session, request
 from flask_cors import CORS
 from models import init_app
+from flask_migrate import Migrate
 from routes import register_routes
+from dotenv import load_dotenv
 import os
 from datetime import timedelta
 
 def create_app(config_name='default'):
+    load_dotenv()  # Load environment variables from .env file
     app = Flask(__name__)
     
     # Security configurations
@@ -23,19 +26,21 @@ def create_app(config_name='default'):
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=1)  # 1 hour session timeout
     
     # CORS with credentials support for sessions - UPDATED
-    CORS(app, 
-         supports_credentials=True, 
+    CORS(app,
+         supports_credentials=True,
          origins=[
-             'http://localhost:3000',    # Updated to match your vite config
-             'http://localhost:5173',    # Vite dev server default
-             'http://127.0.0.1:3000',    # Local IP version
-             'http://127.0.0.1:5173'     # Local IP version
+             'http://localhost:3000',
+             'http://localhost:5173',
+             'http://127.0.0.1:3000',
+             'http://127.0.0.1:5173'
          ],
-         allow_headers=['Content-Type', 'Authorization'],
+         allow_headers=['Content-Type', 'Authorization', 'X-Admin-Token'],
          methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
     )
     
     db = init_app(app)
+    # Initialize migrations (alembic) support
+    Migrate(app, db)
     register_routes(app)
     
     # Security headers
@@ -51,27 +56,38 @@ def create_app(config_name='default'):
         
         return response
     
+    # --- Standard error helper -------------------------------------------------
+    def error_response(message, status=400, code=None, details=None):
+        payload = {'error': {'message': message}}
+        if code:
+            payload['error']['code'] = code
+        if details is not None:
+            payload['error']['details'] = details
+        return jsonify(payload), status
+
+    app.error_response = error_response  # expose for blueprints if imported
+
     # Error handlers with security considerations
     @app.errorhandler(404)
     def not_found(error):
-        return jsonify({'error': 'Resource not found'}), 404
+        return error_response('Resource not found', 404, code='not_found')
     
     @app.errorhandler(403)
     def forbidden(error):
-        return jsonify({'error': 'Access denied'}), 403
+        return error_response('Access denied', 403, code='forbidden')
     
     @app.errorhandler(429)
     def too_many_requests(error):
-        return jsonify({'error': 'Too many requests. Please try again later.'}), 429
+        return error_response('Too many requests. Please try again later.', 429, code='rate_limited')
     
     @app.errorhandler(500)
     def internal_error(error):
         # Don't leak internal error details
-        return jsonify({'error': 'Internal server error'}), 500
+        return error_response('Internal server error', 500, code='internal')
     
     @app.errorhandler(413)
     def too_large(error):
-        return jsonify({'error': 'File too large'}), 413
+        return error_response('File too large', 413, code='payload_too_large')
     
     # Health check
     @app.route('/api/health')
