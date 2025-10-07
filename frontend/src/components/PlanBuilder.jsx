@@ -9,6 +9,8 @@ import { PlanHeader } from './PlanHeader';
 import { PlanList } from './PlanList';
 import { PlanActions } from './PlanActions';
 import { DegreeProgressCarousel } from './DegreeProgressCarousel';
+import EditPlanModal from './EditPlanModal';
+import EditPlanCourseModal from './EditPlanCourseModal';
 
 const PlanBuilder = ({ 
   onCreatePlan,
@@ -27,6 +29,7 @@ const PlanBuilder = ({
   const [showCourseSearch, setShowCourseSearch] = useState(false);
   const [viewIndex, setViewIndex] = useState(0);
   // viewIndex controls progress filter across both bars
+  const [progressTick, setProgressTick] = useState(0);
 
   const {
     plans,
@@ -47,7 +50,7 @@ const PlanBuilder = ({
   const { programs: programsList } = usePrograms(programs);
 
   const VIEWS = ['All Courses', 'Planned', 'In Progress', 'Completed'];
-  const { progress, progressLoading } = usePlanProgress(selectedPlanId, VIEWS[viewIndex], refreshTrigger);
+  const { progress, progressLoading } = usePlanProgress(selectedPlanId, VIEWS[viewIndex], (refreshTrigger || 0) + progressTick);
   
   // Add course modal state
   const [addCourseModal, setAddCourseModal] = useState({
@@ -56,6 +59,10 @@ const PlanBuilder = ({
     plan: null,
     program: null
   });
+
+  const [editPlanOpen, setEditPlanOpen] = useState(false);
+  const [editCourseState, setEditCourseState] = useState({ isOpen: false, planCourse: null });
+  const [overlayCloseTick, setOverlayCloseTick] = useState(0);
 
   const getProgram = useCallback((programId) => programsList.find(p => p.id === programId), [programsList]);
   const getCurrentProgram = useCallback(() => selectedPlan?.current_program || getProgram(selectedPlan?.current_program_id), [selectedPlan, getProgram]);
@@ -86,6 +93,8 @@ const PlanBuilder = ({
         plan: selectedPlan,
         program: targetProgram
       });
+      // Close any underlying popovers/sheets
+      setOverlayCloseTick(t => t + 1);
     }
   }, [onAddToPlan, selectedPlan, getTargetProgram]);
 
@@ -100,12 +109,40 @@ const PlanBuilder = ({
       if (selectedPlanId) reloadPlan(selectedPlanId);
       setAddCourseModal({ isOpen: false, courses: [], plan: null, program: null });
       setShowCourseSearch(false);
+      // Trigger immediate progress refresh
+      setProgressTick(t => t + 1);
     }
   }, [selectedPlan, selectedPlanId, reloadPlan]);
 
   const handleCreatePlan = () => {
     onCreatePlan?.();
   }
+
+  const handleSavePlan = async (planId, updates) => {
+    await api.updatePlan(planId, updates);
+    if (selectedPlanId) await reloadPlan(selectedPlanId);
+    setProgressTick(t => t + 1);
+  };
+
+  const handleEditPlanCourse = (planCourse) => {
+    // Close other overlays
+    setShowCourseSearch(false);
+    setAddCourseModal({ isOpen: false, courses: [], plan: null, program: null });
+    setOverlayCloseTick(t => t + 1);
+    setEditCourseState({ isOpen: true, planCourse });
+  };
+
+  const handleSavePlanCourse = async (planId, planCourseId, updates) => {
+    await api.updatePlanCourse(planId, planCourseId, updates);
+    if (selectedPlanId) await reloadPlan(selectedPlanId);
+    setProgressTick(t => t + 1);
+  };
+
+  const handleRemovePlanCourse = async (planId, planCourseId) => {
+    await api.removeCourseFromPlan(planId, planCourseId);
+    if (selectedPlanId) await reloadPlan(selectedPlanId);
+    setProgressTick(t => t + 1);
+  };
 
   // Status formatting handled in PlanList now
 
@@ -144,7 +181,13 @@ const PlanBuilder = ({
           />
         ) : (
           <div>
-            <PlanHeader selectedPlan={selectedPlan} onBack={() => setSelectedPlanId(null)} />
+            <PlanHeader selectedPlan={selectedPlan} onBack={() => setSelectedPlanId(null)} canEdit={true} onEditPlan={() => { 
+              // Close other overlays when opening plan edit
+              setShowCourseSearch(false);
+              setAddCourseModal({ isOpen: false, courses: [], plan: null, program: null });
+              setOverlayCloseTick(t => t + 1);
+              setEditPlanOpen(true);
+            }} />
             <DegreeProgressCarousel
               selectedPlanId={selectedPlanId}
               selectedPlan={selectedPlan}
@@ -153,11 +196,13 @@ const PlanBuilder = ({
               getCurrentProgram={getCurrentProgram}
               getTargetProgram={getTargetProgram}
               handleCourseSelect={handleCourseSelect}
+              onEditPlanCourse={handleEditPlanCourse}
+              overlayCloseTick={overlayCloseTick}
               views={VIEWS}
               viewIndex={viewIndex}
               setViewIndex={setViewIndex}
             />
-            <PlanActions onAddCourse={() => setShowCourseSearch(true)} />
+            <PlanActions onAddCourse={() => { setOverlayCloseTick(t => t + 1); setShowCourseSearch(true); }} />
           </div>
         )}
       </div>
@@ -198,6 +243,28 @@ const PlanBuilder = ({
           plan={addCourseModal.plan}
           program={addCourseModal.program}
           onCoursesAdded={handleCoursesAdded}
+        />
+      )}
+
+      {selectedPlan && (
+        <EditPlanModal
+          isOpen={editPlanOpen}
+          onClose={() => setEditPlanOpen(false)}
+          plan={selectedPlan}
+          programs={programsList}
+          onSave={handleSavePlan}
+        />
+      )}
+
+      {selectedPlan && (
+        <EditPlanCourseModal
+          isOpen={editCourseState.isOpen}
+          onClose={() => setEditCourseState({ isOpen: false, planCourse: null })}
+          plan={selectedPlan}
+          planCourse={editCourseState.planCourse}
+          program={getTargetProgram()}
+          onSave={handleSavePlanCourse}
+          onRemove={handleRemovePlanCourse}
         />
       )}
     </div>

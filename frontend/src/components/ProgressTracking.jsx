@@ -61,6 +61,8 @@ export default function ProgressTracking({
 	program = null,
 	onAddCourse = null,
 	plan = null,
+	onEditPlanCourse,
+	overlayCloseTick,
 	currentView = 'All Courses',
 }) {
 	const c = COLOR[color] || COLOR.blue;
@@ -124,6 +126,13 @@ export default function ProgressTracking({
 			return { requirement: req, id: req.id || req.name || index, height: segHeight, fillPercent, fillStyle: getGradientColor(fillPercent), trackClass: 'bg-gray-200 dark:bg-gray-700', initials, side, mid };
 		});
 	}, []);
+
+	useEffect(() => {
+		// If parent signals opening a new modal, close any open requirement popover/sheet
+		if (overlayCloseTick !== undefined) {
+			setOpenBubbleKey(null);
+		}
+	}, [overlayCloseTick]);
 
 	useEffect(() => {
 		if (!isMobile || !openBubbleKey) return;
@@ -219,11 +228,11 @@ export default function ProgressTracking({
 							<button type="button" onClick={() => setOpenBubbleKey(isOpen ? null : segKey)} aria-expanded={isOpen ? 'true' : 'false'} aria-label={`${seg.requirement.name} requirement (${seg.requirement.status})`} className="absolute inset-0 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 z-30" />
 							{isOpen && (isMobile ? (
 								<MobileSheetPortal>
-									<RequirementDetails requirement={seg.requirement} onClose={() => setOpenBubbleKey(null)} onAddCourse={onAddCourse} plan={plan} program={program} compact />
+									<RequirementDetails requirement={seg.requirement} onClose={() => setOpenBubbleKey(null)} onAddCourse={onAddCourse} onEditPlanCourse={onEditPlanCourse} plan={plan} program={program} compact />
 								</MobileSheetPortal>
 							) : (
 								<DesktopPopoverPortal seg={seg}>
-									<RequirementDetails requirement={seg.requirement} onClose={() => setOpenBubbleKey(null)} onAddCourse={onAddCourse} plan={plan} program={program} />
+									<RequirementDetails requirement={seg.requirement} onClose={() => setOpenBubbleKey(null)} onAddCourse={onAddCourse} onEditPlanCourse={onEditPlanCourse} plan={plan} program={program} />
 								</DesktopPopoverPortal>
 							))}
 						</div>
@@ -234,7 +243,7 @@ export default function ProgressTracking({
 	);
 }
 
-function RequirementDetails({ requirement, onClose, onAddCourse, plan, program, compact = false }) {
+function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCourse, plan, program, compact = false }) {
 	const [showSuggestions, setShowSuggestions] = useState(false);
 	const [showCourses, setShowCourses] = useState(false);
 	const [suggestions, setSuggestions] = useState([]);
@@ -374,12 +383,17 @@ function RequirementDetails({ requirement, onClose, onAddCourse, plan, program, 
 						<div className={`mt-3 space-y-2 ${compact ? '' : 'max-h-32 overflow-y-auto'}`}>
 							{requirementCourses.length > 0 ? requirementCourses.map((pc) => (
 								<div key={pc.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
-									<div className="flex items-start justify-between">
+									<div className="flex items-start justify-between gap-2">
 										<div className="flex-1 min-w-0">
 											<h6 className="text-sm font-medium text-gray-900 dark:text-gray-100">{pc.course?.code}: {pc.course?.title}</h6>
 											<p className="text-xs text-gray-600 dark:text-gray-400">{(pc.credits || pc.course?.credits) ?? 0} credits • {pc.course?.institution}</p>
 										</div>
-										<span className={`px-2 py-1 text-xs rounded border ${badgeByCourseStatus(pc.status)}`}>{pc.status === 'in_progress' ? 'In Progress' : pc.status === 'completed' ? 'Completed' : 'Planned'}</span>
+										<div className="flex items-center gap-2">
+										  <span className={`px-2 py-1 text-xs rounded border ${badgeByCourseStatus(pc.status)}`}>{pc.status === 'in_progress' ? 'In Progress' : pc.status === 'completed' ? 'Completed' : 'Planned'}</span>
+																					{onEditPlanCourse && (
+											<button onClick={() => onEditPlanCourse(pc)} className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-500">Edit</button>
+										  )}
+										</div>
 									</div>
 								</div>
 							)) : (<p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">No courses added for this requirement yet</p>)}

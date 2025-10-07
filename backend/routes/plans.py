@@ -198,7 +198,6 @@ def get_plan(plan_id):
     return jsonify(plan_data)
 
 @bp.route('/<int:plan_id>', methods=['PUT'])
-@require_admin
 def update_plan(plan_id):
     """Update plan - requires prior code access"""
     

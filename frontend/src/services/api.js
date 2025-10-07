@@ -55,7 +55,7 @@ class ApiService {
       /\/courses\/\d+$/,
       /\/equivalencies/,
       /\/plans$/,
-      /\/plans\/\d+$/,
+      // note: PUT /plans/:id is allowed with plan access session; don't blanket-require admin here
       /set-current/, /requirements\//
     ];
     const requiresAdmin = method !== 'GET' && protectedPatterns.some(r => r.test(endpoint));

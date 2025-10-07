@@ -27,6 +27,8 @@ export function DegreeProgressCarousel({
   getCurrentProgram,
   getTargetProgram,
   handleCourseSelect,
+  onEditPlanCourse,
+  overlayCloseTick,
   views,
   viewIndex,
   setViewIndex,
@@ -89,6 +91,8 @@ export function DegreeProgressCarousel({
                         program={getCurrentProgram()}
                         plan={selectedPlan}
                         onAddCourse={handleCourseSelect}
+                        onEditPlanCourse={onEditPlanCourse}
+                        overlayCloseTick={overlayCloseTick}
                         currentView={views[viewIndex]}
                       />
                       <ProgressTracking
@@ -99,6 +103,8 @@ export function DegreeProgressCarousel({
                         program={getTargetProgram()}
                         plan={selectedPlan}
                         onAddCourse={handleCourseSelect}
+                        onEditPlanCourse={onEditPlanCourse}
+                        overlayCloseTick={overlayCloseTick}
                         currentView={views[viewIndex]}
                       />
                     </div>
