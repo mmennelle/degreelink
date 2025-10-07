@@ -16,10 +16,8 @@ if (import.meta.env.MODE !== 'production' && typeof window !== 'undefined') {
 }
 
 // Append a cache-busting query param if provided (?v=123) to force fresh loads of dynamic imports, etc.
+// Optional cache-bust query (?v=123) support for dev refreshes
 const bust = new URLSearchParams(window.location.search).get('v');
-if (bust) {
-  console.info('[cache] Bust param detected v=', bust);
-}
 
 // Ensure admin token initialized (belt-and-suspenders) after potential cache bust
 if (!api.adminToken) {
@@ -27,12 +25,8 @@ if (!api.adminToken) {
   const storedToken = localStorage.getItem('VITE_ADMIN_API_TOKEN');
   if (envToken) {
     api.adminToken = envToken.trim();
-    console.info('[admin] Initialized admin token from env len=', api.adminToken.length);
   } else if (storedToken) {
     api.adminToken = storedToken.trim();
-    console.info('[admin] Initialized admin token from localStorage len=', api.adminToken.length);
-  } else {
-    console.info('[admin] No admin token available at startup');
   }
 }
 

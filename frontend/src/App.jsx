@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { DarkModeProvider } from './hooks/useDarkMode';
 import useAppController from './controllers/useAppController';
 import AppShell from './views/AppShell';
-import AdminModeBadge from './components/AdminModeBadge';
 
 import MobileOnboarding from './components/MobileOnboarding';
 import PrivacyNotice from './components/PrivacyNotice';
@@ -35,7 +34,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-surface-light dark:bg-surface-dark transition-colors duration-300">
-      <AdminModeBadge />
       <DarkModeProvider>
         <AppShell
           activeTab={c.activeTab}
