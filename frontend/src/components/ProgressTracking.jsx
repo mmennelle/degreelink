@@ -1,5 +1,6 @@
 // ProgressTracking.jsx - Pure presentation component (formerly VerticalProgressWithBubbles)
 import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
+import api from '../services/api';
 import { createPortal } from 'react-dom';
 import { X, Plus, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
 
@@ -100,16 +101,59 @@ export default function ProgressTracking({
 		const list = reqList || [];
 		const n = list.length;
 		if (!n) return [];
-		let sumCredits = 0;
-		list.forEach((req) => {
+		// Compute base values (use at least 1 for requirements with no explicit credits)
+		const values = list.map(req => {
 			const tot = req.totalCredits ?? req.credits_required ?? 0;
-			sumCredits += (tot > 0 ? tot : 1);
+			return tot > 0 ? tot : 1;
 		});
+		const sum = values.reduce((a, b) => a + b, 0);
+		let heights = values.map(v => (sum > 0 ? (v / sum) * 100 : (100 / n)));
+		// Enforce a minimum height so the abbreviation text fits inside the segment.
+		// Use a desired minimum of ~6%; if many segments, cap by feasible per-segment space.
+		const desiredMin = 6; // percent
+		const maxFeasible = Math.max(0, (100 / n) - 0.1);
+		const minPct = Math.max(0, Math.min(desiredMin, maxFeasible));
+		if (minPct > 0) {
+			// First, clamp all below-min segments up to minPct and track the extra needed.
+			let extraNeeded = 0;
+			const below = new Array(n).fill(false);
+			for (let i = 0; i < n; i++) {
+				if (heights[i] < minPct) {
+					extraNeeded += (minPct - heights[i]);
+					heights[i] = minPct;
+					below[i] = true;
+				}
+			}
+			// Reduce from segments above minPct proportionally to their surplus until we cover extraNeeded.
+			let iterations = 0;
+			while (extraNeeded > 0 && iterations < n + 2) {
+				iterations++;
+				let donorSurplusTotal = 0;
+				const surplus = heights.map((h, i) => {
+					const s = Math.max(0, h - minPct);
+					donorSurplusTotal += (below[i] ? 0 : s);
+					return s;
+				});
+				if (donorSurplusTotal <= 0) break; // No room to take from; keep clamped values
+				let remainingToTake = extraNeeded;
+				for (let i = 0; i < n; i++) {
+					if (below[i] || surplus[i] <= 0) continue;
+					const share = (surplus[i] / donorSurplusTotal) * extraNeeded;
+					// Don't drop below minPct
+					const take = Math.min(share, heights[i] - minPct);
+					heights[i] -= take;
+					remainingToTake -= take;
+				}
+				extraNeeded = Math.max(0, remainingToTake);
+			}
+			// Final normalization to account for floating point drift; scale to exactly 100%
+			const totalAfter = heights.reduce((a, b) => a + b, 0) || 100;
+			heights = heights.map(h => (h / totalAfter) * 100);
+		}
+		// Build segment objects with positions and fill
 		let cumulative = 0;
 		return list.map((req, index) => {
 			const tot = req.totalCredits ?? req.credits_required ?? 0;
-			const segValue = (tot > 0 ? tot : 1);
-			const segHeight = sumCredits > 0 ? (segValue / sumCredits) * 100 : (100 / n);
 			const completed = req.completedCredits ?? req.credits_completed ?? 0;
 			const fillPercent = tot > 0 ? Math.min((completed / tot) * 100, 100) : 0;
 			const getGradientColor = (p) => {
@@ -120,6 +164,7 @@ export default function ProgressTracking({
 			};
 			const initials = getRequirementInitials(req.name || req.category || '');
 			const side = index % 2 === 0 ? 'left' : 'right';
+			const segHeight = heights[index];
 			const start = cumulative;
 			const mid = start + segHeight / 2;
 			cumulative += segHeight;
@@ -274,44 +319,142 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 		try {
 			const out = [];
 			const targetInstitution = program?.institution;
-			if (!programRequirement) {
-				const mappings = {
-					'english': ['ENG', 'ENGL', 'composition', 'writing'],
-					'composition': ['ENG', 'ENGL', 'composition', 'writing'],
-					'literature': ['ENG', 'ENGL', 'LIT', 'literature'],
-					'mathematics': ['MATH', 'mathematics', 'calculus', 'algebra'],
-					'math': ['MATH', 'mathematics', 'calculus', 'algebra'],
-					'analytical': ['MATH', 'statistics', 'logic'],
-					'reasoning': ['MATH', 'PHIL', 'logic'],
-					'biology': ['BIOL', 'BIO', 'biology', 'life science'],
-					'chemistry': ['CHEM', 'chemistry'],
-					'physics': ['PHYS', 'physics'],
-					'history': ['HIST', 'history'],
-					'science': ['BIOL', 'CHEM', 'PHYS', 'science'],
-					'social': ['SOC', 'PSY', 'POLI', 'social'],
-					'humanities': ['ENG', 'HIST', 'PHIL', 'ART', 'humanities'],
-					'arts': ['ART', 'MUSC', 'THEA', 'arts'],
-					'fine arts': ['ART', 'MUSC', 'THEA', 'arts']
+			// For grouped requirements, prefer authoritative backend suggestions tied to program requirement definitions
+			if ((requirement?.requirement_type === 'grouped' || requirement?.programRequirement?.requirement_type === 'grouped') && requirement?.id && program?.id) {
+				try {
+					const resp = await api.getProgramRequirementSuggestions(program.id, requirement.id);
+					const items = [];
+					(resp?.suggestions || []).forEach(group => {
+						(group.course_options || []).forEach(({ course, option_info, group_name }) => {
+							if (!course) return;
+							// Filter out courses already on plan and exclude developmental (< 1000 level or numeric < 100)
+							const already = (plan?.courses || []).some(pc => pc.course?.id === course.id);
+							const level = course.course_level ?? null;
+							const num = course.course_number_numeric ?? null;
+							if (already || (level !== null && level < 1000) || (num !== null && num < 100)) return;
+							items.push({
+								id: course.id,
+								code: course.code,
+								title: course.title,
+								credits: course.credits,
+								institution: course.institution,
+								description: course.description,
+								group_name,
+								is_preferred: option_info?.is_preferred || false,
+								notes: option_info?.notes || '',
+								requirement_category: requirement.name || requirement.category,
+								detectedCategory: requirement.name || requirement.category,
+							});
+						});
+					});
+					setSuggestions(items.slice(0, 12));
+					return;
+				} catch {
+					// Fall through to local heuristics if backend suggestions fail
+				}
+			}
+			// Helper: de-dupe accumulator
+			const pushUnique = (course, extra = {}) => {
+				// exclude developmental courses (< 1000 level) when metadata is present
+				if (typeof course.course_level === 'number' && course.course_level < 1000) return;
+				if (!out.find(e => e.id === course.id)) {
+					out.push({
+						id: course.id,
+						code: course.code,
+						title: course.title,
+						credits: course.credits,
+						institution: course.institution,
+						description: course.description,
+						requirement_category: name,
+						is_preferred: false,
+						detectedCategory: name,
+						...extra
+					});
+				}
+			};
+
+			// Collect IDs already on the plan to avoid suggesting duplicates
+			const existingIds = new Set((plan.courses || []).map(pc => pc.course?.id).filter(Boolean));
+
+			if (!programRequirement || programRequirement.requirement_type === 'simple') {
+				// Map requirement category keywords to subject codes and optional title filters
+				const subjectMap = {
+					'english composition': { subjects: ['ENGL', 'ENG'], titleIncludesAny: ['composition', 'writing', 'rhetoric'] },
+					'composition': { subjects: ['ENGL', 'ENG'], titleIncludesAny: ['composition', 'writing', 'rhetoric'] },
+					'english': { subjects: ['ENGL', 'ENG'] },
+					'literature': { subjects: ['ENGL', 'LIT'] },
+					'mathematics': { subjects: ['MATH', 'STAT'] },
+					'math': { subjects: ['MATH', 'STAT'] },
+					'analytical reasoning': { subjects: ['MATH', 'STAT', 'PHIL'], titleIncludesAny: ['logic', 'statistics', 'analysis'] },
+					'reasoning': { subjects: ['MATH', 'PHIL'], titleIncludesAny: ['logic'] },
+					'biology': { subjects: ['BIOL', 'BIO'] },
+					'chemistry': { subjects: ['CHEM'] },
+					'physics': { subjects: ['PHYS'] },
+					'history': { subjects: ['HIST'] },
+					'science': { subjects: ['BIOL', 'CHEM', 'PHYS'] },
+					'social sciences': { subjects: ['SOC', 'PSY', 'POLI'] },
+					'social science': { subjects: ['SOC', 'PSY', 'POLI'] },
+					'humanities': { subjects: ['ENGL', 'HIST', 'PHIL', 'ART', 'MUSC', 'THEA'] },
+					'arts': { subjects: ['ART', 'MUSC', 'THEA'] },
+					'fine arts': { subjects: ['ART', 'MUSC', 'THEA'] },
+					'liberal arts': { subjects: ['ENGL', 'HIST', 'PHIL', 'ART', 'MUSC', 'THEA', 'SOC', 'PSY', 'POLI'] }
 				};
 				const nameLower = name.toLowerCase();
-				let searchTerms = [];
-				for (const [key, terms] of Object.entries(mappings)) { if (nameLower.includes(key)) { searchTerms = terms; break; } }
-				if (!searchTerms.length) searchTerms = [name];
-				for (const term of searchTerms.slice(0, 2)) {
+				let mappingKey = Object.keys(subjectMap).find(k => nameLower.includes(k));
+				const conf = mappingKey ? subjectMap[mappingKey] : { subjects: [] };
+				let subjects = conf.subjects;
+				// Fallback: try to infer a subject by taking the first uppercase token in the name
+				if (!subjects || subjects.length === 0) {
+					// No strong mapping; try a conservative search using subject-like tokens (e.g., "CSCI", "MATH")
+					subjects = [];
+				}
+
+				// Query by subject code to avoid broad full-text matches
+				const subjectsToQuery = subjects.slice(0, 3); // limit network calls
+				for (const subj of subjectsToQuery) {
 					try {
-						let searchUrl = `/api/courses?search=${encodeURIComponent(term)}&per_page=10`;
-						if (targetInstitution) searchUrl += `&institution=${encodeURIComponent(targetInstitution)}`;
-						const res = await fetch(searchUrl);
+						let url = `/api/courses?subject=${encodeURIComponent(subj)}&per_page=20`;
+						if (targetInstitution) url += `&institution=${encodeURIComponent(targetInstitution)}`;
+						const res = await fetch(url);
 						if (res.ok) {
 							const data = await res.json();
-							data.courses?.forEach(course => {
-								const courseMatchesInstitution = !targetInstitution || course.institution?.toLowerCase() === targetInstitution.toLowerCase();
-								if (courseMatchesInstitution && !out.find(e => e.id === course.id)) {
-									out.push({ id: course.id, code: course.code, title: course.title, credits: course.credits, institution: course.institution, description: course.description, requirement_category: name, is_preferred: false, detectedCategory: name, search_term: term });
+							(data.courses || []).forEach(course => {
+								const instOk = !targetInstitution || (course.institution || '').toLowerCase() === targetInstitution.toLowerCase();
+								if (!instOk) return;
+								if (existingIds.has(course.id)) return;
+								// Optional stricter title filter for some categories
+								if (conf.titleIncludesAny && conf.titleIncludesAny.length > 0) {
+									const title = (course.title || '').toLowerCase();
+									if (!conf.titleIncludesAny.some(w => title.includes(w))) return;
 								}
+								pushUnique(course);
 							});
 						}
-					} catch { /* ignore */ }
+					} catch {
+						// ignore fetch errors per subject
+					}
+				}
+
+				// If we still have no suggestions and we have a strong keyword (e.g., "composition"), run a narrow title search as a last resort
+				if (out.length === 0 && conf.titleIncludesAny && conf.titleIncludesAny.length > 0) {
+					for (const kw of conf.titleIncludesAny.slice(0, 1)) {
+						try {
+							let url = `/api/courses?search=${encodeURIComponent(kw)}&per_page=10`;
+							if (targetInstitution) url += `&institution=${encodeURIComponent(targetInstitution)}`;
+							const res = await fetch(url);
+							if (res.ok) {
+								const data = await res.json();
+								(data.courses || []).forEach(course => {
+									const instOk = !targetInstitution || (course.institution || '').toLowerCase() === targetInstitution.toLowerCase();
+									if (!instOk) return;
+									if (existingIds.has(course.id)) return;
+									pushUnique(course, { search_term: kw });
+								});
+							}
+						} catch {
+							// ignore
+						}
+					}
 				}
 			} else if (programRequirement.requirement_type === 'grouped' && programRequirement.groups) {
 				for (const group of programRequirement.groups) {
@@ -325,13 +468,14 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 								if (res.ok) {
 									const data = await res.json();
 									const course = data.courses?.[0];
-									if (course) out.push({ id: course.id, code: course.code, title: course.title, credits: course.credits, institution: course.institution, description: course.description, group_name: group.group_name, is_preferred: option.is_preferred, notes: option.notes, requirement_category: name, detectedCategory: name });
+									if (course && !existingIds.has(course.id)) pushUnique(course, { group_name: group.group_name, is_preferred: option.is_preferred, notes: option.notes });
 								}
 							} catch { /* ignore */ }
 						}
 				}
 			}
-			setSuggestions(out);
+			// Trim to a reasonable number to keep UI focused
+			setSuggestions(out.slice(0, 12));
 		} catch { setSuggestions([]); } finally { setLoadingSuggestions(false); }
 	}, [programRequirement, loadingSuggestions, name, plan, program]);
 
