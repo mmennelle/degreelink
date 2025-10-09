@@ -45,7 +45,7 @@ def require_plan_access(f):
 
 @bp.route('', methods=['GET'])
 def get_plans():
-    """REMOVED: No longer allow browsing all plans for security"""
+    """REMOVED: No longer allow browsing all plans"""
     return jsonify({
         'error': 'Plan browsing not allowed. Use plan codes to access specific plans.',
         'message': 'For security reasons, plans can only be accessed individually using plan codes.'

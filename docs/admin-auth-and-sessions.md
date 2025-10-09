@@ -127,5 +127,3 @@ Plan session lifecycle:
 2. Server sets session cookies with `accessed_plan_id` and timestamp
 3. Client can read/update plan-scoped resources without admin token until session expires
 4. Session can be cleared via `/api/plans/session/clear`
-
-If you need more examples (curl or JS fetch), I can add a mini appendix with request/response snippets.
