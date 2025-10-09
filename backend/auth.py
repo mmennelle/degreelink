@@ -8,18 +8,20 @@ flows are not broken during transition.
 from functools import wraps
 from flask import request, current_app, jsonify
 import os
+from hmac import compare_digest
 
 def require_admin(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         token = os.environ.get('ADMIN_API_TOKEN')
-        fail_open = os.environ.get('ADMIN_FAIL_OPEN', 'true').lower() in ('1','true','yes','on')
+        fail_open = os.environ.get('ADMIN_FAIL_OPEN', 'false').lower() in ('1','true','yes','on')
         if not token:
             if fail_open:
                 return f(*args, **kwargs)
             return jsonify({'error': {'message': 'Admin token not configured', 'code': 'unauthorized'}}), 401
         provided = request.headers.get('X-Admin-Token')
-        if not provided or provided != token:
+        # Use constant-time comparison to avoid timing side channels
+        if not provided or not compare_digest(str(provided), str(token)):
             # Development diagnostics (do not leak full token)
             if current_app and current_app.debug:
                 exp = token

@@ -8,17 +8,23 @@ from routes import register_routes
 from dotenv import load_dotenv
 import os
 from datetime import timedelta
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 def create_app(config_name='default'):
-    # Load .env from current directory (backend/) first
-    load_dotenv()
-    # If ADMIN_API_TOKEN still missing, attempt to load parent project-level .env as fallback
-    if not os.environ.get('ADMIN_API_TOKEN'):
-        parent_env = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env'))
-        if os.path.exists(parent_env):
-            load_dotenv(parent_env, override=False)
-            if os.environ.get('ADMIN_API_TOKEN'):
-                print("[app] Loaded ADMIN_API_TOKEN from parent .env fallback")
+    # Normalize environment mode for decisions
+    env_mode = (os.environ.get('FLASK_ENV') or '').lower()
+
+    # Load .env only in development to avoid reading secrets from disk in production
+    if env_mode != 'production':
+        # Load .env from current directory (backend/) first
+        load_dotenv()
+        # Attempt to load parent project-level .env as fallback (dev only)
+        if not os.environ.get('ADMIN_API_TOKEN'):
+            parent_env = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env'))
+            if os.path.exists(parent_env):
+                load_dotenv(parent_env, override=False)
+                if os.environ.get('ADMIN_API_TOKEN'):
+                    print("[app] Loaded ADMIN_API_TOKEN from parent .env fallback")
     app = Flask(__name__)
     
     # Security configurations
@@ -46,6 +52,9 @@ def create_app(config_name='default'):
          methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
     )
     
+    # Respect proxy headers for correct client IP/HTTPS detection (behind Nginx/ALB)
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
+
     db = init_app(app)
     # Initialize migrations (alembic) support
     Migrate(app, db)
@@ -132,6 +141,10 @@ def create_app(config_name='default'):
                 'match': bool(token and provided and token == provided)
             })
     
+    # In production, refuse to start if required admin token is missing (applies to WSGI too)
+    if env_mode == 'production' and not os.environ.get('ADMIN_API_TOKEN'):
+        raise RuntimeError("ADMIN_API_TOKEN is required in production. Refusing to start.")
+
     # Create tables
     with app.app_context():
         db.create_all()
@@ -141,9 +154,11 @@ def create_app(config_name='default'):
 app = create_app()
 
 if __name__ == '__main__':
-    
     # Development vs Production settings
     if os.environ.get('FLASK_ENV') == 'production':
+        # Enforce ADMIN_API_TOKEN presence in production
+        if not os.environ.get('ADMIN_API_TOKEN'):
+            raise SystemExit("ADMIN_API_TOKEN is required in production. Refusing to start.")
         # Production: Use a proper WSGI server like Gunicorn
         print("Warning: Use a production WSGI server for production deployment")
         app.run(debug=False, host='0.0.0.0', port=5000)
