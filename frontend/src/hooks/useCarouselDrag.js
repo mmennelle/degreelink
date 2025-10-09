@@ -50,16 +50,20 @@ export function useCarouselDrag(viewIndex, setViewIndex, slideCount) {
     el.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
     el.addEventListener('touchstart', onPointerDown, { passive: true });
     el.addEventListener('touchmove', onPointerMove, { passive: true });
     el.addEventListener('touchend', endDrag);
+    el.addEventListener('touchcancel', endDrag);
     return () => {
       el.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', endDrag);
+      window.removeEventListener('pointercancel', endDrag);
       el.removeEventListener('touchstart', onPointerDown);
       el.removeEventListener('touchmove', onPointerMove);
       el.removeEventListener('touchend', endDrag);
+      el.removeEventListener('touchcancel', endDrag);
     };
   }, [onPointerDown, onPointerMove, endDrag]);
 

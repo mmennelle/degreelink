@@ -77,7 +77,7 @@ export function DegreeProgressCarousel({
               </button>
             )}
           </div>
-          <div ref={frameRef} className="relative w-full">
+          <div ref={frameRef} className="relative w-full touch-pan-y select-none" style={{ touchAction: 'pan-y' }}>
             <div className="overflow-hidden">
               <div className="flex" style={trackStyle}>
                 {slides.map(slide => (
