@@ -447,9 +447,48 @@ def get_degree_audit(plan_id):
 
     plan = Plan.query.get_or_404(plan_id)
     svc = ProgressService(plan)
-    progress = svc.full_progress()
+    full = svc.full_progress()
+
+    # The frontend expects a flattened summary, not the nested { current, transfer } shape.
+    # Prefer the target/transfer program; fall back to current if transfer missing.
+    transfer = (full or {}).get('transfer') or {}
+    current = (full or {}).get('current') or {}
+    chosen = transfer if transfer.get('requirements') else current
+
+    reqs = chosen.get('requirements') or []
+    requirement_progress = []
+    for r in reqs:
+        total = int(r.get('totalCredits') or 0)
+        completed = int(r.get('completedCredits') or 0)
+        requirement_progress.append({
+            'id': r.get('id'),
+            'category': r.get('category') or r.get('name') or '',
+            'credits_required': total,
+            'credits_completed': min(completed, total) if total else completed,
+            'credits_remaining': max(0, (total or 0) - (completed or 0)),
+            'is_complete': (r.get('status') == 'met')
+        })
+
+    total_credits_required = sum(x.get('credits_required', 0) for x in requirement_progress)
+    total_credits_earned = sum(x.get('credits_completed', 0) for x in requirement_progress)
+    completion_percentage = (total_credits_earned / total_credits_required * 100) if total_credits_required else 0.0
+    requirements_completion_percentage = (
+        (sum(1 for x in requirement_progress if x.get('is_complete')) / len(requirement_progress) * 100)
+        if requirement_progress else 0.0
+    )
+
+    progress_payload = {
+        'requirement_progress': requirement_progress,
+        'total_credits_earned': total_credits_earned,
+        'total_credits_required': total_credits_required,
+        'completion_percentage': completion_percentage,
+        'requirements_completion_percentage': requirements_completion_percentage,
+        # keep a hint of which program we summarized
+        'program_type': 'transfer' if chosen is transfer else 'current',
+    }
+
     unmet = svc.unmet()
-    return jsonify({'plan_id': plan_id, 'progress': progress, 'unmet_requirements': unmet})
+    return jsonify({'plan_id': plan_id, 'progress': progress_payload, 'unmet_requirements': unmet})
 
 
 @bp.route('/<int:plan_id>/degree-audit', methods=['GET'])

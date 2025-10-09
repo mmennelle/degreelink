@@ -40,14 +40,21 @@ def create_app(config_name='default'):
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=1)  # 1 hour session timeout
     
     # CORS with credentials support for sessions - UPDATED
+    # Allow overriding origins via CORS_ALLOWED_ORIGINS (comma-separated)
+    default_origins = [
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:5173',
+        # include production site by default
+        'https://course-equiv.cs.uno.edu'
+    ]
+    override = os.environ.get('CORS_ALLOWED_ORIGINS')
+    origins = [o.strip() for o in override.split(',')] if override else default_origins
+
     CORS(app,
          supports_credentials=True,
-         origins=[
-             'http://localhost:3000',
-             'http://localhost:5173',
-             'http://127.0.0.1:3000',
-             'http://127.0.0.1:5173'
-         ],
+         origins=origins,
          allow_headers=['Content-Type', 'Authorization', 'X-Admin-Token'],
          methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
     )

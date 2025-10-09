@@ -67,6 +67,8 @@ class ApiService {
     }
 
     const config = {
+      // Always include cookies; required for session-based plan access when VITE_API_BASE points to 5000
+      credentials: 'include',
       ...options,
       headers,
     };
@@ -217,7 +219,7 @@ class ApiService {
 
     async downloadPlanAudit(planId, format = 'csv') {
       const endpoint = `/plans/${planId}/degree-audit?format=${format}`;
-      const response = await fetch(`${this.baseURL}${endpoint}`);
+  const response = await fetch(`${this.baseURL}${endpoint}`, { credentials: 'include' });
       if (!response.ok) {
         const data = await response.json().catch(() => ({ error: 'Download failed' }));
         throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
