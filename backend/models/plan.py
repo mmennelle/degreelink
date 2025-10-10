@@ -301,7 +301,8 @@ class Plan(db.Model):
             return unmet
             
         canon = self.normalize_category
-        for requirement in self.current_program.requirements:
+        # Compare plan's completed credits against the TARGET program's requirements
+        for requirement in (self.target_program.requirements or []):
             completed_credits = sum(
                 (pc.credits or (pc.course.credits if pc.course else 0) or 0)
                 for pc in self.courses
@@ -318,12 +319,11 @@ class Plan(db.Model):
 
 
     def suggest_courses_for_requirements(self):
-       
-        
         suggestions = []
-        completed_course_ids = [course.course_id for course in self.courses if course.status == 'completed']
+        # Exclude any course already on the plan (planned, in_progress, completed)
+        excluded_course_ids = [course.course_id for course in (self.courses or [])]
         unmet_requirements = self.get_unmet_requirements()
-        
+
         for unmet_req in unmet_requirements:
             category = unmet_req['category']
             credits_needed = unmet_req['credits_needed']
@@ -345,14 +345,15 @@ class Plan(db.Model):
             
             if program_requirement.requirement_type == 'grouped':
                 category_suggestions['course_options'] = self._get_grouped_requirement_suggestions(
-                    program_requirement, completed_course_ids
+                    program_requirement, excluded_course_ids
                 )
             else:
+                # Only propose courses that would actually count for this requirement
                 category_suggestions['course_options'] = self._get_simple_requirement_suggestions(
-                    category, completed_course_ids, credits_needed
+                    category, excluded_course_ids, credits_needed, program_requirement
                 )
             
-            if any(course.course.institution for course in self.courses):
+            if any(course.course and course.course.institution for course in (self.courses or [])):
                 category_suggestions['transfer_options'] = self._get_transfer_suggestions(
                     category_suggestions['course_options']
                 )
@@ -361,7 +362,7 @@ class Plan(db.Model):
         
         return suggestions
 
-    def _get_grouped_requirement_suggestions(self, requirement, completed_course_ids):
+    def _get_grouped_requirement_suggestions(self, requirement, excluded_course_ids):
         from .course import Course
         
         suggestions = []
@@ -373,7 +374,7 @@ class Plan(db.Model):
                     institution=course_option.institution or self.target_program.institution
                 ).first()
                 
-                if course and course.id not in completed_course_ids:
+                if course and course.id not in excluded_course_ids:
                     suggestions.append({
                         'id': course.id,
                         'code': course.code,
@@ -389,43 +390,136 @@ class Plan(db.Model):
         
         return suggestions
 
-    def _get_simple_requirement_suggestions(self, category, completed_course_ids, credits_needed):
-        
-        
-        category_mappings = {
-            'Core Biology': ['Biology', 'Biological Sciences'],
-            'Chemistry': ['Chemistry'],
-            'Mathematics': ['Mathematics'],
-            'Physics': ['Physics'],
-            'English Composition': ['English'],
-            'Liberal Arts': ['English', 'History', 'Philosophy', 'Art'],
-            'Social Sciences': ['Sociology', 'Psychology', 'Political Science'],
-            'Humanities': ['English', 'History', 'Philosophy', 'Music', 'Art']
+    def _get_simple_requirement_suggestions(self, category, excluded_course_ids, credits_needed, program_requirement=None):
+        """Suggest only courses at the target institution that would satisfy the given simple requirement.
+
+        This uses subject-code based mappings rather than broad department matches, and excludes
+        courses already completed in the plan. If a mapping isn't found, it falls back to the
+        requirement's category as a conservative filter on department name.
+        """
+        from .course import Course
+
+        # Centralised subject mappings for common requirement categories
+        subject_mappings = {
+            'english composition': ['ENGL', 'ENG'],
+            'composition': ['ENGL', 'ENG'],
+            'english': ['ENGL', 'ENG'],
+            'literature': ['ENGL', 'LIT'],
+            'mathematics': ['MATH', 'STAT'],
+            'math': ['MATH', 'STAT'],
+            'analytical reasoning': ['MATH', 'STAT', 'PHIL'],
+            'reasoning': ['PHIL', 'MATH'],
+            'biology': ['BIOL', 'BIO'],
+            'chemistry': ['CHEM'],
+            'physics': ['PHYS'],
+            'history': ['HIST'],
+            'science': ['BIOL', 'CHEM', 'PHYS'],
+            'social sciences': ['SOC', 'PSY', 'POLI'],
+            'social science': ['SOC', 'PSY', 'POLI'],
+            'humanities': ['ENGL', 'HIST', 'PHIL', 'ART', 'MUSC', 'THEA'],
+            'arts': ['ART', 'MUSC', 'THEA'],
+            'fine arts': ['ART', 'MUSC', 'THEA'],
+            'liberal arts': ['ENGL', 'HIST', 'PHIL', 'ART', 'MUSC', 'THEA', 'SOC', 'PSY', 'POLI'],
         }
-        
-        departments = category_mappings.get(category, [category])
-        suggestions = []
-        
-        courses = Course.query.filter(
+
+        norm = (category or '').strip().lower()
+        subjects = subject_mappings.get(norm, [])
+
+        query = Course.query.filter(
             Course.institution == self.target_program.institution,
-            Course.department.in_(departments),
-            ~Course.id.in_(completed_course_ids)
-        ).limit(10).all()
-        
-        for course in courses:
-            suggestions.append({
-                'id': course.id,
-                'code': course.code,
-                'title': course.title,
-                'credits': course.credits,
-                'institution': course.institution,
-                'department': course.department,
-                'description': course.description,
-                'prerequisites': course.prerequisites,
-                'is_preferred': False
-            })
-        
-        return suggestions
+            ~Course.id.in_(excluded_course_ids)
+        )
+        if subjects:
+            query = query.filter(Course.subject_code.in_(subjects))
+        else:
+            # Fallback: filter by department string containing the category
+            if norm:
+                query = query.filter(Course.department.ilike(f"%{category}%"))
+
+        # Pull a modest set; we'll validate each against the requirement
+        # Exclude developmental or non-credit-bearing courses (below 1000 level) when possible
+        try:
+            candidates = query.filter(
+                ((Course.course_level == None) | (Course.course_level >= 1000)) &
+                ((Course.course_number_numeric == None) | (Course.course_number_numeric >= 100))
+            ).limit(30).all()
+        except Exception:
+            candidates = query.limit(30).all()
+
+        valid = []
+        for course in candidates:
+            if self._will_course_satisfy_requirement(course, program_requirement, category_hint=category):
+                valid.append({
+                    'id': course.id,
+                    'code': course.code,
+                    'title': course.title,
+                    'credits': course.credits,
+                    'institution': course.institution,
+                    'department': course.department,
+                    'description': course.description,
+                    'prerequisites': course.prerequisites,
+                    'is_preferred': False
+                })
+
+        # Sort by subject/course number for stable ordering; trim to roughly credits_needed scope
+        # We can't ensure exact credit matching here; leave selection to the user with clear options
+        return valid[:12]
+
+    def _will_course_satisfy_requirement(self, course, requirement, category_hint: str | None = None) -> bool:
+        """Return True if the candidate course would count toward the requirement.
+
+        Grouped requirements: course code must appear in at least one group's options (respecting
+        institution if provided).
+
+        Simple requirements: accept courses whose subject_code is in a mapped set for the category
+        (or whose department contains the category as a fallback). If requirement is None, use the
+        category_hint.
+        """
+        from .program import ProgramRequirement
+        if not course:
+            return False
+
+        if isinstance(requirement, ProgramRequirement) and requirement.requirement_type == 'grouped':
+            # Check if the course code appears in any allowed option in any group
+            for group in requirement.groups or []:
+                for opt in group.course_options or []:
+                    inst_ok = (not opt.institution) or (opt.institution == course.institution)
+                    if inst_ok and (opt.course_code or '').strip().upper() == (course.code or '').strip().upper():
+                        return True
+            return False
+
+        # Simple requirement validation by subject mapping
+        category = (requirement.category if isinstance(requirement, ProgramRequirement) else category_hint) or ''
+        norm = category.strip().lower()
+        subject_mappings = {
+            'english composition': ['ENGL', 'ENG'],
+            'composition': ['ENGL', 'ENG'],
+            'english': ['ENGL', 'ENG'],
+            'literature': ['ENGL', 'LIT'],
+            'mathematics': ['MATH', 'STAT'],
+            'math': ['MATH', 'STAT'],
+            'analytical reasoning': ['MATH', 'STAT', 'PHIL'],
+            'reasoning': ['PHIL', 'MATH'],
+            'biology': ['BIOL', 'BIO'],
+            'chemistry': ['CHEM'],
+            'physics': ['PHYS'],
+            'history': ['HIST'],
+            'science': ['BIOL', 'CHEM', 'PHYS'],
+            'social sciences': ['SOC', 'PSY', 'POLI'],
+            'social science': ['SOC', 'PSY', 'POLI'],
+            'humanities': ['ENGL', 'HIST', 'PHIL', 'ART', 'MUSC', 'THEA'],
+            'arts': ['ART', 'MUSC', 'THEA'],
+            'fine arts': ['ART', 'MUSC', 'THEA'],
+            'liberal arts': ['ENGL', 'HIST', 'PHIL', 'ART', 'MUSC', 'THEA', 'SOC', 'PSY', 'POLI'],
+        }
+        subjects = subject_mappings.get(norm, [])
+        if subjects:
+            return (course.subject_code or '').upper() in subjects and course.institution == self.target_program.institution
+        # Fallback to department contains category keyword
+        if norm:
+            dept = (course.department or '').lower()
+            return (norm in dept) and course.institution == self.target_program.institution
+        return False
 
     def _get_transfer_suggestions(self, course_options):
         from .equivalency import Equivalency
@@ -564,15 +658,15 @@ class PlanCourse(db.Model):
     __table_args__ = {'extend_existing': True}
     
     id = db.Column(db.Integer, primary_key=True)
-    plan_id = db.Column(db.Integer, db.ForeignKey('plans.id'), nullable=False)
-    course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False)
+    plan_id = db.Column(db.Integer, db.ForeignKey('plans.id'), nullable=False, index=True)
+    course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False, index=True)
     semester = db.Column(db.String(50))  
     year = db.Column(db.Integer)
-    status = db.Column(db.String(50), default='planned')  
+    status = db.Column(db.String(50), default='planned', index=True)  
     grade = db.Column(db.String(10))
     credits = db.Column(db.Integer)  
-    requirement_category = db.Column(db.String(100))  
-    requirement_group_id = db.Column(db.Integer, db.ForeignKey('requirement_groups.id'), nullable=True)  
+    requirement_category = db.Column(db.String(100), index=True)  
+    requirement_group_id = db.Column(db.Integer, db.ForeignKey('requirement_groups.id'), nullable=True, index=True)  
     notes = db.Column(db.Text)
     
     course = db.relationship('Course', backref='plan_courses')

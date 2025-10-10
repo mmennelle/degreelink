@@ -1,4 +1,4 @@
-// VerticalProgressWithBubbles.jsx - Refactored to be a pure presentation component
+// ProgressTracking.jsx (formerly VerticalProgressWithBubbles) - Pure presentation component
 import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Plus, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
@@ -53,7 +53,7 @@ function useIsMobile() {
   return isMobile;
 }
 
-export default function VerticalProgressWithBubbles({
+export default function ProgressTracking({
   title,
   percent = 0,
   requirements = [],

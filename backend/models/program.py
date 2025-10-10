@@ -39,8 +39,8 @@ class ProgramRequirement(db.Model):
     __tablename__ = 'program_requirements'
     
     id = db.Column(db.Integer, primary_key=True)
-    program_id = db.Column(db.Integer, db.ForeignKey('programs.id'), nullable=False)
-    category = db.Column(db.String(100), nullable=False)  
+    program_id = db.Column(db.Integer, db.ForeignKey('programs.id'), nullable=False, index=True)
+    category = db.Column(db.String(100), nullable=False, index=True)  
     credits_required = db.Column(db.Integer, nullable=False)
     description = db.Column(db.Text)
     requirement_type = db.Column(db.String(50), default='simple')  
@@ -54,7 +54,7 @@ class ProgramRequirement(db.Model):
     year = db.Column(db.Integer)
     # Whether this requirement version is the currently active set of requirements
     # for the program.  Only one version per program should be marked current.
-    is_current = db.Column(db.Boolean, default=False)
+    is_current = db.Column(db.Boolean, default=False, index=True)
     
     
     groups = db.relationship('RequirementGroup', backref='requirement', cascade='all, delete-orphan')
@@ -136,7 +136,7 @@ class RequirementGroup(db.Model):
     __tablename__ = 'requirement_groups'
     
     id = db.Column(db.Integer, primary_key=True)
-    requirement_id = db.Column(db.Integer, db.ForeignKey('program_requirements.id'), nullable=False)
+    requirement_id = db.Column(db.Integer, db.ForeignKey('program_requirements.id'), nullable=False, index=True)
     group_name = db.Column(db.String(100), nullable=False)
     courses_required = db.Column(db.Integer, nullable=False)  
     credits_required = db.Column(db.Integer)  
@@ -229,8 +229,8 @@ class GroupCourseOption(db.Model):
     __tablename__ = 'group_course_options'
     
     id = db.Column(db.Integer, primary_key=True)
-    group_id = db.Column(db.Integer, db.ForeignKey('requirement_groups.id'), nullable=False)
-    course_code = db.Column(db.String(20), nullable=False)  
+    group_id = db.Column(db.Integer, db.ForeignKey('requirement_groups.id'), nullable=False, index=True)
+    course_code = db.Column(db.String(20), nullable=False, index=True)  
     institution = db.Column(db.String(100))  
     is_preferred = db.Column(db.Boolean, default=False)  
     notes = db.Column(db.Text)  

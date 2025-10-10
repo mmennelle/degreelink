@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from auth import require_admin
 from models import db, Course, Equivalency
 from sqlalchemy import or_
 
@@ -181,6 +182,7 @@ def get_course(course_id):
 
 
 @bp.route('', methods=['POST'])
+@require_admin
 def create_course():
     data = request.get_json() or {}
     # Extract fields from JSON.  Accept both the legacy `code` and the
@@ -217,6 +219,7 @@ def create_course():
         return jsonify({'error': 'Failed to create course'}), 500
 
 @bp.route('/<int:course_id>', methods=['PUT'])
+@require_admin
 def update_course(course_id):
     course = Course.query.get_or_404(course_id)
     data = request.get_json() or {}
@@ -251,6 +254,7 @@ def update_course(course_id):
         return jsonify({'error': 'Failed to update course'}), 500
 
 @bp.route('/<int:course_id>', methods=['DELETE'])
+@require_admin
 def delete_course(course_id):
     
     course = Course.query.get_or_404(course_id)

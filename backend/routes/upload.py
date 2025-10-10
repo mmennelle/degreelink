@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from auth import require_admin
 import csv
 import io
 from models import db, Course, Equivalency
@@ -8,6 +9,7 @@ from werkzeug.utils import secure_filename
 bp = Blueprint('upload', __name__, url_prefix='/api/upload')
 
 @bp.route('/courses', methods=['POST'])
+@require_admin
 def upload_courses():
     
     if 'file' not in request.files:
@@ -102,6 +104,7 @@ def upload_courses():
         return jsonify({'error': f'Failed to process file: {str(e)}'}), 500
 
 @bp.route('/equivalencies', methods=['POST'])
+@require_admin
 def upload_equivalencies():
     
     if 'file' not in request.files:
@@ -218,6 +221,7 @@ def upload_equivalencies():
     
 
 @bp.route('/requirements', methods=['POST'])
+@require_admin
 def upload_requirements():
     """
     Upload program requirements from CSV file.
