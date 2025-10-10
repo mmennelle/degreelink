@@ -25,6 +25,38 @@
 6. GET /get-plan/{code} (retrieve plan using code from step 5)
 
 
+## Phase 1 feature flags (grouped evaluation + auto-assignment)
+
+This project now supports stricter grouped requirement evaluation and automatic group assignment behind feature flags. These are off by default to preserve current behavior and can be enabled per environment.
+
+- PROGRESS_USE_GROUPED_EVALUATION (default: false)
+    - When true, progress/audit for requirement_type='grouped' uses the strict evaluator (ProgramRequirement.evaluate_completion). Group rules like courses_required or credits_required at the group level are enforced. Zero-credit, course-count-only groups (e.g., exit exams) will show as complete when satisfied.
+    - API remains backward-compatible and adds a non-breaking field group_results to grouped requirement entries for transparency.
+
+- AUTO_ASSIGN_REQUIREMENT_GROUPS (default: false)
+    - When true, newly added or updated plan courses are automatically assigned to a RequirementGroup if their code matches a GroupCourseOption in the target program. If multiple matches exist, options marked is_preferred are chosen first; otherwise a deterministic order is applied.
+
+Enable flags in bash (Linux/macOS):
+
+```bash
+export PROGRESS_USE_GROUPED_EVALUATION=true
+export AUTO_ASSIGN_REQUIREMENT_GROUPS=true
+# then start the backend as you normally do
+```
+
+Effects you should see when enabled:
+- Grouped requirements honor the exact course options you list in your CSV uploads (docs/equic-csvs/*). Courses not listed won’t be counted toward grouped requirements.
+- Responses include group_results detailing which groups are satisfied and which courses were used.
+- Zero-credit groups that require a specific number of courses will be considered met when the count is satisfied.
+
+Authoring tips for grouped requirements:
+- Enumerate explicit course codes in the course_option column for each group. Use is_preferred to guide auto-assignment.
+- To avoid mixing tracks (e.g., PHYS 103x vs 106x), place each track in a separate group under the same category.
+
+To revert to legacy behavior:
+- Set both flags to false (or unset them) and restart the backend.
+
+
 
 # Course Equivalency Finder App
 
