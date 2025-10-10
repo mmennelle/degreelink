@@ -203,9 +203,20 @@ class Plan(db.Model):
             except Exception:
                 use_group_eval = False
 
+            # Preserve legacy behavior for the "All Courses" view so planned/in_progress
+            # contributions still show anticipated progress. Only enforce strict grouped
+            # evaluation when a specific status filter is applied (e.g., Completed Courses).
             if use_group_eval:
                 try:
-                    eval_result = req.evaluate_completion([pc for pc in relevant_courses if pc.status == 'completed'])
+                    sf = status_key(view_filter)
+                    if sf is None:  # All Courses view
+                        use_group_eval = False
+                except Exception:
+                    pass
+
+            if use_group_eval:
+                try:
+                    eval_result = req.evaluate_completion([pc for pc in relevant_courses])
                 except Exception:
                     eval_result = None
 
