@@ -249,10 +249,42 @@ class Plan(db.Model):
                 continue
 
             # Legacy/simple path or when grouped evaluation is disabled
+            # Pre-compute allowed option codes for grouped requirements (normalized)
+            allowed_codes = set()
+            if getattr(req, 'requirement_type', '') == 'grouped':
+                try:
+                    for g in (req.groups or []):
+                        for opt in (g.course_options or []):
+                            code_norm = (getattr(opt, 'course_code', '') or '').upper().replace('-', ' ').strip()
+                            if code_norm:
+                                allowed_codes.add(code_norm)
+                except Exception:
+                    allowed_codes = set()
+
             for pc in relevant_courses:
                 course_canon = canon(getattr(pc, 'requirement_category', ''))
                 cat_match = (course_canon == req_canon)
                 group_match = (group_ids and getattr(pc, 'requirement_group_id', None) in group_ids)
+
+                # For target program in legacy path: if grouped requirement and no direct group assignment,
+                # allow equivalency-driven match when the equivalent target course code appears in group options.
+                if not group_match and allowed_codes and prog_id == getattr(self, 'program_id', None):
+                    try:
+                        eq_course = self._get_equivalent_course(pc, program)
+                        if eq_course:
+                            eq_code_norm = (eq_course.code or '').upper().replace('-', ' ').strip()
+                            if eq_code_norm in allowed_codes:
+                                group_match = True
+                    except Exception:
+                        pass
+                    # Also consider direct target-institution courses whose own code appears in group options
+                    if not group_match and getattr(pc, 'course', None) and getattr(pc.course, 'institution', None) == program.institution:
+                        try:
+                            own_code_norm = (pc.course.code or '').upper().replace('-', ' ').strip()
+                            if own_code_norm in allowed_codes:
+                                group_match = True
+                        except Exception:
+                            pass
                 if not (cat_match or group_match):
                     continue
 
@@ -335,17 +367,24 @@ class Plan(db.Model):
         
         if not plan_course.course:
             return None
-        
-        # Find equivalency mapping
-        equivalency = Equivalency.query.filter_by(
-            from_course_id=plan_course.course.id
-        ).first()
-        
-        if equivalency and equivalency.to_course:
-            # Check if equivalent course is at target institution
-            if equivalency.to_course.institution == target_program.institution:
-                return equivalency.to_course
-        
+
+        # Prefer an equivalency that maps specifically to the target institution.
+        try:
+            # Join to the Course table for the target (to_course) to filter by institution.
+            to_alias = Course
+            eq = (Equivalency.query
+                  .join(to_alias, Equivalency.to_course_id == to_alias.id)
+                  .filter(
+                      Equivalency.from_course_id == plan_course.course.id,
+                      to_alias.institution == target_program.institution
+                  )
+                  .first())
+            if eq and eq.to_course:
+                return eq.to_course
+        except Exception:
+            pass
+
+        # Fallback: return None (either no mapping to target institution, or only 'no equivalent')
         return None
     
     def get_unmet_requirements(self):
