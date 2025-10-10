@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from auth import require_admin
 from models import db
 from models.program import Program, ProgramRequirement, RequirementGroup, GroupCourseOption
 
@@ -124,6 +125,7 @@ def get_program_versions(program_id):
     return jsonify({'program_id': program_id, 'versions': version_list})
 
 @bp.route('/<int:program_id>/versions/set-current', methods=['PUT'])
+@require_admin
 def set_program_current_version(program_id):
     """
     Set the current requirement version for a program.  Expects JSON
@@ -155,6 +157,7 @@ def set_program_current_version(program_id):
     return jsonify({'message': 'Current version updated', 'semester': semester, 'year': year_int})
 
 @bp.route('/<int:program_id>/requirements/<int:requirement_id>', methods=['PUT'])
+@require_admin
 def update_program_requirement(program_id, requirement_id):
     """
     Update an existing program requirement.  Currently allows updating

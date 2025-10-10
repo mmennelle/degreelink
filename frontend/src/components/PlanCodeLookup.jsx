@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Key, Search, AlertCircle, CheckCircle, Copy, Share2, X, Eye, User, Calendar, GraduationCap } from 'lucide-react';
+import api from '../services/api';
 
 
 const PlanCodeLookup = ({ onPlanFound = null, onClose = null, showAsModal = false, onOpenPlan = null }) => {
@@ -32,13 +33,7 @@ const PlanCodeLookup = ({ onPlanFound = null, onClose = null, showAsModal = fals
     setFoundPlan(null);
 
     try {
-      const response = await fetch(`/api/plans/by-code/${planCode.trim()}`);
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Plan not found');
-      }
-
+      const data = await api.getPlanByCode(planCode.trim());
       setFoundPlan(data);
       setShowSuccess(true);
       
@@ -111,6 +106,23 @@ const PlanCodeLookup = ({ onPlanFound = null, onClose = null, showAsModal = fals
     return status.split('_').map(word => 
       word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
+  };
+
+  const summarizeProgress = (progress) => {
+    if (!progress) return { percent: 0, earned: 0, required: 0 };
+    // Support both nested shape { current, transfer } and flattened audit summary
+    if (progress.requirement_progress && Array.isArray(progress.requirement_progress)) {
+      const earned = progress.total_credits_earned || 0;
+      const required = progress.total_credits_required || 0;
+      const percent = required ? (earned / required) * 100 : 0;
+      return { percent, earned, required };
+    }
+    const chosen = (progress.transfer && progress.transfer.requirements?.length) ? progress.transfer : progress.current;
+    if (!chosen) return { percent: 0, earned: 0, required: 0 };
+    const earned = chosen.total_credits_earned || 0;
+    const required = chosen.total_credits_required || 0;
+    const percent = required ? (earned / required) * 100 : 0;
+    return { percent, earned, required };
   };
 
   const content = (
@@ -303,22 +315,24 @@ const PlanCodeLookup = ({ onPlanFound = null, onClose = null, showAsModal = fals
           {foundPlan.progress && (
             <div className="mt-4 p-3 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
               <h5 className="font-medium text-gray-800 dark:text-gray-200 mb-2">Progress Overview</h5>
+              {(() => { const { percent, earned, required } = summarizeProgress(foundPlan.progress); return (
+                <>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-600 dark:text-gray-400">Completion</span>
-                <span className="font-bold text-gray-900 dark:text-white">
-                  {foundPlan.progress.completion_percentage?.toFixed(1) || 0}%
-                </span>
+                <span className="font-bold text-gray-900 dark:text-white">{percent.toFixed(1)}%</span>
               </div>
               <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2 mt-2">
                 <div 
                   className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${Math.min(foundPlan.progress.completion_percentage || 0, 100)}%` }}
+                  style={{ width: `${Math.min(percent, 100)}%` }}
                 ></div>
               </div>
               <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
-                <span>{foundPlan.progress.total_credits_earned || 0} credits earned</span>
-                <span>{foundPlan.progress.total_credits_required || 0} total required</span>
+                <span>{earned} credits earned</span>
+                <span>{required} total required</span>
               </div>
+                </>
+              ); })()}
             </div>
           )}
         </div>

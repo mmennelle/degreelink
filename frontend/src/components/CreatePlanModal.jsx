@@ -158,6 +158,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
     setErrors({});
 
     try {
+      // (Debug logging removed after token issue resolution)
       const createdPlan = await api.createPlan(formData);
       console.debug('createdPlan', createdPlan);
 

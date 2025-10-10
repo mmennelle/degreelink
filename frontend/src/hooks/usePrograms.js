@@ -1,0 +1,31 @@
+import { useState, useEffect } from 'react';
+import api from '../services/api';
+
+export function usePrograms(externalPrograms) {
+  const [internalPrograms, setInternalPrograms] = useState([]);
+
+  // Choose source (prefer external if provided and non-empty)
+  const programs = (externalPrograms && externalPrograms.length > 0)
+    ? externalPrograms
+    : internalPrograms;
+
+  useEffect(() => {
+    // If caller passed programs (non-empty) we skip fetching entirely
+    if (externalPrograms && externalPrograms.length > 0) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.getPrograms();
+        if (!cancelled) setInternalPrograms(res.programs || []);
+      } catch (e) {
+        // optional: could expose error state later
+      }
+    })();
+    return () => { cancelled = true; };
+    // We only care if the external array becomes populated; watching length avoids
+    // identity-based loops if parent re-renders with a new [] reference.
+  }, [externalPrograms?.length]);
+
+  return { programs };
+}

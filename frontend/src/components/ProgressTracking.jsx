@@ -1,0 +1,578 @@
+// ProgressTracking.jsx - Pure presentation component (formerly VerticalProgressWithBubbles)
+import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
+import api from '../services/api';
+import { createPortal } from 'react-dom';
+import { X, Plus, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
+
+// Static class map for consistent styling
+const COLOR = {
+	blue: {
+		bar: 'bg-blue-600 dark:bg-blue-500',
+		track: 'bg-blue-200 dark:bg-blue-900/40',
+		bubble: 'bg-blue-600 text-white ring-blue-300 dark:ring-blue-700 hover:bg-blue-700',
+		bubblePartial: 'bg-yellow-500 text-white ring-yellow-300 dark:ring-yellow-700 hover:bg-yellow-600',
+		bubbleNone: 'bg-gray-400 text-white ring-gray-300 dark:ring-gray-600 hover:bg-gray-500',
+		title: 'text-blue-700 dark:text-blue-300',
+		legend: 'text-blue-600 dark:text-blue-400',
+	},
+	violet: {
+		bar: 'bg-violet-600 dark:bg-violet-500',
+		track: 'bg-violet-200 dark:bg-violet-900/40',
+		bubble: 'bg-violet-600 text-white ring-violet-300 dark:ring-violet-700 hover:bg-violet-700',
+		bubblePartial: 'bg-yellow-500 text-white ring-yellow-300 dark:ring-yellow-700 hover:bg-yellow-600',
+		bubbleNone: 'bg-gray-400 text-white ring-gray-300 dark:ring-gray-600 hover:bg-gray-500',
+		title: 'text-violet-700 dark:text-violet-300',
+		legend: 'text-violet-600 dark:text-violet-400',
+	},
+	emerald: {
+		bar: 'bg-emerald-600 dark:bg-emerald-500',
+		track: 'bg-emerald-200 dark:bg-emerald-900/40',
+		bubble: 'bg-emerald-600 text-white ring-emerald-300 dark:ring-emerald-700 hover:bg-emerald-700',
+		bubblePartial: 'bg-yellow-500 text-white ring-yellow-300 dark:ring-yellow-700 hover:bg-yellow-600',
+		bubbleNone: 'bg-gray-400 text-white ring-gray-300 dark:ring-gray-600 hover:bg-gray-500',
+		title: 'text-emerald-700 dark:text-emerald-300',
+		legend: 'text-emerald-600 dark:text-emerald-400',
+	},
+};
+
+// Detect mobile layout (Tailwind 'sm' breakpoint)
+function useIsMobile() {
+	const [isMobile, setIsMobile] = useState(() =>
+		typeof window !== 'undefined' ? window.matchMedia('(max-width: 640px)').matches : false
+	);
+	useEffect(() => {
+		if (typeof window === 'undefined') return;
+		const mq = window.matchMedia('(max-width: 640px)');
+		const handler = (e) => setIsMobile(e.matches);
+		mq.addEventListener?.('change', handler);
+		mq.addListener?.(handler);
+		return () => {
+			mq.removeEventListener?.('change', handler);
+			mq.removeListener?.(handler);
+		};
+	}, []);
+	return isMobile;
+}
+
+export default function ProgressTracking({
+	title,
+	percent = 0,
+	requirements = [],
+	color = 'blue',
+	program = null,
+	onAddCourse = null,
+	plan = null,
+	onEditPlanCourse,
+	overlayCloseTick,
+	currentView = 'All Courses',
+}) {
+	const c = COLOR[color] || COLOR.blue;
+	const barFrameRef = useRef(null);
+	const shellRef = useRef(null);
+	const [openBubbleKey, setOpenBubbleKey] = useState(null);
+	const isMobile = useIsMobile();
+
+	const displayRequirements = useMemo(() => {
+		return requirements || [];
+	}, [requirements, currentView]);
+
+	const displayPercent = useMemo(() => percent || 0, [percent, title]);
+
+	function getRequirementInitials(name) {
+		if (!name) return 'XX';
+		const abbreviations = {
+			'mathematics': 'MATH', 'math': 'MATH', 'english': 'ENGL', 'composition': 'ENG-COMP',
+			'literature': 'LIT', 'humanities': 'HUMS', 'biology': 'BIO', 'chemistry': 'CHEM',
+			'physics': 'PHYS', 'history': 'HIST', 'science': 'SCI', 'social science': 'SOC-SCI',
+			'social sciences': 'SOC-SCI', 'liberal arts': 'LIB-ART', 'fine arts': 'FA', 'core': 'CORE',
+			'elective': 'ELEC', 'free elective': 'FR-ELEC', 'general education': 'GEN-ED'
+		};
+		const nameLower = name.toLowerCase();
+		if (abbreviations[nameLower]) return abbreviations[nameLower];
+		for (const [key, abbrev] of Object.entries(abbreviations)) {
+			if (nameLower.includes(key)) return abbrev;
+		}
+		const words = name.trim().split(/\s+/);
+		if (words.length === 1) return words[0].substring(0, 2).toUpperCase();
+		return words.slice(0, 2).map(w => w.charAt(0)).join('').toUpperCase();
+	}
+
+	const buildSegments = useCallback((reqList) => {
+		const list = reqList || [];
+		const n = list.length;
+		if (!n) return [];
+		// Compute base values (use at least 1 for requirements with no explicit credits)
+		const values = list.map(req => {
+			const tot = req.totalCredits ?? req.credits_required ?? 0;
+			return tot > 0 ? tot : 1;
+		});
+		const sum = values.reduce((a, b) => a + b, 0);
+		let heights = values.map(v => (sum > 0 ? (v / sum) * 100 : (100 / n)));
+		// Enforce a minimum height so the abbreviation text fits inside the segment.
+		// Use a desired minimum of ~6%; if many segments, cap by feasible per-segment space.
+		const desiredMin = 6; // percent
+		const maxFeasible = Math.max(0, (100 / n) - 0.1);
+		const minPct = Math.max(0, Math.min(desiredMin, maxFeasible));
+		if (minPct > 0) {
+			// First, clamp all below-min segments up to minPct and track the extra needed.
+			let extraNeeded = 0;
+			const below = new Array(n).fill(false);
+			for (let i = 0; i < n; i++) {
+				if (heights[i] < minPct) {
+					extraNeeded += (minPct - heights[i]);
+					heights[i] = minPct;
+					below[i] = true;
+				}
+			}
+			// Reduce from segments above minPct proportionally to their surplus until we cover extraNeeded.
+			let iterations = 0;
+			while (extraNeeded > 0 && iterations < n + 2) {
+				iterations++;
+				let donorSurplusTotal = 0;
+				const surplus = heights.map((h, i) => {
+					const s = Math.max(0, h - minPct);
+					donorSurplusTotal += (below[i] ? 0 : s);
+					return s;
+				});
+				if (donorSurplusTotal <= 0) break; // No room to take from; keep clamped values
+				let remainingToTake = extraNeeded;
+				for (let i = 0; i < n; i++) {
+					if (below[i] || surplus[i] <= 0) continue;
+					const share = (surplus[i] / donorSurplusTotal) * extraNeeded;
+					// Don't drop below minPct
+					const take = Math.min(share, heights[i] - minPct);
+					heights[i] -= take;
+					remainingToTake -= take;
+				}
+				extraNeeded = Math.max(0, remainingToTake);
+			}
+			// Final normalization to account for floating point drift; scale to exactly 100%
+			const totalAfter = heights.reduce((a, b) => a + b, 0) || 100;
+			heights = heights.map(h => (h / totalAfter) * 100);
+		}
+		// Build segment objects with positions and fill
+		let cumulative = 0;
+		return list.map((req, index) => {
+			const tot = req.totalCredits ?? req.credits_required ?? 0;
+			const completed = req.completedCredits ?? req.credits_completed ?? 0;
+			const fillPercent = tot > 0 ? Math.min((completed / tot) * 100, 100) : 0;
+			const getGradientColor = (p) => {
+				const normalizedPercent = Math.max(0, Math.min(100, p));
+				const red = Math.round(255 * (1 - normalizedPercent / 100));
+				const green = Math.round(255 * (normalizedPercent / 100));
+				return { backgroundColor: `rgb(${red}, ${green}, 0)` };
+			};
+			const initials = getRequirementInitials(req.name || req.category || '');
+			const side = index % 2 === 0 ? 'left' : 'right';
+			const segHeight = heights[index];
+			const start = cumulative;
+			const mid = start + segHeight / 2;
+			cumulative += segHeight;
+			return { requirement: req, id: req.id || req.name || index, height: segHeight, fillPercent, fillStyle: getGradientColor(fillPercent), trackClass: 'bg-gray-200 dark:bg-gray-700', initials, side, mid };
+		});
+	}, []);
+
+	useEffect(() => {
+		// If parent signals opening a new modal, close any open requirement popover/sheet
+		if (overlayCloseTick !== undefined) {
+			setOpenBubbleKey(null);
+		}
+	}, [overlayCloseTick]);
+
+	useEffect(() => {
+		if (!isMobile || !openBubbleKey) return;
+		const prev = document.body.style.overflow;
+		document.body.style.overflow = 'hidden';
+		return () => { document.body.style.overflow = prev; };
+	}, [isMobile, openBubbleKey]);
+
+	useEffect(() => {
+		const onKey = (e) => e.key === 'Escape' && setOpenBubbleKey(null);
+		document.addEventListener('keydown', onKey);
+		return () => document.removeEventListener('keydown', onKey);
+	}, []);
+
+	const DesktopPopoverPortal = ({ seg, children }) => {
+		const [rect, setRect] = useState(null);
+		useEffect(() => {
+			const update = () => setRect(barFrameRef.current?.getBoundingClientRect() || null);
+			update();
+			window.addEventListener('resize', update);
+			window.addEventListener('scroll', update, true);
+			return () => {
+				window.removeEventListener('resize', update);
+				window.removeEventListener('scroll', update, true);
+			};
+		}, [barFrameRef, seg?.id]);
+		if (!rect) return null;
+		const gap = 8;
+		const top = rect.top + (seg.mid / 100) * rect.height;
+		const leftBase = seg.side === 'left' ? (rect.left - gap) : (rect.right + gap);
+		const transform = seg.side === 'left' ? 'translate(-100%, -50%)' : 'translate(0, -50%)';
+		return createPortal(
+			<>
+				<button aria-label="Close popover" onClick={() => setOpenBubbleKey(null)} className="fixed inset-0 z-[998] bg-transparent" />
+				<div role="dialog" aria-modal="false" className="fixed z-[999] w-80 max-w-[85vw] rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl" style={{ top, left: leftBase, transform, maxHeight: 'min(70vh, 560px)', overflow: 'hidden' }}>
+					<div style={{ maxHeight: 'inherit', overflowY: 'auto' }}>{children}</div>
+				</div>
+			</>,
+			document.body
+		);
+	};
+
+	const MobileSheetPortal = ({ children }) => {
+		const [vh, setVh] = React.useState(() => typeof window !== 'undefined' ? (window.visualViewport?.height || window.innerHeight) : 800);
+		React.useEffect(() => {
+			const update = () => { const h = window.visualViewport?.height || window.innerHeight; setVh(h); };
+			update();
+			window.addEventListener('resize', update);
+			window.addEventListener('orientationchange', update);
+			window.visualViewport?.addEventListener('resize', update);
+			return () => {
+				window.removeEventListener('resize', update);
+				window.removeEventListener('orientationchange', update);
+				window.visualViewport?.removeEventListener('resize', update);
+			};
+		}, []);
+		const sheetMaxPx = Math.round(vh * 0.88);
+		return createPortal(
+			<>
+				<button aria-label="Close panel" onClick={() => setOpenBubbleKey(null)} className="fixed inset-0 z-[1098] bg-black/50 backdrop-blur-[1px]" />
+				<div role="dialog" aria-modal="true" className="fixed inset-x-0 bottom-0 z-[1099] rounded-t-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl pt-3 pb-4 px-4" style={{ maxHeight: `${sheetMaxPx}px`, height: 'auto', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)', overflow: 'hidden', overscrollBehavior: 'contain' }}>
+					<div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-gray-300 dark:bg-gray-600" />
+					<div style={{ maxHeight: 'inherit', overflowY: 'auto' }}>{children}</div>
+				</div>
+			</>,
+			document.body
+		);
+	};
+
+	const titleColor = (COLOR[color] || COLOR.blue).title;
+
+	return (
+		<section className="flex flex-col items-center gap-2 sm:gap-3 select-none w-full max-w-full" ref={shellRef}>
+			<div className="flex items-center gap-2">
+				<h3 className={`text-sm font-semibold text-center ${titleColor}`}>{title}</h3>
+			</div>
+			<div className="relative h-80 w-28 sm:h-80 sm:w-28 mx-1 sm:mx-2 border-2 border-gray-300 dark:border-gray-900 rounded-md overflow-hidden" ref={barFrameRef} aria-label={`${title} progress`} role="group">
+				<div className="absolute -right-5 -top-7 translate-x-full">
+					<div className="px-2 py-1 text-xs rounded-lg bg-gray-800 text-white dark:bg-gray-900 dark:text-gray-100 shadow-lg font-medium">{Math.round(displayPercent)}%</div>
+				</div>
+				{buildSegments(displayRequirements).map((seg, index) => {
+					const segKey = `${seg.id}-single`;
+					const isOpen = openBubbleKey === segKey;
+					const segments = buildSegments(displayRequirements);
+					return (
+						<div key={segKey} className="relative w-full" style={{ height: `${seg.height}%` }}>
+							<div className={`absolute inset-0 ${seg.trackClass} ${index === 0 ? 'rounded-t-sm' : ''} ${index === segments.length - 1 ? 'rounded-b-sm' : ''}`} />
+							<div className={`absolute bottom-0 left-0 w-full ${index === 0 ? 'rounded-t-sm' : ''} ${index === segments.length - 1 ? 'rounded-b-sm' : ''}`} style={{ height: `${seg.fillPercent}%`, transition: 'height .25s ease', ...seg.fillStyle }} />
+							{index < segments.length - 1 && (<div className="absolute bottom-0 left-0 w-full h-0.5 bg-gray-400 dark:bg-black z-10" />)}
+							<div className="absolute inset-0 flex items-center justify-center z-20">
+								<span className="uppercase font-bold text-xs text-white drop-shadow-sm" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>{seg.initials}</span>
+							</div>
+							<button type="button" onClick={() => setOpenBubbleKey(isOpen ? null : segKey)} aria-expanded={isOpen ? 'true' : 'false'} aria-label={`${seg.requirement.name} requirement (${seg.requirement.status})`} className="absolute inset-0 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 z-30" />
+							{isOpen && (isMobile ? (
+								<MobileSheetPortal>
+									<RequirementDetails requirement={seg.requirement} onClose={() => setOpenBubbleKey(null)} onAddCourse={onAddCourse} onEditPlanCourse={onEditPlanCourse} plan={plan} program={program} compact />
+								</MobileSheetPortal>
+							) : (
+								<DesktopPopoverPortal seg={seg}>
+									<RequirementDetails requirement={seg.requirement} onClose={() => setOpenBubbleKey(null)} onAddCourse={onAddCourse} onEditPlanCourse={onEditPlanCourse} plan={plan} program={program} />
+								</DesktopPopoverPortal>
+							))}
+						</div>
+					);
+				})}
+			</div>
+		</section>
+	);
+}
+
+function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCourse, plan, program, compact = false }) {
+	const [showSuggestions, setShowSuggestions] = useState(false);
+	const [showCourses, setShowCourses] = useState(false);
+	const [suggestions, setSuggestions] = useState([]);
+	const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+	const { name, status, completedCredits, totalCredits, description, programRequirement } = requirement;
+	const requirementCourses = React.useMemo(() => {
+		if (!plan?.courses) return [];
+		const normalizeCategory = (category) => (category || '').toLowerCase().replace(/[\/\-\s]+/g, ' ').replace(/\s+/g, ' ').trim();
+		const categoriesMatch = (reqCategory, courseCategory) => {
+			const reqNorm = normalizeCategory(reqCategory);
+			const courseNorm = normalizeCategory(courseCategory);
+			if (reqNorm === courseNorm) return true;
+			if (reqNorm.includes(courseNorm) || courseNorm.includes(reqNorm)) return true;
+			const mathKeywords = ['math', 'mathematics', 'analytical', 'reasoning', 'calculus', 'algebra'];
+			const englishKeywords = ['english', 'composition', 'writing', 'literature'];
+			const scienceKeywords = ['biology', 'chemistry', 'physics', 'science'];
+			const socialKeywords = ['social', 'psychology', 'sociology', 'history'];
+			const check = (kw) => kw.some(k => reqNorm.includes(k)) && kw.some(k => courseNorm.includes(k));
+			if (check(mathKeywords) || check(englishKeywords) || check(scienceKeywords) || check(socialKeywords)) return true;
+			return false;
+		};
+		return plan.courses.filter(pc => categoriesMatch(name, pc.requirement_category || 'Uncategorized'));
+	}, [plan?.courses, name]);
+
+	const generateSuggestions = useCallback(async () => {
+		if (loadingSuggestions || !plan) return;
+		setLoadingSuggestions(true);
+		try {
+			const out = [];
+			const targetInstitution = program?.institution;
+			// For grouped requirements, prefer authoritative backend suggestions tied to program requirement definitions
+			if ((requirement?.requirement_type === 'grouped' || requirement?.programRequirement?.requirement_type === 'grouped') && requirement?.id && program?.id) {
+				try {
+					const resp = await api.getProgramRequirementSuggestions(program.id, requirement.id);
+					const items = [];
+					(resp?.suggestions || []).forEach(group => {
+						(group.course_options || []).forEach(({ course, option_info, group_name }) => {
+							if (!course) return;
+							// Filter out courses already on plan and exclude developmental (< 1000 level or numeric < 100)
+							const already = (plan?.courses || []).some(pc => pc.course?.id === course.id);
+							const level = course.course_level ?? null;
+							const num = course.course_number_numeric ?? null;
+							if (already || (level !== null && level < 1000) || (num !== null && num < 100)) return;
+							items.push({
+								id: course.id,
+								code: course.code,
+								title: course.title,
+								credits: course.credits,
+								institution: course.institution,
+								description: course.description,
+								group_name,
+								is_preferred: option_info?.is_preferred || false,
+								notes: option_info?.notes || '',
+								requirement_category: requirement.name || requirement.category,
+								detectedCategory: requirement.name || requirement.category,
+							});
+						});
+					});
+					setSuggestions(items.slice(0, 12));
+					return;
+				} catch {
+					// Fall through to local heuristics if backend suggestions fail
+				}
+			}
+			// Helper: de-dupe accumulator
+			const pushUnique = (course, extra = {}) => {
+				// exclude developmental courses (< 1000 level) when metadata is present
+				if (typeof course.course_level === 'number' && course.course_level < 1000) return;
+				if (!out.find(e => e.id === course.id)) {
+					out.push({
+						id: course.id,
+						code: course.code,
+						title: course.title,
+						credits: course.credits,
+						institution: course.institution,
+						description: course.description,
+						requirement_category: name,
+						is_preferred: false,
+						detectedCategory: name,
+						...extra
+					});
+				}
+			};
+
+			// Collect IDs already on the plan to avoid suggesting duplicates
+			const existingIds = new Set((plan.courses || []).map(pc => pc.course?.id).filter(Boolean));
+
+			if (!programRequirement || programRequirement.requirement_type === 'simple') {
+				// Map requirement category keywords to subject codes and optional title filters
+				const subjectMap = {
+					'english composition': { subjects: ['ENGL', 'ENG'], titleIncludesAny: ['composition', 'writing', 'rhetoric'] },
+					'composition': { subjects: ['ENGL', 'ENG'], titleIncludesAny: ['composition', 'writing', 'rhetoric'] },
+					'english': { subjects: ['ENGL', 'ENG'] },
+					'literature': { subjects: ['ENGL', 'LIT'] },
+					'mathematics': { subjects: ['MATH', 'STAT'] },
+					'math': { subjects: ['MATH', 'STAT'] },
+					'analytical reasoning': { subjects: ['MATH', 'STAT', 'PHIL'], titleIncludesAny: ['logic', 'statistics', 'analysis'] },
+					'reasoning': { subjects: ['MATH', 'PHIL'], titleIncludesAny: ['logic'] },
+					'biology': { subjects: ['BIOL', 'BIO'] },
+					'chemistry': { subjects: ['CHEM'] },
+					'physics': { subjects: ['PHYS'] },
+					'history': { subjects: ['HIST'] },
+					'science': { subjects: ['BIOL', 'CHEM', 'PHYS'] },
+					'social sciences': { subjects: ['SOC', 'PSY', 'POLI'] },
+					'social science': { subjects: ['SOC', 'PSY', 'POLI'] },
+					'humanities': { subjects: ['ENGL', 'HIST', 'PHIL', 'ART', 'MUSC', 'THEA'] },
+					'arts': { subjects: ['ART', 'MUSC', 'THEA'] },
+					'fine arts': { subjects: ['ART', 'MUSC', 'THEA'] },
+					'liberal arts': { subjects: ['ENGL', 'HIST', 'PHIL', 'ART', 'MUSC', 'THEA', 'SOC', 'PSY', 'POLI'] }
+				};
+				const nameLower = name.toLowerCase();
+				let mappingKey = Object.keys(subjectMap).find(k => nameLower.includes(k));
+				const conf = mappingKey ? subjectMap[mappingKey] : { subjects: [] };
+				let subjects = conf.subjects;
+				// Fallback: try to infer a subject by taking the first uppercase token in the name
+				if (!subjects || subjects.length === 0) {
+					// No strong mapping; try a conservative search using subject-like tokens (e.g., "CSCI", "MATH")
+					subjects = [];
+				}
+
+				// Query by subject code to avoid broad full-text matches
+				const subjectsToQuery = subjects.slice(0, 3); // limit network calls
+				for (const subj of subjectsToQuery) {
+					try {
+						let url = `/api/courses?subject=${encodeURIComponent(subj)}&per_page=20`;
+						if (targetInstitution) url += `&institution=${encodeURIComponent(targetInstitution)}`;
+						const res = await fetch(url);
+						if (res.ok) {
+							const data = await res.json();
+							(data.courses || []).forEach(course => {
+								const instOk = !targetInstitution || (course.institution || '').toLowerCase() === targetInstitution.toLowerCase();
+								if (!instOk) return;
+								if (existingIds.has(course.id)) return;
+								// Optional stricter title filter for some categories
+								if (conf.titleIncludesAny && conf.titleIncludesAny.length > 0) {
+									const title = (course.title || '').toLowerCase();
+									if (!conf.titleIncludesAny.some(w => title.includes(w))) return;
+								}
+								pushUnique(course);
+							});
+						}
+					} catch {
+						// ignore fetch errors per subject
+					}
+				}
+
+				// If we still have no suggestions and we have a strong keyword (e.g., "composition"), run a narrow title search as a last resort
+				if (out.length === 0 && conf.titleIncludesAny && conf.titleIncludesAny.length > 0) {
+					for (const kw of conf.titleIncludesAny.slice(0, 1)) {
+						try {
+							let url = `/api/courses?search=${encodeURIComponent(kw)}&per_page=10`;
+							if (targetInstitution) url += `&institution=${encodeURIComponent(targetInstitution)}`;
+							const res = await fetch(url);
+							if (res.ok) {
+								const data = await res.json();
+								(data.courses || []).forEach(course => {
+									const instOk = !targetInstitution || (course.institution || '').toLowerCase() === targetInstitution.toLowerCase();
+									if (!instOk) return;
+									if (existingIds.has(course.id)) return;
+									pushUnique(course, { search_term: kw });
+								});
+							}
+						} catch {
+							// ignore
+						}
+					}
+				}
+			} else if (programRequirement.requirement_type === 'grouped' && programRequirement.groups) {
+				for (const group of programRequirement.groups) {
+					if (!group.course_options) continue;
+						for (const option of group.course_options) {
+							try {
+								let searchUrl = `/api/courses?search=${encodeURIComponent(option.course_code)}`;
+								const institutionToSearch = option.institution || targetInstitution;
+								if (institutionToSearch) searchUrl += `&institution=${encodeURIComponent(institutionToSearch)}`;
+								const res = await fetch(searchUrl);
+								if (res.ok) {
+									const data = await res.json();
+									const course = data.courses?.[0];
+									if (course && !existingIds.has(course.id)) pushUnique(course, { group_name: group.group_name, is_preferred: option.is_preferred, notes: option.notes });
+								}
+							} catch { /* ignore */ }
+						}
+				}
+			}
+			// Trim to a reasonable number to keep UI focused
+			setSuggestions(out.slice(0, 12));
+		} catch { setSuggestions([]); } finally { setLoadingSuggestions(false); }
+	}, [programRequirement, loadingSuggestions, name, plan, program]);
+
+	const getStatusChip = (status) => {
+		switch (status) {
+			case 'met': return 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20';
+			case 'part': return 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20';
+			default: return 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800';
+		}
+	};
+	const getStatusText = (s) => (s === 'met' ? 'Complete' : s === 'part' ? 'In Progress' : 'Not Started');
+	const badgeByCourseStatus = (status) => {
+		switch (status) {
+			case 'completed': return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 border-green-200 dark:border-green-700';
+			case 'in_progress': return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-700';
+			case 'planned': return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-700';
+			default: return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-600';
+		}
+	};
+
+	return (
+		<div className="p-4 overflow-y-auto" style={{ maxHeight: 'inherit' }}>
+			<div className="flex items-start justify-between gap-3 mb-4">
+				<div className="flex-1 min-w-0">
+					<h4 className="text-base font-semibold text-gray-900 dark:text-gray-100 truncate">{name}</h4>
+					<div className="flex items-center gap-2 mt-1">
+						<span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusChip(requirement.status)}`}>{getStatusText(requirement.status)}</span>
+						{totalCredits ? (<span className="text-xs text-gray-500 dark:text-gray-400">{(completedCredits ?? 0)}/{totalCredits} credits</span>) : null}
+					</div>
+					{description && <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">{description}</p>}
+				</div>
+				<div className="flex-shrink-0">
+					<button aria-label="Close details" onClick={onClose} className={`p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors ${compact ? 'hidden sm:inline-flex' : ''}`}><X size={18} /></button>
+				</div>
+			</div>
+			{totalCredits > 0 && (
+				<div className="mb-4">
+					<div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1"><span>Credits Progress</span><span>{Math.round(((completedCredits ?? 0) / totalCredits) * 100)}%</span></div>
+					<div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2"><div className="h-2 rounded-full transition-all duration-300 bg-blue-600 dark:bg-blue-500" style={{ width: `${Math.min(((completedCredits ?? 0) / totalCredits) * 100, 100)}%` }} /></div>
+					{Math.max(0, totalCredits - (completedCredits ?? 0)) > 0 && (<p className="text-xs text-orange-600 dark:text-orange-400 mt-1">{Math.max(0, totalCredits - (completedCredits ?? 0))} more credits needed</p>)}
+				</div>
+			)}
+			{plan?.courses && (
+				<div className="mb-2">
+					<button onClick={() => setShowCourses(v => !v)} className="w-full flex items-center justify-between text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
+						<span className="flex items-center"><BookOpen size={14} className="mr-1" />Current Courses ({requirementCourses.length})</span>{showCourses ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+					</button>
+					{showCourses && (
+						<div className={`mt-3 space-y-2 ${compact ? '' : 'max-h-32 overflow-y-auto'}`}>
+							{requirementCourses.length > 0 ? requirementCourses.map((pc) => (
+								<div key={pc.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+									<div className="flex items-start justify-between gap-2">
+										<div className="flex-1 min-w-0">
+											<h6 className="text-sm font-medium text-gray-900 dark:text-gray-100">{pc.course?.code}: {pc.course?.title}</h6>
+											<p className="text-xs text-gray-600 dark:text-gray-400">{(pc.credits || pc.course?.credits) ?? 0} credits • {pc.course?.institution}</p>
+										</div>
+										<div className="flex items-center gap-2">
+										  <span className={`px-2 py-1 text-xs rounded border ${badgeByCourseStatus(pc.status)}`}>{pc.status === 'in_progress' ? 'In Progress' : pc.status === 'completed' ? 'Completed' : 'Planned'}</span>
+																					{onEditPlanCourse && (
+											<button onClick={() => onEditPlanCourse(pc)} className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-500">Edit</button>
+										  )}
+										</div>
+									</div>
+								</div>
+							)) : (<p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">No courses added for this requirement yet</p>)}
+						</div>
+					)}
+				</div>
+			)}
+			{onAddCourse && (
+				<div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
+					<button onClick={() => { if (!showSuggestions && suggestions.length === 0) generateSuggestions(); setShowSuggestions(v => !v); }} className="w-full flex items-center justify-between text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
+						<span className="flex items-center"><Plus size={14} className="mr-1" />Course Suggestions</span>{showSuggestions ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+					</button>
+					{showSuggestions && (
+						<div className="mt-3 space-y-2">
+							{loadingSuggestions ? (
+								<div className="flex items-center justify-center py-4"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div><span className="ml-2 text-sm text-gray-600 dark:text-gray-400">Loading suggestions...</span></div>
+							) : suggestions.length > 0 ? (
+								(compact ? suggestions.slice(0, 3) : suggestions.slice(0, 4)).map((course) => (
+									<div key={course.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+										<div className="flex items-start justify-between">
+											<div className="flex-1 min-w-0">
+												<h6 className="text-sm font-medium text-gray-900 dark:text-gray-100">{course.code}: {course.title}</h6>
+												<p className="text-xs text-gray-600 dark:text-gray-400">{course.credits} credits • {course.institution}</p>
+												{course.group_name && (<p className="text-xs text-blue-600 dark:text-blue-400">{course.group_name}</p>)}
+											</div>
+											<button onClick={() => onAddCourse([{ ...course, detectedCategory: course.requirement_category }])} className="ml-2 px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800/70 transition-colors">Add</button>
+										</div>
+									</div>
+								))
+							) : (<p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">No suggestions available for this requirement</p>)}
+						</div>
+					)}
+				</div>
+			)}
+		</div>
+	);
+}
+
