@@ -140,10 +140,19 @@ class Plan(db.Model):
                 return s
 
         def status_key(s):
-            k = (s or '').strip().lower()
-            if k in ('all courses', ''):
+            label = (s or '').strip().lower()
+            # All Courses shows everything
+            if label in ('', 'all', 'all courses', 'all-courses'):
                 return None
-            return k.replace(' ', '_')
+            # Map common UI labels to internal status values
+            mapping = {
+                'completed courses': 'completed',
+                'completed': 'completed',
+                'in progress': 'in_progress',
+                'in-progress': 'in_progress',
+                'planned': 'planned',
+            }
+            return mapping.get(label, None)
 
         # Overview: compute both current and transfer progress
         if program is None:

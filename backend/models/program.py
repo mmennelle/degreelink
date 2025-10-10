@@ -164,7 +164,21 @@ class RequirementGroup(db.Model):
     
     def evaluate_completion(self, student_courses):
         
-        
+        # Trivial satisfaction: if this group requires zero courses or explicitly zero credits,
+        # consider it satisfied without consuming any student courses.
+        if (self.courses_required is not None and self.courses_required == 0) and (
+            self.credits_required is None or self.credits_required == 0
+        ):
+            return {
+                'satisfied': True,
+                'courses_taken': 0,
+                'courses_required': 0,
+                'credits_earned': 0,
+                'credits_required': (self.credits_required or 0),
+                'courses_used': [],
+                'group_name': self.group_name
+            }
+
         option_codes = [opt.course_code for opt in self.course_options]
         
         matching_courses = []
