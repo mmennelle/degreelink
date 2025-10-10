@@ -5,6 +5,7 @@ import secrets
 import time
 from functools import wraps
 from services.progress_service import ProgressService
+from config import Config
 
 bp = Blueprint('plans', __name__, url_prefix='/api/plans')
 
@@ -310,6 +311,9 @@ def add_course_to_plan(plan_id):
     )
     
     try:
+        # Auto-assign requirement group if enabled and not provided
+        if Config.AUTO_ASSIGN_REQUIREMENT_GROUPS and not plan_course.requirement_group_id and plan.target_program and plan_course.course:
+            _assign_requirement_group(plan, plan_course)
         db.session.add(plan_course)
         db.session.commit()
         return jsonify(plan_course.to_dict()), 201
@@ -362,6 +366,9 @@ def add_course_to_plan_by_code(plan_code):
     )
     
     try:
+        # Auto-assign requirement group if enabled and not provided
+        if Config.AUTO_ASSIGN_REQUIREMENT_GROUPS and not plan_course.requirement_group_id and plan.target_program and plan_course.course:
+            _assign_requirement_group(plan, plan_course)
         db.session.add(plan_course)
         db.session.commit()
         
@@ -398,6 +405,11 @@ def update_plan_course(plan_id, plan_course_id):
     plan_course.notes = data.get('notes', plan_course.notes)
     
     try:
+        # Auto-assign on update if still not set
+        if Config.AUTO_ASSIGN_REQUIREMENT_GROUPS and not plan_course.requirement_group_id:
+            plan = Plan.query.get(plan_id)
+            if plan and plan.target_program and plan_course.course:
+                _assign_requirement_group(plan, plan_course)
         db.session.commit()
         return jsonify(plan_course.to_dict())
     except Exception as e:
@@ -612,6 +624,41 @@ def session_status():
         session.pop('accessed_plan_id', None)
         session.pop('access_time', None)
         return jsonify({'has_access': False})
+
+
+# --- Helpers ---------------------------------------------------------------
+def _assign_requirement_group(plan: Plan, plan_course: PlanCourse):
+    """Assign plan_course.requirement_group_id based on target program groups.
+
+    Strategy:
+      - Collect all GroupCourseOption whose course_code matches course.code (case-insensitive; hyphen/space normalized).
+      - If multiple, prefer is_preferred=True; else pick deterministically by (requirement.priority_order asc, group.courses_required desc, group.id asc).
+    """
+    try:
+        from models.program import ProgramRequirement, RequirementGroup, GroupCourseOption
+    except Exception:
+        return
+    code_norm = (plan_course.course.code or '').upper().replace('-', ' ').strip()
+    matches = []
+    for req in (plan.target_program.requirements or []):
+        if getattr(req, 'requirement_type', '') != 'grouped':
+            continue
+        for grp in (req.groups or []):
+            for opt in (grp.course_options or []):
+                if (opt.course_code or '').upper().replace('-', ' ').strip() == code_norm:
+                    matches.append((req, grp, opt))
+    if not matches:
+        return
+    # Prefer preferred options
+    preferred = [m for m in matches if getattr(m[2], 'is_preferred', False)] or matches
+    # Deterministic sort: requirement priority_order, then courses_required desc, then group id
+    preferred.sort(key=lambda m: (
+        getattr(m[0], 'priority_order', 0) or 0,
+        -1 * (getattr(m[1], 'courses_required', 0) or 0),
+        getattr(m[1], 'id', 0) or 0
+    ))
+    chosen_req, chosen_group, _ = preferred[0]
+    plan_course.requirement_group_id = chosen_group.id
 
 # For advisor access - could be expanded with proper authentication
 @bp.route('/advisor/plans', methods=['GET'])

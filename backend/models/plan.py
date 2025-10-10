@@ -195,6 +195,49 @@ class Plan(db.Model):
                 except Exception:
                     group_ids = []
 
+            # If feature flag is enabled and this is a grouped requirement, use the stricter evaluator
+            use_group_eval = False
+            try:
+                from config import Config as _Cfg
+                use_group_eval = _Cfg.PROGRESS_USE_GROUPED_EVALUATION and getattr(req, 'requirement_type', '') == 'grouped'
+            except Exception:
+                use_group_eval = False
+
+            if use_group_eval:
+                try:
+                    eval_result = req.evaluate_completion([pc for pc in relevant_courses if pc.status == 'completed'])
+                except Exception:
+                    eval_result = None
+
+                # Fallback to 0 if evaluator fails
+                total_earned = int((eval_result or {}).get('credits_earned') or 0)
+                clamped = min(total_earned, req_total) if req_total else total_earned
+                req_status = 'met' if ((eval_result or {}).get('satisfied') or (req_total and clamped >= req_total)) else ('part' if clamped > 0 else 'none')
+
+                # Derive courses_used from group_results if provided
+                applied = []
+                group_results = (eval_result or {}).get('group_results') or []
+                for gr in group_results:
+                    for c in gr.get('courses_used') or []:
+                        # c may already be dicts from PlanCourse.to_dict()
+                        applied.append(c)
+
+                requirements_data.append({
+                    'id': getattr(req, 'id', None),
+                    'name': getattr(req, 'category', ''),
+                    'category': getattr(req, 'category', ''),
+                    'status': req_status,
+                    'completedCredits': clamped,
+                    'totalCredits': req_total,
+                    'courses': applied,
+                    'description': getattr(req, 'description', ''),
+                    'requirement_type': getattr(req, 'requirement_type', ''),
+                    # Non-breaking extras
+                    'group_results': group_results,
+                })
+                continue
+
+            # Legacy/simple path or when grouped evaluation is disabled
             for pc in relevant_courses:
                 course_canon = canon(getattr(pc, 'requirement_category', ''))
                 cat_match = (course_canon == req_canon)
@@ -215,7 +258,6 @@ class Plan(db.Model):
                     'grade': pc.grade,
                 }
                 if prog_id == getattr(self, 'program_id', None):
-                    # Only show equivalent info for the target program
                     try:
                         eq = self._get_equivalent_course(pc, program)
                         if eq:
