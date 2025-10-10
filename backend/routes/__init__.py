@@ -35,3 +35,11 @@ def register_routes(app):
         print("Programs blueprint registered")
     except ImportError as e:
         print(f"Failed to import programs: {e}")
+
+    # Register QR route
+    try:
+        from . import qr
+        app.register_blueprint(qr.bp)
+        print("QR blueprint registered")
+    except ImportError as e:
+        print(f"Failed to import qr: {e}")
