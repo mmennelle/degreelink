@@ -55,3 +55,10 @@ AS Transfer Degree,Humanities,9,grouped,Creative Arts,1,3,MUSC 105,Delgado Commu
 AS Transfer Degree,Humanities,9,grouped,Creative Arts,1,3,THEA 101,Delgado Community College,False,Cultural and artistic understanding,Choose 1 creative arts,Introduction to Theatre
 AS Transfer Degree,Social Sciences,6,simple,,0,0,NAN,Delgado Community College,,Social and behavioral sciences requirement,,
 AS Transfer Degree,Free Electives,15,simple,,0,0,NAN,Delgado Community College,,Additional coursework to complete degree,,
+BS Biological Sciences,BIOS Electives,17,grouped,Upper Level BIOS,0,17,BIOS 3010,University of New Orleans,False,Biology electives at 3000+ level with constraints,Choose BIOS courses at 3000+ level,Cell Biology with lab
+BS Biological Sciences,BIOS Electives,17,grouped,Upper Level BIOS,0,17,BIOS 3150,University of New Orleans,False,Biology electives at 3000+ level with constraints,Choose BIOS courses at 3000+ level,Molecular Genetics with lab
+BS Biological Sciences,BIOS Electives,17,grouped,Upper Level BIOS,0,17,BIOS 3200,University of New Orleans,False,Biology electives at 3000+ level with constraints,Choose BIOS courses at 3000+ level,Ecology
+BS Biological Sciences,BIOS Electives,17,grouped,Upper Level BIOS,0,17,BIOS 3500,University of New Orleans,False,Biology electives at 3000+ level with constraints,Choose BIOS courses at 3000+ level,Microbiology with lab
+BS Biological Sciences,BIOS Electives,17,grouped,Upper Level BIOS,0,17,BIOS 4800,University of New Orleans,False,Biology electives at 3000+ level with constraints,Choose BIOS courses at 3000+ level,Biology Seminar
+BS Biological Sciences,BIOS Electives,17,grouped,Upper Level BIOS,0,17,BIOS 4990,University of New Orleans,False,Biology electives at 3000+ level with constraints,Choose BIOS courses at 3000+ level,Research in Biology
+BS Biological Sciences,BIOS Electives,17,grouped,Upper Level BIOS,0,17,BIOS 4991,University of New Orleans,False,Biology electives at 3000+ level with constraints,Choose BIOS courses at 3000+ level,Advanced Research

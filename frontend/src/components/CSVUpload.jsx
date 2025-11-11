@@ -65,6 +65,9 @@ const CSVUpload = () => {
         case 'requirements':
           result = await api.uploadRequirements(file);
           break;
+        case 'constraints':
+          result = await api.uploadConstraints(file);
+          break;
         default:
           throw new Error('Invalid upload type');
       }
@@ -117,12 +120,13 @@ const CSVUpload = () => {
     let csvContent, filename;
     
     if (type === 'courses') {
-      csvContent = `code,title,description,credits,institution,department,prerequisites
-"BIOL 101","Introduction to Biology","Fundamental principles of biology including cell structure, genetics, and evolution.",4,"Community College","Biology",""
-"MATH 151","Calculus I","Limits, derivatives, and applications of differential calculus.",4,"Community College","Mathematics","MATH 141"
-"ENG 101","English Composition I","Introduction to academic writing and critical thinking.",3,"Community College","English",""
-"HIST 101","World History I","Survey of world civilizations from ancient times to 1500.",3,"Community College","History",""
-"CHEM 111","General Chemistry I","Introduction to chemical principles and laboratory techniques.",4,"Community College","Chemistry","MATH 120"`;
+      csvContent = `code,title,description,credits,institution,department,prerequisites,has_lab,course_type
+"BIOL 101","Introduction to Biology","Fundamental principles of biology including cell structure, genetics, and evolution.",4,"Community College","Biology","",false,lecture
+"BIOL 102L","Biology Lab","Laboratory component for BIOL 101.",1,"Community College","Biology","BIOL 101",true,lab_only
+"MATH 151","Calculus I","Limits, derivatives, and applications of differential calculus.",4,"Community College","Mathematics","MATH 141",false,lecture
+"CHEM 111","General Chemistry I","Introduction to chemical principles and laboratory techniques.",4,"Community College","Chemistry","MATH 120",true,lecture_lab
+"ENG 101","English Composition I","Introduction to academic writing and critical thinking.",3,"Community College","English","",false,lecture
+"HIST 101","World History I","Survey of world civilizations from ancient times to 1500.",3,"Community College","History","",false,lecture`;
       filename = 'sample_courses.csv';
     } else if (type === 'equivalencies') {
       csvContent = `from_course_code,from_institution,to_course_code,to_institution,equivalency_type,notes,approved_by
@@ -148,6 +152,13 @@ const CSVUpload = () => {
 "Biology Major","Core Biology",32,"simple","Fall",2025,true,"","","","","","Required biology courses for the major","",""
 "Biology Major","Mathematics",12,"simple","Fall",2025,true,"","","","","","Calculus and statistics requirements","",""`;
       filename = 'sample_program_requirements.csv';
+    } else if (type === 'constraints') {
+      csvContent = `program_name,requirement_category,constraint_type,description,min_credits,max_credits,min_level,min_courses,max_courses,tag,tag_value,scope_subject_codes
+"Biology Major","BIOS Electives","min_level_credits","At least 10 credits at 3000+ level",10,"",3000,"","","","","BIOS"
+"Biology Major","BIOS Electives","min_tag_courses","At least 2 courses with lab components","","","",2,"","has_lab",true,"BIOS"
+"Biology Major","BIOS Electives","max_tag_credits","Maximum 7 research credits","",7,"","","","course_type","research","BIOS"
+"Biology Major","Science Electives","min_courses_at_level","Minimum 3 courses at 4000+ level","","",4000,3,"","","",""`;
+      filename = 'sample_requirement_constraints.csv';
     }
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -173,7 +184,9 @@ const CSVUpload = () => {
           { name: 'institution', description: 'Institution name', required: true },
           { name: 'description', description: 'Course description', required: false },
           { name: 'department', description: 'Department name', required: false },
-          { name: 'prerequisites', description: 'Prerequisites (if any)', required: false }
+          { name: 'prerequisites', description: 'Prerequisites (if any)', required: false },
+          { name: 'has_lab', description: 'Has lab component? (true/false)', required: false },
+          { name: 'course_type', description: 'Type: lecture, lecture_lab, lab_only, research, seminar, independent_study', required: false }
         ]
       };
     } else if (uploadType === 'equivalencies') {
@@ -212,6 +225,25 @@ const CSVUpload = () => {
           { name: 'group_description', description: 'Group description', required: false },
           { name: 'option_notes', description: 'Notes about course option', required: false }
           
+        ]
+      };
+    } else if (uploadType === 'constraints') {
+      return {
+        title: 'Requirement Constraints Upload Instructions',
+        description: 'Upload a CSV file containing UNO-level constraints that apply to grouped requirements (e.g., minimum credits at certain level, lab requirements, research limits)',
+        columns: [
+          { name: 'program_name', description: 'Name of the program (must match existing program)', required: true },
+          { name: 'requirement_category', description: 'Category name (must match existing requirement)', required: true },
+          { name: 'constraint_type', description: 'Type: min_level_credits, min_tag_courses, max_tag_credits, min_courses_at_level', required: true },
+          { name: 'description', description: 'Human-readable description of the constraint', required: true },
+          { name: 'min_credits', description: 'Minimum credits (for min_level_credits)', required: false },
+          { name: 'max_credits', description: 'Maximum credits (for max_tag_credits)', required: false },
+          { name: 'min_level', description: 'Minimum course level (e.g., 3000 for 3000+)', required: false },
+          { name: 'min_courses', description: 'Minimum number of courses (for min_tag_courses, min_courses_at_level)', required: false },
+          { name: 'max_courses', description: 'Maximum number of courses', required: false },
+          { name: 'tag', description: 'Tag name (has_lab, course_type) for tag-based constraints', required: false },
+          { name: 'tag_value', description: 'Required tag value (true, research, lab_only, etc.)', required: false },
+          { name: 'scope_subject_codes', description: 'Limit constraint to specific subjects (comma-separated, e.g., "BIOS,BIO")', required: false }
         ]
       };
     }
@@ -254,6 +286,13 @@ const CSVUpload = () => {
             <p>• <strong>{uploadResult.options_created || 0}</strong> course options created</p>
           </>
         );
+      case 'constraints':
+        return (
+          <>
+            <p>• <strong>{uploadResult.constraints_created || 0}</strong> constraints created</p>
+            <p>• <strong>{uploadResult.constraints_updated || 0}</strong> constraints updated</p>
+          </>
+        );
       default:
         return null;
     }
@@ -290,6 +329,7 @@ const CSVUpload = () => {
             <option value="courses">Course Information</option>
             <option value="equivalencies">Course Equivalencies</option>
             <option value="requirements">Program Requirements & Grouping</option>
+            <option value="constraints">Requirement Constraints</option>
           </select>
           
           {/* Type Description */}
@@ -298,6 +338,7 @@ const CSVUpload = () => {
               {uploadType === 'courses' && '📚 Upload course catalog data with codes, titles, credits, and descriptions.'}
               {uploadType === 'equivalencies' && '🔗 Upload course transfer mappings between institutions.'}
               {uploadType === 'requirements' && '⚙️ Upload complex program requirements with grouping rules (e.g., "Choose 2 from Group A").'}
+              {uploadType === 'constraints' && '🔒 Upload UNO-level constraints for grouped requirements (e.g., "Min 10cr at 3000+ level").'}
             </p>
           </div>
         </div>
@@ -358,7 +399,8 @@ const CSVUpload = () => {
             <Download className="mr-2" size={16} />
             Download Sample {
               uploadType === 'courses' ? 'Courses' : 
-              uploadType === 'equivalencies' ? 'Equivalencies' : 
+              uploadType === 'equivalencies' ? 'Equivalencies' :
+              uploadType === 'constraints' ? 'Constraints' :
               'Requirements'
             } CSV
           </button>
@@ -506,6 +548,17 @@ const CSVUpload = () => {
                 <li>• Course options should reference existing courses</li>
               </>
             )}
+            
+            {uploadType === 'constraints' && (
+              <>
+                <li>• Upload requirements first - constraints link to existing requirements</li>
+                <li>• Program name and requirement category must match exactly</li>
+                <li>• Only use constraints on "grouped" requirement types</li>
+                <li>• Leave unused parameter columns empty (but include the comma)</li>
+                <li>• Valid constraint types: min_level_credits, min_tag_courses, max_tag_credits, min_courses_at_level</li>
+                <li>• Valid course_type values: lecture, lecture_lab, lab_only, research, seminar, independent_study</li>
+              </>
+            )}
           </ul>
         </div>
 
@@ -538,6 +591,48 @@ const CSVUpload = () => {
             </div>
           </div>
         )}
+        
+        {/* Constraints-Specific Examples */}
+        {uploadType === 'constraints' && (
+          <div className="mt-4 p-4 bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-600 rounded-md">
+            <h5 className="font-medium text-purple-800 dark:text-purple-300 mb-2">📝 Constraint CSV Examples:</h5>
+            
+            <div className="space-y-3 text-sm text-purple-700 dark:text-purple-300">
+              <div>
+                <strong>Minimum Level Credits:</strong>
+                <code className="block mt-1 p-2 bg-white dark:bg-gray-800 rounded text-xs">
+                  "Biology Major","BIOS Electives","min_level_credits","At least 10cr at 3000+",10,"",3000,"","","","","BIOS"
+                </code>
+                <p className="text-xs mt-1">Requires min_credits=10, min_level=3000, scope_subject_codes="BIOS"</p>
+              </div>
+              
+              <div>
+                <strong>Minimum Courses with Labs:</strong>
+                <code className="block mt-1 p-2 bg-white dark:bg-gray-800 rounded text-xs">
+                  "Biology Major","BIOS Electives","min_tag_courses","At least 2 courses with labs","","","",2,"","has_lab",true,"BIOS"
+                </code>
+                <p className="text-xs mt-1">Requires min_courses=2, tag="has_lab", tag_value=true</p>
+              </div>
+              
+              <div>
+                <strong>Maximum Research Credits:</strong>
+                <code className="block mt-1 p-2 bg-white dark:bg-gray-800 rounded text-xs">
+                  "Biology Major","BIOS Electives","max_tag_credits","Max 7cr research","",7,"","","","course_type","research",""
+                </code>
+                <p className="text-xs mt-1">Requires max_credits=7, tag="course_type", tag_value="research"</p>
+              </div>
+              
+              <div>
+                <strong>Minimum Courses at Level:</strong>
+                <code className="block mt-1 p-2 bg-white dark:bg-gray-800 rounded text-xs">
+                  "Biology Major","Science Electives","min_courses_at_level","Min 3 courses at 4000+","","",4000,3,"","","",""
+                </code>
+                <p className="text-xs mt-1">Requires min_level=4000, min_courses=3</p>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Program Versions Management for Requirements */}
         {uploadType === 'requirements' && programVersions.length > 0 && (
           <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">

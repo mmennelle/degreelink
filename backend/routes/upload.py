@@ -63,8 +63,29 @@ def upload_courses():
                     existing_course.credits = int(row.get('credits', 0))
                     existing_course.department = row.get('department', '').strip()
                     existing_course.prerequisites = row.get('prerequisites', '').strip()
+                    
+                    # Phase 2: Update has_lab and course_type if provided
+                    has_lab_str = row.get('has_lab', '').strip().lower()
+                    if has_lab_str in ['true', 'false']:
+                        existing_course.has_lab = (has_lab_str == 'true')
+                    
+                    course_type = row.get('course_type', '').strip()
+                    if course_type:
+                        existing_course.course_type = course_type
+                    
                     courses_updated += 1
                 else:
+                    
+                    # Parse has_lab (default to False)
+                    has_lab = False
+                    has_lab_str = row.get('has_lab', '').strip().lower()
+                    if has_lab_str == 'true':
+                        has_lab = True
+                    
+                    # Get course_type (default to 'lecture')
+                    course_type = row.get('course_type', 'lecture').strip()
+                    if not course_type:
+                        course_type = 'lecture'
                     
                     course = Course(
                         code=code,
@@ -73,7 +94,9 @@ def upload_courses():
                         credits=int(row.get('credits', 0)),
                         institution=row.get('institution', '').strip(),
                         department=row.get('department', '').strip(),
-                        prerequisites=row.get('prerequisites', '').strip()
+                        prerequisites=row.get('prerequisites', '').strip(),
+                        has_lab=has_lab,
+                        course_type=course_type
                     )
                     
                     validation_errors = course.validate()
@@ -506,6 +529,186 @@ def upload_requirements():
             'requirements_created': requirements_created,
             'groups_created': groups_created,
             'options_created': options_created,
+            'errors': errors
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to process file: {str(e)}'}), 500
+
+
+@bp.route('/constraints', methods=['POST'])
+@require_admin
+def upload_constraints():
+    """
+    Upload requirement constraints from CSV file.
+    Links constraints to existing program requirements.
+    """
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if not file.filename.lower().endswith('.csv'):
+        return jsonify({'error': 'File must be a CSV'}), 400
+    
+    try:
+        # Import models
+        from models.program import Program, ProgramRequirement
+        from models.constraint import RequirementConstraint
+
+        # Read CSV
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_reader = csv.DictReader(stream)
+
+        constraints_created = 0
+        constraints_updated = 0
+        errors = []
+
+        # Valid constraint types
+        valid_types = ['min_level_credits', 'min_tag_courses', 'max_tag_credits', 'min_courses_at_level']
+
+        for row_num, row in enumerate(csv_reader, start=2):
+            try:
+                program_name = row.get('program_name', '').strip()
+                requirement_category = row.get('requirement_category', '').strip()
+                constraint_type = row.get('constraint_type', '').strip()
+                description = row.get('description', '').strip()
+
+                if not all([program_name, requirement_category, constraint_type, description]):
+                    errors.append(f"Row {row_num}: Missing required fields (program_name, requirement_category, constraint_type, description)")
+                    continue
+
+                # Validate constraint type
+                if constraint_type not in valid_types:
+                    errors.append(f"Row {row_num}: Invalid constraint_type '{constraint_type}'. Must be one of: {', '.join(valid_types)}")
+                    continue
+
+                # Find the program
+                program = Program.query.filter(Program.name.ilike(program_name)).first()
+                if not program:
+                    errors.append(f"Row {row_num}: Program '{program_name}' not found")
+                    continue
+
+                # Find the requirement (use current version)
+                requirement = ProgramRequirement.query.filter(
+                    ProgramRequirement.program_id == program.id,
+                    ProgramRequirement.category.ilike(requirement_category),
+                    ProgramRequirement.is_current == True
+                ).first()
+
+                if not requirement:
+                    errors.append(f"Row {row_num}: Requirement category '{requirement_category}' not found for program '{program_name}'")
+                    continue
+
+                # Only allow constraints on grouped requirements
+                if requirement.requirement_type != 'grouped':
+                    errors.append(f"Row {row_num}: Constraints can only be applied to 'grouped' requirement types. '{requirement_category}' is '{requirement.requirement_type}'")
+                    continue
+
+                # Build params dict based on constraint type
+                params = {}
+                scope_filter = {}
+
+                if constraint_type == 'min_level_credits':
+                    min_credits = row.get('min_credits', '').strip()
+                    min_level = row.get('min_level', '').strip()
+                    if not min_credits or not min_level:
+                        errors.append(f"Row {row_num}: min_level_credits requires min_credits and min_level")
+                        continue
+                    params['min_credits'] = int(min_credits)
+                    params['min_level'] = int(min_level)
+
+                elif constraint_type == 'min_tag_courses':
+                    min_courses = row.get('min_courses', '').strip()
+                    tag = row.get('tag', '').strip()
+                    tag_value = row.get('tag_value', '').strip()
+                    if not min_courses or not tag or not tag_value:
+                        errors.append(f"Row {row_num}: min_tag_courses requires min_courses, tag, and tag_value")
+                        continue
+                    params['min_courses'] = int(min_courses)
+                    params['tag'] = tag
+                    # Convert boolean strings
+                    if tag_value.lower() == 'true':
+                        params['tag_value'] = True
+                    elif tag_value.lower() == 'false':
+                        params['tag_value'] = False
+                    else:
+                        params['tag_value'] = tag_value
+
+                elif constraint_type == 'max_tag_credits':
+                    max_credits = row.get('max_credits', '').strip()
+                    tag = row.get('tag', '').strip()
+                    tag_value = row.get('tag_value', '').strip()
+                    if not max_credits or not tag or not tag_value:
+                        errors.append(f"Row {row_num}: max_tag_credits requires max_credits, tag, and tag_value")
+                        continue
+                    params['max_credits'] = int(max_credits)
+                    params['tag'] = tag
+                    # Convert boolean strings
+                    if tag_value.lower() == 'true':
+                        params['tag_value'] = True
+                    elif tag_value.lower() == 'false':
+                        params['tag_value'] = False
+                    else:
+                        params['tag_value'] = tag_value
+
+                elif constraint_type == 'min_courses_at_level':
+                    min_level = row.get('min_level', '').strip()
+                    min_courses = row.get('min_courses', '').strip()
+                    if not min_level or not min_courses:
+                        errors.append(f"Row {row_num}: min_courses_at_level requires min_level and min_courses")
+                        continue
+                    params['min_level'] = int(min_level)
+                    params['min_courses'] = int(min_courses)
+
+                # Add scope filter if provided
+                scope_subjects = row.get('scope_subject_codes', '').strip()
+                if scope_subjects:
+                    # Split comma-separated subject codes
+                    subject_codes = [s.strip() for s in scope_subjects.split(',') if s.strip()]
+                    if subject_codes:
+                        scope_filter['subject_codes'] = subject_codes
+
+                # Check if constraint already exists
+                existing = RequirementConstraint.query.filter_by(
+                    requirement_id=requirement.id,
+                    constraint_type=constraint_type
+                ).first()
+
+                if existing:
+                    # Update existing constraint
+                    existing.description = description
+                    existing.set_params(params)
+                    existing.set_scope_filter(scope_filter)
+                    constraints_updated += 1
+                else:
+                    # Create new constraint
+                    constraint = RequirementConstraint(
+                        requirement_id=requirement.id,
+                        constraint_type=constraint_type,
+                        description=description
+                    )
+                    constraint.set_params(params)
+                    constraint.set_scope_filter(scope_filter)
+                    
+                    db.session.add(constraint)
+                    constraints_created += 1
+
+            except ValueError as e:
+                errors.append(f"Row {row_num}: Invalid data format - {str(e)}")
+            except Exception as e:
+                errors.append(f"Row {row_num}: {str(e)}")
+
+        if constraints_created > 0 or constraints_updated > 0:
+            db.session.commit()
+
+        return jsonify({
+            'message': 'Constraints upload completed',
+            'constraints_created': constraints_created,
+            'constraints_updated': constraints_updated,
             'errors': errors
         })
 
