@@ -5,9 +5,9 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///course_transfer.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  
-    # Feature flags
-    PROGRESS_USE_GROUPED_EVALUATION = (os.environ.get('PROGRESS_USE_GROUPED_EVALUATION', 'false').lower() in ('1', 'true', 'yes'))
-    AUTO_ASSIGN_REQUIREMENT_GROUPS = (os.environ.get('AUTO_ASSIGN_REQUIREMENT_GROUPS', 'false').lower() in ('1', 'true', 'yes'))
+    # Phase 1 grouped requirements feature flags (enabled by default)
+    PROGRESS_USE_GROUPED_EVALUATION = (os.environ.get('PROGRESS_USE_GROUPED_EVALUATION', 'true').lower() in ('1', 'true', 'yes'))
+    AUTO_ASSIGN_REQUIREMENT_GROUPS = (os.environ.get('AUTO_ASSIGN_REQUIREMENT_GROUPS', 'true').lower() in ('1', 'true', 'yes'))
 
 class DevelopmentConfig(Config):
     DEBUG = True

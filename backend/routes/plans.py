@@ -632,33 +632,75 @@ def _assign_requirement_group(plan: Plan, plan_course: PlanCourse):
 
     Strategy:
       - Collect all GroupCourseOption whose course_code matches course.code (case-insensitive; hyphen/space normalized).
-      - If multiple, prefer is_preferred=True; else pick deterministically by (requirement.priority_order asc, group.courses_required desc, group.id asc).
+      - If multiple matches:
+        1. Prefer is_preferred=True options first
+        2. Then sort by requirement.priority_order (ascending)
+        3. Then by group.courses_required (descending - strictest first)
+        4. Then by group.id (ascending - for deterministic tie-breaking)
+      - Log ambiguities when multiple groups match
+      - Log when no match is found
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         from models.program import ProgramRequirement, RequirementGroup, GroupCourseOption
     except Exception:
+        logger.error("Failed to import models for group assignment")
         return
+    
+    if not plan_course.course:
+        return
+    
     code_norm = (plan_course.course.code or '').upper().replace('-', ' ').strip()
+    course_inst = getattr(plan_course.course, 'institution', None)
+    
     matches = []
     for req in (plan.target_program.requirements or []):
         if getattr(req, 'requirement_type', '') != 'grouped':
             continue
         for grp in (req.groups or []):
             for opt in (grp.course_options or []):
-                if (opt.course_code or '').upper().replace('-', ' ').strip() == code_norm:
+                opt_code_norm = (opt.course_code or '').upper().replace('-', ' ').strip()
+                opt_inst = opt.institution
+                
+                # Match if codes match and institution is compatible
+                code_match = (opt_code_norm == code_norm)
+                inst_match = (not opt_inst) or (opt_inst == course_inst)
+                
+                if code_match and inst_match:
                     matches.append((req, grp, opt))
+    
     if not matches:
+        logger.info(f"No group match for course {code_norm} (institution: {course_inst}) in plan {plan.id}")
         return
-    # Prefer preferred options
-    preferred = [m for m in matches if getattr(m[2], 'is_preferred', False)] or matches
-    # Deterministic sort: requirement priority_order, then courses_required desc, then group id
-    preferred.sort(key=lambda m: (
+    
+    # Log ambiguity if multiple matches
+    if len(matches) > 1:
+        group_details = [f"Group '{m[1].group_name}' in req '{m[0].category}'" for m in matches]
+        logger.info(f"Multiple group matches for course {code_norm} in plan {plan.id}: {', '.join(group_details)}")
+    
+    # Prefer preferred options first
+    preferred = [m for m in matches if getattr(m[2], 'is_preferred', False)]
+    candidates = preferred if preferred else matches
+    
+    # Sort deterministically by priority
+    # 1. requirement.priority_order (lower = higher priority)
+    # 2. group.courses_required (higher = stricter requirement, higher priority)
+    # 3. group.id (lower = first created, tie-breaker)
+    candidates.sort(key=lambda m: (
         getattr(m[0], 'priority_order', 0) or 0,
         -1 * (getattr(m[1], 'courses_required', 0) or 0),
         getattr(m[1], 'id', 0) or 0
     ))
-    chosen_req, chosen_group, _ = preferred[0]
+    
+    chosen_req, chosen_group, chosen_opt = candidates[0]
     plan_course.requirement_group_id = chosen_group.id
+    
+    logger.debug(
+        f"Assigned course {code_norm} to group '{chosen_group.group_name}' "
+        f"(id: {chosen_group.id}) in requirement '{chosen_req.category}' for plan {plan.id}"
+    )
 
 # For advisor access - could be expanded with proper authentication
 @bp.route('/advisor/plans', methods=['GET'])

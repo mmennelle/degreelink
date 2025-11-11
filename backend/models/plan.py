@@ -191,148 +191,36 @@ class Plan(db.Model):
                 relevant_courses.append(pc)
 
         requirements_data = []
+        
+        # Check if grouped evaluation is enabled
+        try:
+            from config import Config as _Cfg
+            use_grouped_evaluation = _Cfg.PROGRESS_USE_GROUPED_EVALUATION
+        except Exception:
+            use_grouped_evaluation = False
+        
+        # For "All Courses" view (status_filter is None), preserve legacy behavior
+        # to show anticipated progress from planned/in_progress courses with equivalencies.
+        # Only use strict grouped evaluation when filtering by specific status.
+        if use_grouped_evaluation and status_filter is not None:
+            use_strict_grouped_eval = True
+        else:
+            use_strict_grouped_eval = False
+        
         for req in program.requirements or []:
+            req_type = getattr(req, 'requirement_type', 'simple')
             req_total = getattr(req, 'credits_required', 0) or 0
-            completed = 0
-            applied = []
-
-            req_canon = canon(getattr(req, 'category', ''))
-            group_ids = []
-            if getattr(req, 'requirement_type', '') == 'grouped':
-                try:
-                    group_ids = [g.id for g in (req.groups or [])]
-                except Exception:
-                    group_ids = []
-
-            # If feature flag is enabled and this is a grouped requirement, use the stricter evaluator
-            use_group_eval = False
-            try:
-                from config import Config as _Cfg
-                use_group_eval = _Cfg.PROGRESS_USE_GROUPED_EVALUATION and getattr(req, 'requirement_type', '') == 'grouped'
-            except Exception:
-                use_group_eval = False
-
-            # Preserve legacy behavior for the "All Courses" view so planned/in_progress
-            # contributions still show anticipated progress. Only enforce strict grouped
-            # evaluation when a specific status filter is applied (e.g., Completed Courses).
-            if use_group_eval:
-                try:
-                    sf = status_key(view_filter)
-                    if sf is None:  # All Courses view
-                        use_group_eval = False
-                except Exception:
-                    pass
-
-            if use_group_eval:
-                try:
-                    eval_result = req.evaluate_completion([pc for pc in relevant_courses])
-                except Exception:
-                    eval_result = None
-
-                # Fallback to 0 if evaluator fails
-                total_earned = int((eval_result or {}).get('credits_earned') or 0)
-                clamped = min(total_earned, req_total) if req_total else total_earned
-                req_status = 'met' if ((eval_result or {}).get('satisfied') or (req_total and clamped >= req_total)) else ('part' if clamped > 0 else 'none')
-
-                # Derive courses_used from group_results if provided
-                applied = []
-                group_results = (eval_result or {}).get('group_results') or []
-                for gr in group_results:
-                    for c in gr.get('courses_used') or []:
-                        # c may already be dicts from PlanCourse.to_dict()
-                        applied.append(c)
-
-                requirements_data.append({
-                    'id': getattr(req, 'id', None),
-                    'name': getattr(req, 'category', ''),
-                    'category': getattr(req, 'category', ''),
-                    'status': req_status,
-                    'completedCredits': clamped,
-                    'totalCredits': req_total,
-                    'courses': applied,
-                    'description': getattr(req, 'description', ''),
-                    'requirement_type': getattr(req, 'requirement_type', ''),
-                    # Non-breaking extras
-                    'group_results': group_results,
-                })
-                continue
-
-            # Legacy/simple path or when grouped evaluation is disabled
-            # Pre-compute allowed option codes for grouped requirements (normalized)
-            allowed_codes = set()
-            if getattr(req, 'requirement_type', '') == 'grouped':
-                try:
-                    for g in (req.groups or []):
-                        for opt in (g.course_options or []):
-                            code_norm = (getattr(opt, 'course_code', '') or '').upper().replace('-', ' ').strip()
-                            if code_norm:
-                                allowed_codes.add(code_norm)
-                except Exception:
-                    allowed_codes = set()
-
-            for pc in relevant_courses:
-                course_canon = canon(getattr(pc, 'requirement_category', ''))
-                cat_match = (course_canon == req_canon)
-                group_match = (group_ids and getattr(pc, 'requirement_group_id', None) in group_ids)
-
-                # For target program in legacy path: if grouped requirement and no direct group assignment,
-                # allow equivalency-driven match when the equivalent target course code appears in group options.
-                if not group_match and allowed_codes and prog_id == getattr(self, 'program_id', None):
-                    try:
-                        eq_course = self._get_equivalent_course(pc, program)
-                        if eq_course:
-                            eq_code_norm = (eq_course.code or '').upper().replace('-', ' ').strip()
-                            if eq_code_norm in allowed_codes:
-                                group_match = True
-                    except Exception:
-                        pass
-                    # Also consider direct target-institution courses whose own code appears in group options
-                    if not group_match and getattr(pc, 'course', None) and getattr(pc.course, 'institution', None) == program.institution:
-                        try:
-                            own_code_norm = (pc.course.code or '').upper().replace('-', ' ').strip()
-                            if own_code_norm in allowed_codes:
-                                group_match = True
-                        except Exception:
-                            pass
-                if not (cat_match or group_match):
-                    continue
-
-                credits = (pc.credits
-                        or (pc.course.credits if pc.course else 0)
-                        or 0)
-                completed += credits
-                ci = {
-                    'id': pc.course.id if pc.course else None,
-                    'code': pc.course.code if pc.course else '',
-                    'title': pc.course.title if pc.course else '',
-                    'credits': credits,
-                    'status': pc.status,
-                    'grade': pc.grade,
-                }
-                if prog_id == getattr(self, 'program_id', None):
-                    try:
-                        eq = self._get_equivalent_course(pc, program)
-                        if eq:
-                            ci['equivalent_code'] = eq.code
-                            ci['equivalent_title'] = eq.title
-                    except Exception:
-                        pass
-                applied.append(ci)
-
-            clamped = min(completed, req_total)
-            req_status = ('met' if (req_total > 0 and clamped >= req_total) else
-                        ('part' if clamped > 0 else 'none'))
-            requirements_data.append({
-                'id': getattr(req, 'id', None),
-                'name': getattr(req, 'category', ''),
-                'category': getattr(req, 'category', ''),
-                'status': req_status,
-                'completedCredits': clamped,
-                'totalCredits': req_total,
-                'courses': applied,
-                'description': getattr(req, 'description', ''),
-                'requirement_type': getattr(req, 'requirement_type', ''),
-            })
+            
+            # Use grouped evaluator for grouped requirements when flag is enabled and strict mode is on
+            if use_strict_grouped_eval and req_type == 'grouped':
+                requirements_data.append(
+                    self._evaluate_grouped_requirement(req, relevant_courses, req_total, program, prog_id)
+                )
+            else:
+                # Simple requirements or grouped with flag disabled (legacy behavior)
+                requirements_data.append(
+                    self._evaluate_simple_requirement(req, relevant_courses, req_total, program, prog_id, canon)
+                )
 
         total_required = sum(r['totalCredits'] for r in requirements_data)
         total_earned = sum(r['completedCredits'] for r in requirements_data)
@@ -348,6 +236,181 @@ class Plan(db.Model):
             'total_credits_required': total_required,
         }
 
+    def _evaluate_grouped_requirement(self, req, relevant_courses, req_total, program, prog_id):
+        """Evaluate a grouped requirement using the proper group evaluator."""
+        try:
+            eval_result = req.evaluate_completion(relevant_courses)
+        except Exception as e:
+            # Log error and return empty result
+            import logging
+            logging.warning(f"Grouped evaluation failed for requirement {req.id}: {e}")
+            eval_result = None
+        
+        # Extract results from evaluator
+        total_earned = int((eval_result or {}).get('credits_earned', 0))
+        clamped = min(total_earned, req_total) if req_total else total_earned
+        satisfied = (eval_result or {}).get('satisfied', False)
+        
+        # Extract courses from group_results for constraint evaluation
+        applied = []
+        group_results = (eval_result or {}).get('group_results', [])
+        for gr in group_results:
+            for course_dict in gr.get('courses_used', []):
+                # course_dict is already a dict from PlanCourse.to_dict()
+                applied.append(course_dict)
+        
+        # --- Phase 2: Evaluate constraints if present ---
+        constraint_results = []
+        all_constraints_satisfied = True
+        
+        if hasattr(req, 'constraints') and req.constraints:
+            import logging
+            logging.info(f"Evaluating {len(req.constraints)} constraint(s) for requirement {req.id} ({req.category})")
+            
+            for constraint in req.constraints:
+                try:
+                    constraint_eval = constraint.evaluate(relevant_courses)
+                    constraint_results.append(constraint_eval)
+                    
+                    if not constraint_eval.get('satisfied', False):
+                        all_constraints_satisfied = False
+                        logging.info(f"Constraint {constraint.constraint_type} NOT satisfied: {constraint_eval.get('reason', '')}")
+                    else:
+                        logging.info(f"Constraint {constraint.constraint_type} satisfied")
+                        
+                except Exception as e:
+                    logging.warning(f"Constraint evaluation failed for constraint {constraint.id} ({constraint.constraint_type}): {e}")
+                    constraint_results.append({
+                        'satisfied': False,
+                        'reason': f'Evaluation error: {str(e)}',
+                        'constraint_type': constraint.constraint_type
+                    })
+                    all_constraints_satisfied = False
+        
+        # Overall satisfaction requires BOTH base satisfaction AND all constraints satisfied
+        overall_satisfied = satisfied and all_constraints_satisfied
+        
+        # Determine status based on overall satisfaction
+        if overall_satisfied or (req_total and clamped >= req_total and all_constraints_satisfied):
+            req_status = 'met'
+        elif clamped > 0:
+            req_status = 'part'
+        else:
+            req_status = 'none'
+        
+        return {
+            'id': getattr(req, 'id', None),
+            'name': getattr(req, 'category', ''),
+            'category': getattr(req, 'category', ''),
+            'status': req_status,
+            'completedCredits': clamped,
+            'totalCredits': req_total,
+            'courses': applied,
+            'description': getattr(req, 'description', ''),
+            'requirement_type': 'grouped',
+            'group_results': group_results,
+            'constraint_results': constraint_results if constraint_results else [],
+            'constraints_satisfied': all_constraints_satisfied,
+        }
+
+    def _evaluate_simple_requirement(self, req, relevant_courses, req_total, program, prog_id, canon):
+        """Evaluate a simple requirement or grouped requirement in legacy mode."""
+        req_canon = canon(getattr(req, 'category', ''))
+        req_type = getattr(req, 'requirement_type', 'simple')
+        
+        # For grouped requirements in legacy mode, collect group IDs and allowed codes
+        group_ids = []
+        allowed_codes = set()
+        if req_type == 'grouped':
+            try:
+                for g in (req.groups or []):
+                    group_ids.append(g.id)
+                    for opt in (g.course_options or []):
+                        code_norm = (getattr(opt, 'course_code', '') or '').upper().replace('-', ' ').strip()
+                        if code_norm:
+                            allowed_codes.add(code_norm)
+            except Exception:
+                pass
+        
+        # Accumulate matching courses
+        completed = 0
+        applied = []
+        
+        for pc in relevant_courses:
+            course_canon = canon(getattr(pc, 'requirement_category', ''))
+            cat_match = (course_canon == req_canon)
+            group_match = (group_ids and getattr(pc, 'requirement_group_id', None) in group_ids)
+            
+            # For target program grouped requirements without direct group assignment,
+            # allow equivalency-driven or direct code match
+            if not group_match and allowed_codes and prog_id == getattr(self, 'program_id', None):
+                try:
+                    eq_course = self._get_equivalent_course(pc, program)
+                    if eq_course:
+                        eq_code_norm = (eq_course.code or '').upper().replace('-', ' ').strip()
+                        if eq_code_norm in allowed_codes:
+                            group_match = True
+                except Exception:
+                    pass
+                
+                # Also check if the course itself is a target institution course in the allowed codes
+                if not group_match and getattr(pc, 'course', None):
+                    if getattr(pc.course, 'institution', None) == program.institution:
+                        try:
+                            own_code_norm = (pc.course.code or '').upper().replace('-', ' ').strip()
+                            if own_code_norm in allowed_codes:
+                                group_match = True
+                        except Exception:
+                            pass
+            
+            if not (cat_match or group_match):
+                continue
+            
+            # Course matches - add its credits
+            credits = (pc.credits or (pc.course.credits if pc.course else 0) or 0)
+            completed += credits
+            
+            ci = {
+                'id': pc.course.id if pc.course else None,
+                'code': pc.course.code if pc.course else '',
+                'title': pc.course.title if pc.course else '',
+                'credits': credits,
+                'status': pc.status,
+                'grade': pc.grade,
+            }
+            
+            # Add equivalency info for target program courses
+            if prog_id == getattr(self, 'program_id', None):
+                try:
+                    eq = self._get_equivalent_course(pc, program)
+                    if eq:
+                        ci['equivalent_code'] = eq.code
+                        ci['equivalent_title'] = eq.title
+                except Exception:
+                    pass
+            
+            applied.append(ci)
+        
+        # Calculate final status
+        clamped = min(completed, req_total) if req_total else completed
+        if req_total > 0 and clamped >= req_total:
+            req_status = 'met'
+        elif clamped > 0:
+            req_status = 'part'
+        else:
+            req_status = 'none'
+        
+        return {
+            'id': getattr(req, 'id', None),
+            'name': getattr(req, 'category', ''),
+            'category': getattr(req, 'category', ''),
+            'status': req_status,
+            'completedCredits': clamped,
+            'totalCredits': req_total,
+            'courses': applied,
+            'description': getattr(req, 'description', ''),
+            'requirement_type': req_type,
+        }
 
     
     def _is_course_relevant_to_program(self, plan_course, program):

@@ -45,6 +45,12 @@ class Course(db.Model):
     institution = db.Column(db.String(100), nullable=False)
     department = db.Column(db.String(100))
     prerequisites = db.Column(db.Text)
+    
+    # Phase 2: Course attributes for constraint evaluation
+    has_lab = db.Column(db.Boolean, default=False, nullable=False)
+    course_type = db.Column(db.String(50), default='lecture', nullable=False)  
+    # Valid course_type values: 'lecture', 'lecture_lab', 'lab_only', 'research', 'seminar', 'independent_study'
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -150,6 +156,8 @@ class Course(db.Model):
             'institution': self.institution,
             'department': self.department,
             'prerequisites': self.prerequisites,
+            'has_lab': self.has_lab,
+            'course_type': self.course_type,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
