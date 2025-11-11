@@ -36,7 +36,7 @@ This template defines constraints that apply to grouped requirements.
 
 **Fields:**
 - `program_name` - Name of the program (must match program in program_requirements)
-- `requirement_category` - Category name (must match a grouped requirement)
+- `category` - Category name (must match a grouped requirement category)
 - `constraint_type` - Type of constraint (see types below)
 - `description` - Human-readable description of the constraint
 - `min_credits` - Minimum credits (for min_level_credits)
@@ -68,7 +68,7 @@ This template defines constraints that apply to grouped requirements.
 
 **Example Constraints:**
 ```csv
-program_name,requirement_category,constraint_type,description,min_credits,max_credits,min_level,min_courses,max_courses,tag,tag_value,scope_subject_codes
+program_name,category,constraint_type,description,min_credits,max_credits,min_level,min_courses,max_courses,tag,tag_value,scope_subject_codes
 BS Biological Sciences,BIOS Electives,min_level_credits,At least 10 credits must be at 3000+ level,10,,3000,,,,,"BIOS"
 BS Biological Sciences,BIOS Electives,min_tag_courses,At least 2 courses must have labs,,,,,2,has_lab,true,"BIOS"
 BS Biological Sciences,BIOS Electives,max_tag_credits,Maximum 7 credits of research courses,,7,,,,,course_type,research,"BIOS"
