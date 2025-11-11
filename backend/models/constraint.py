@@ -138,9 +138,25 @@ class RequirementConstraint(db.Model):
             
             # Check each scope criterion
             match = True
+            
+            # Group name filtering (for group-level constraints)
+            if 'group_name' in scope:
+                # PlanCourse should have group_name attribute from the requirement_group assignment
+                pc_group_name = getattr(pc, 'group_name', None)
+                if pc_group_name != scope['group_name']:
+                    match = False
+            
+            # Subject code filtering
             if 'subject_code' in scope:
                 if course.subject_code != scope['subject_code']:
                     match = False
+            
+            # Subject codes list filtering (for multiple subjects)
+            if 'subject_codes' in scope:
+                if course.subject_code not in scope['subject_codes']:
+                    match = False
+            
+            # Level range filtering
             if 'level_min' in scope:
                 if not course.course_level or course.course_level < scope['level_min']:
                     match = False

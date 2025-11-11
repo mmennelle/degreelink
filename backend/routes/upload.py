@@ -341,6 +341,9 @@ def upload_requirements():
         current_requirement = None
         current_group = None
         marked_current_versions = set()
+        
+        # Track constraints per requirement (category) to create once per category
+        category_constraints = {}
 
         for row_num, row in all_rows:
             try:
@@ -367,25 +370,18 @@ def upload_requirements():
                     errors.append(f"Row {row_num}: Missing program_name or category")
                     continue
 
-                # Ensure grouped/conditional rows have required group fields
+                # For grouped requirements: group_name and course_code are required
+                # For simple requirements: just course_code is required
                 if requirement_type in ['grouped', 'conditional']:
-                    required_group_fields = [
-                        ('group_name', 'Group name'),
-                        ('courses_required', 'Courses required'),
-                        ('credits_required_group', 'Credits required for group'),
-                        ('course_option', 'Course option')
-                    ]
-                    missing_fields = []
-                    for field, label in required_group_fields:
-                        value = (row.get(field) or '').strip()
-                        # Accept sentinel values for course_option
-                        if field == 'course_option' and value.lower() in ('nan', 'na', 'n/a'):
-                            value = ''
-                        if not value:
-                            missing_fields.append(label)
-                    
-                    if missing_fields:
-                        errors.append(f"Row {row_num}: Missing required fields for grouped/conditional requirements: {', '.join(missing_fields)}")
+                    group_name = (row.get('group_name') or '').strip()
+                    course_code = (row.get('course_code') or '').strip()
+                    if not group_name or not course_code:
+                        errors.append(f"Row {row_num}: Missing group_name or course_code for grouped requirement")
+                        continue
+                else:
+                    course_code = (row.get('course_code') or '').strip()
+                    if not course_code:
+                        errors.append(f"Row {row_num}: Missing course_code")
                         continue
 
                 # Find the program (should exist now)
@@ -394,9 +390,21 @@ def upload_requirements():
                     errors.append(f"Row {row_num}: Program {program_name} not found")
                     continue
 
-                # Determine requirement credits
+                # Parse constraint columns (optional, only on first row of category)
+                constraint_type = row.get('constraint_type', '').strip()
+                description = row.get('description', '').strip()
+                min_credits = row.get('min_credits', '').strip()
+                max_credits = row.get('max_credits', '').strip()
+                min_courses = row.get('min_courses', '').strip()
+                max_courses = row.get('max_courses', '').strip()
+                min_level = row.get('min_level', '').strip()
+                tag = row.get('tag', '').strip()
+                tag_value = row.get('tag_value', '').strip()
+                scope_subjects = row.get('scope_subject_codes', '').strip()
+                
+                # Determine requirement credits (for backward compatibility)
                 try:
-                    req_credits = int(row.get('credits_required') or 0)
+                    req_credits = int(row.get('credits_required') or min_credits or 0)
                 except ValueError:
                     errors.append(f"Row {row_num}: Invalid credits_required value")
                     req_credits = 0
@@ -423,7 +431,7 @@ def upload_requirements():
                         category=category,
                         credits_required=req_credits,
                         requirement_type=requirement_type,
-                        description=(row.get('description') or '').strip(),
+                        description=(row.get('description') or '').strip() or None,
                         semester=semester,
                         year=year,
                         is_current=is_current
@@ -436,9 +444,42 @@ def upload_requirements():
                     current_requirement.is_current = True
                     marked_current_versions.add((program.id, semester, year))
 
+                # Process constraints - support both category-level and group-level constraints
+                # Category-level: First row of category with no group_name
+                # Group-level: First row of each group within category
+                if requirement_type == 'grouped' and constraint_type:
+                    # Determine constraint scope
+                    if group_name:
+                        # Group-level constraint: applies to this specific group only
+                        constraint_key = (program.id, category, semester, year, group_name)
+                    else:
+                        # Category-level constraint: applies to entire category
+                        constraint_key = (program.id, category, semester, year, None)
+                    
+                    # Only store if this is the first row for this key
+                    if constraint_key not in category_constraints:
+                        category_constraints[constraint_key] = {
+                            'constraint_type': constraint_type,
+                            'description': description,
+                            'min_credits': min_credits,
+                            'max_credits': max_credits,
+                            'min_courses': min_courses,
+                            'max_courses': max_courses,
+                            'min_level': min_level,
+                            'tag': tag,
+                            'tag_value': tag_value,
+                            'scope_subjects': scope_subjects,
+                            'requirement': current_requirement,
+                            'group_name': group_name  # Store group name for reference
+                        }
+
                 # Handle grouped/conditional requirement groups
-                group_name = (row.get('group_name') or '').strip()
-                if requirement_type in ['grouped', 'conditional'] and group_name:
+                if requirement_type in ['grouped', 'conditional']:
+                    group_name = (row.get('group_name') or '').strip()
+                    if not group_name:
+                        errors.append(f"Row {row_num}: Missing group_name for grouped requirement")
+                        continue
+                        
                     # Reset group cache if group_name changes or requirement changes
                     if (not current_group or 
                         current_group.group_name != group_name or
@@ -450,36 +491,34 @@ def upload_requirements():
                         ).first()
 
                     if not current_group:
+                        # Use min_courses if courses_required not provided
                         try:
-                            courses_required = int(row.get('courses_required') or 0)
+                            courses_required = int(row.get('courses_required') or min_courses or 0)
                         except ValueError:
-                            errors.append(f"Row {row_num}: Invalid courses_required value")
-                            courses_required = 0
+                            courses_required = int(min_courses) if min_courses else 0
 
-                        # Parse credits_required_group (may be empty)
-                        crg_raw = (row.get('credits_required_group') or '').strip()
+                        # Use min_credits if credits_required_group not provided
+                        crg_raw = (row.get('credits_required_group') or min_credits or '').strip()
                         credits_required_group = None
                         if crg_raw:
                             try:
                                 credits_required_group = int(crg_raw)
                             except ValueError:
-                                errors.append(f"Row {row_num}: Invalid credits_required_group value")
+                                pass
 
                         current_group = RequirementGroup(
                             requirement_id=current_requirement.id,
                             group_name=group_name,
                             courses_required=courses_required,
                             credits_required=credits_required_group,
-                            description=(row.get('group_description') or '').strip()
+                            description=(row.get('group_description') or '').strip() or None
                         )
                         db.session.add(current_group)
                         groups_created += 1
 
-                    # Process course options
-                    raw_course_option = (row.get('course_option') or '').strip()
-                    # Skip sentinel values indicating missing options
-                    if raw_course_option and raw_course_option.lower() not in ('nan', 'na', 'n/a'):
-                        normalized_code = raw_course_option.upper().replace('-', ' ').strip()
+                    # Process course option (now using course_code column)
+                    if course_code:
+                        normalized_code = course_code.upper().replace('-', ' ').strip()
                         
                         existing_option = GroupCourseOption.query.filter_by(
                             group_id=current_group.id,
@@ -496,7 +535,7 @@ def upload_requirements():
                                 course_code=normalized_code,
                                 institution=(row.get('institution') or '').strip() or None,
                                 is_preferred=is_preferred,
-                                notes=(row.get('option_notes') or '').strip()
+                                notes=(row.get('option_notes') or '').strip() or None
                             )
                             db.session.add(option)
                             options_created += 1
@@ -504,7 +543,134 @@ def upload_requirements():
             except Exception as e:
                 errors.append(f"Row {row_num}: {str(e)}")
 
-        # FOURTH PASS: Set current flags atomically per version
+        # FOURTH PASS: Create RequirementConstraint records from category_constraints
+        from models.constraint import RequirementConstraint
+        import json
+        constraints_created = 0
+        
+        for constraint_key, constraint_data in category_constraints.items():
+            requirement = constraint_data['requirement']
+            constraint_type = constraint_data.get('constraint_type', '').strip()
+            group_name = constraint_data.get('group_name')  # None for category-level, string for group-level
+            
+            # Build scope_filter for group-level constraints or subject scoping
+            scope_filter = {}
+            if group_name:
+                scope_filter['group_name'] = group_name
+            
+            # Add subject scoping if present
+            scope_subjects = constraint_data.get('scope_subjects', '').strip()
+            if scope_subjects:
+                # Parse comma-separated subject codes
+                subject_list = [s.strip() for s in scope_subjects.split(',') if s.strip()]
+                if subject_list:
+                    scope_filter['subject_codes'] = subject_list
+            
+            # Create constraint record based on constraint_type
+            # The constraint_type determines how we interpret the other columns
+            params = {}
+            
+            if constraint_type in ['min_level_credits', 'credits']:
+                # Credits constraint - JSON params: {"credits_min": X, "credits_max": Y}
+                if constraint_data['min_credits']:
+                    params['credits_min'] = int(constraint_data['min_credits'])
+                if constraint_data['max_credits']:
+                    params['credits_max'] = int(constraint_data['max_credits'])
+                
+                if params:
+                    constraint = RequirementConstraint(
+                        requirement_id=requirement.id,
+                        constraint_type='credits',
+                        params=json.dumps(params),
+                        scope_filter=json.dumps(scope_filter) if scope_filter else None,
+                        description=constraint_data.get('description', '')
+                    )
+                    db.session.add(constraint)
+                    constraints_created += 1
+            
+            elif constraint_type == 'courses':
+                # Course count constraint - JSON params: {"courses_min": X, "courses_max": Y}
+                if constraint_data['min_courses']:
+                    params['courses_min'] = int(constraint_data['min_courses'])
+                if constraint_data['max_courses']:
+                    params['courses_max'] = int(constraint_data['max_courses'])
+                
+                if params:
+                    constraint = RequirementConstraint(
+                        requirement_id=requirement.id,
+                        constraint_type='courses',
+                        params=json.dumps(params),
+                        scope_filter=json.dumps(scope_filter) if scope_filter else None,
+                        description=constraint_data.get('description', '')
+                    )
+                    db.session.add(constraint)
+                    constraints_created += 1
+            
+            elif constraint_type in ['level', 'min_courses_at_level']:
+                # Level constraint - JSON params: {"level": X, "courses": Y}
+                if constraint_data['min_level']:
+                    params['level'] = int(constraint_data['min_level'])
+                if constraint_data['min_courses']:
+                    params['courses'] = int(constraint_data['min_courses'])
+                
+                if params:
+                    constraint = RequirementConstraint(
+                        requirement_id=requirement.id,
+                        constraint_type='min_courses_at_level',
+                        params=json.dumps(params),
+                        scope_filter=json.dumps(scope_filter) if scope_filter else None,
+                        description=constraint_data.get('description', '')
+                    )
+                    db.session.add(constraint)
+                    constraints_created += 1
+            
+            elif constraint_type in ['tag', 'min_tag_courses', 'max_tag_credits']:
+                # Tag constraint - JSON params: {"tag": "lab", "courses": 2} or {"tag": "research", "credits": 7}
+                tag = constraint_data.get('tag', '').strip()
+                tag_value = constraint_data.get('tag_value', '').strip()
+                
+                if tag and tag_value:
+                    params['tag'] = tag_value  # e.g., "true" for has_lab, or course_type value
+                    
+                    # Determine if it's a min_tag_courses or max_tag_credits constraint
+                    if constraint_data['min_courses']:
+                        params['courses'] = int(constraint_data['min_courses'])
+                        actual_constraint_type = 'min_tag_courses'
+                    elif constraint_data['max_credits']:
+                        params['credits'] = int(constraint_data['max_credits'])
+                        actual_constraint_type = 'max_tag_credits'
+                    else:
+                        actual_constraint_type = 'min_tag_courses'
+                        params['courses'] = 1  # Default to at least 1 course
+                    
+                    # Add tag field type to scope for evaluation
+                    scope_filter['tag_field'] = tag  # e.g., "has_lab", "course_type"
+                    
+                    constraint = RequirementConstraint(
+                        requirement_id=requirement.id,
+                        constraint_type=actual_constraint_type,
+                        params=json.dumps(params),
+                        scope_filter=json.dumps(scope_filter) if scope_filter else None,
+                        description=constraint_data.get('description', '')
+                    )
+                    db.session.add(constraint)
+                    constraints_created += 1
+            
+            # If no specific constraint_type, try to infer from what columns are filled
+            elif not constraint_type:
+                # Try to create constraints based on filled columns
+                if constraint_data['min_credits'] or constraint_data['max_credits']:
+                    constraint = RequirementConstraint(
+                        requirement_id=requirement.id,
+                        constraint_type='credits',
+                        description=constraint_data.get('description', ''),
+                        min_credits=int(constraint_data['min_credits']) if constraint_data['min_credits'] else None,
+                        max_credits=int(constraint_data['max_credits']) if constraint_data['max_credits'] else None
+                    )
+                    db.session.add(constraint)
+                    constraints_created += 1
+
+        # FIFTH PASS: Set current flags atomically per version
         from models.program import ProgramRequirement
         for prog_id, sem, yr in marked_current_versions:
             # Set all requirements of this version as current
@@ -529,6 +695,7 @@ def upload_requirements():
             'requirements_created': requirements_created,
             'groups_created': groups_created,
             'options_created': options_created,
+            'constraints_created': constraints_created,
             'errors': errors
         })
 
@@ -573,12 +740,12 @@ def upload_constraints():
         for row_num, row in enumerate(csv_reader, start=2):
             try:
                 program_name = row.get('program_name', '').strip()
-                requirement_category = row.get('requirement_category', '').strip()
+                category = row.get('category', '').strip()
                 constraint_type = row.get('constraint_type', '').strip()
                 description = row.get('description', '').strip()
 
-                if not all([program_name, requirement_category, constraint_type, description]):
-                    errors.append(f"Row {row_num}: Missing required fields (program_name, requirement_category, constraint_type, description)")
+                if not all([program_name, category, constraint_type, description]):
+                    errors.append(f"Row {row_num}: Missing required fields (program_name, category, constraint_type, description)")
                     continue
 
                 # Validate constraint type
@@ -595,17 +762,17 @@ def upload_constraints():
                 # Find the requirement (use current version)
                 requirement = ProgramRequirement.query.filter(
                     ProgramRequirement.program_id == program.id,
-                    ProgramRequirement.category.ilike(requirement_category),
+                    ProgramRequirement.category.ilike(category),
                     ProgramRequirement.is_current == True
                 ).first()
 
                 if not requirement:
-                    errors.append(f"Row {row_num}: Requirement category '{requirement_category}' not found for program '{program_name}'")
+                    errors.append(f"Row {row_num}: Requirement category '{category}' not found for program '{program_name}'")
                     continue
 
                 # Only allow constraints on grouped requirements
                 if requirement.requirement_type != 'grouped':
-                    errors.append(f"Row {row_num}: Constraints can only be applied to 'grouped' requirement types. '{requirement_category}' is '{requirement.requirement_type}'")
+                    errors.append(f"Row {row_num}: Constraints can only be applied to 'grouped' requirement types. '{category}' is '{requirement.requirement_type}'")
                     continue
 
                 # Build params dict based on constraint type

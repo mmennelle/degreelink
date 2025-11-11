@@ -57,6 +57,43 @@ To revert to legacy behavior:
 - Set both flags to false (or unset them) and restart the backend.
 
 
+## CSV Data Formats
+
+The system supports CSV uploads for courses, equivalencies, and program requirements. **As of January 2025**, program requirements use a unified CSV format that combines requirements and constraints.
+
+### Unified Program Requirements Format
+
+Program requirements and constraints are now uploaded in a **single CSV file** with optional constraint columns. This eliminates the need for separate uploads and reduces redundancy.
+
+**Key Features:**
+- Constraint columns are optional and only filled on the first row of each category
+- Course listings follow with empty constraint columns
+- Backward compatible with legacy format
+
+**Sample Structure:**
+```csv
+program_name,category,requirement_type,semester,year,is_current,group_name,course_code,institution,is_preferred,min_credits,max_credits,min_courses,max_courses,min_level,min_courses_at_level,tag_requirement,scope_subject_codes
+"Biology B.S.","BIOS Electives",grouped,Fall,2025,true,"Electives",BIOS 300,"State University",false,10,"",3,"",3000,2,has_lab:true:2,BIOS
+"Biology B.S.","BIOS Electives",grouped,Fall,2025,true,"Electives",BIOS 301,"State University",true,"","","","","","","",""
+"Biology B.S.","BIOS Electives",grouped,Fall,2025,true,"Electives",BIOS 305,"State University",false,"","","","","","","",""
+```
+
+**Constraint Types:**
+- **Credits**: `min_credits`, `max_credits` - Total credit requirements
+- **Courses**: `min_courses`, `max_courses` - Course count requirements
+- **Level**: `min_level`, `min_courses_at_level` - Upper-division requirements (e.g., 3000+ level)
+- **Tag**: `tag_requirement` - Format "tag:value:count" (e.g., "has_lab:true:2" for 2 lab courses)
+- **Scope**: `scope_subject_codes` - Apply constraints to specific subjects only
+
+**Documentation:**
+- Full format guide: `docs/UNIFIED_CSV_FORMAT.md`
+- Implementation details: `docs/UNIFIED_CSV_IMPLEMENTATION.md`
+- Sample file: `docs/equic-csvs/sample-templates/unified_program_requirements.csv`
+
+### Other CSV Formats
+- **Courses**: Standard course catalog data (code, title, credits, description, has_lab, course_type)
+- **Equivalencies**: Course transfer mappings between institutions
+
 
 # Course Equivalency Finder App
 

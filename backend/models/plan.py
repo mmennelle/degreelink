@@ -834,6 +834,14 @@ class PlanCourse(db.Model):
     notes = db.Column(db.Text)
     
     course = db.relationship('Course', backref='plan_courses')
+    requirement_group = db.relationship('RequirementGroup', foreign_keys=[requirement_group_id])
+    
+    @property
+    def group_name(self):
+        """Get the group name from the related RequirementGroup."""
+        if self.requirement_group:
+            return self.requirement_group.group_name
+        return None
     
     def to_dict(self):
         return {
