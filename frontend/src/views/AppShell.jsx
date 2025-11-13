@@ -17,7 +17,10 @@ export default function AppShell({
           <div className="max-w-7x1 mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <GraduationCap size={30} className="text-indigo-600 dark:text-indigo-400" />
-              <span className="font-semibold tracking-tight">Course Equivalency</span>
+              <div className="flex flex-col">
+                <span className="font-semibold tracking-tight">Degree Link</span>
+                <span className="text-xs text-gray-600 dark:text-gray-400">Your Path. Your Progress. Your Degree</span>
+              </div>
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4">

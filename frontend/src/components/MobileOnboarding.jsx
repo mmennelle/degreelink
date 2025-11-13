@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { ChevronRight, ArrowLeft, GraduationCap, Search, FileText, Eye, Users, Target, Key } from 'lucide-react';
 
 const MobileOnboarding = ({ onComplete }) => {
@@ -9,11 +9,24 @@ const MobileOnboarding = ({ onComplete }) => {
   });
   const completedRef = useRef(false);
 
+  // Force dark mode for onboarding screen
+  useEffect(() => {
+    document.documentElement.classList.add('dark');
+    return () => {
+      // Cleanup: restore dark mode based on localStorage when component unmounts
+      const saved = localStorage.getItem('darkMode');
+      const shouldBeDark = saved ? JSON.parse(saved) : true;
+      if (!shouldBeDark) {
+        document.documentElement.classList.remove('dark');
+      }
+    };
+  }, []);
+
   const questions = [
     {
       id: 'userType',
-      title: 'Who are you?',
-      subtitle: 'Help us personalize your experience',
+      title: 'Welcome to Degree Link!',
+      subtitle: 'Which Option Below Suits you Best?',
       options: [
         {
           value: 'student',
@@ -171,7 +184,10 @@ const MobileOnboarding = ({ onComplete }) => {
             )}
             <div className="flex items-center">
               <GraduationCap className="text-blue-600 dark:text-blue-400 mr-2" size={24} />
-              <h1 className="text-lg font-bold text-gray-900 dark:text-white">Course Transfer System</h1>
+              <div className="flex flex-col">
+                <span className="font-semibold tracking-tight">Degree Link</span>
+                <span className="text-xs text-gray-600 dark:text-gray-400">Your Path. Your Progress. Your Degree</span>
+              </div>
             </div>
           </div>
           <div className="text-sm text-gray-500 dark:text-gray-400">
