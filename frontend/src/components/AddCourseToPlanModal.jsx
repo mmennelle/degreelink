@@ -55,6 +55,8 @@ const AddCourseToPlanModal = ({
   const [errors, setErrors] = useState([]);
   const [planCourses, setPlanCourses] = useState([]);
   const [requirementStatus, setRequirementStatus] = useState({});
+  const [constraintWarnings, setConstraintWarnings] = useState({});
+  const [showConstraintWarning, setShowConstraintWarning] = useState(null);
   const [expandedCourses, setExpandedCourses] = useState(() => {
     // Expand first course by default, collapse others on mobile
     return courses.reduce((acc, _, index) => {
@@ -285,6 +287,7 @@ useEffect(() => {
     setErrors([]);
     const newErrors = [];
 
+    // Validate basic requirements
     for (let i = 0; i < courseData.length; i++) {
       const validation = validateCourseAssignment(i);
       if (!validation.valid) {
@@ -301,19 +304,71 @@ useEffect(() => {
       return;
     }
 
-    for (const data of courseData) {
-      try {
-        await onCoursesAdded([{
+    // Check for constraint violations
+    const warnings = {};
+    for (let i = 0; i < courseData.length; i++) {
+      const data = courseData[i];
+      if (plan?.plan_code) {
+        try {
+          const response = await fetch(`/api/plans/by-code/${plan.plan_code}/validate-course-constraints`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              course_id: data.course.id,
+              requirement_category: data.requirement_category,
+              requirement_group_id: data.requirement_group_id
+            })
+          });
+          if (response.ok) {
+            const result = await response.json();
+            if (result.violates) {
+              warnings[i] = result.violations;
+            }
+          }
+        } catch (error) {
+          console.error('Failed to validate constraints:', error);
+        }
+      }
+    }
+
+    // If there are constraint warnings, show them
+    if (Object.keys(warnings).length > 0) {
+      setConstraintWarnings(warnings);
+      setShowConstraintWarning(0); // Show warning for first course
+      setLoading(false);
+      return;
+    }
+
+    // Proceed with adding courses
+    await addCoursesToPlan(courseData);
+  };
+
+  const addCoursesToPlan = async (courses, overrideConstraints = false) => {
+    const newErrors = [];
+    
+    for (let i = 0; i < courses.length; i++) {
+      const data = courses[i];
+      // Prepare course data with constraint violation info if overriding
+      const courseToAdd = {
         course_id: data.course.id,
         semester: data.semester,
         year: Number(data.year),
         status: data.status,
         requirement_category: data.requirement_category,
-        requirement_group_id: data.requirement_group_id || undefined, // 👈 grouped reqs
-        credits: data.course?.credits ?? undefined,                    // 👈 backend often wants this
+        requirement_group_id: data.requirement_group_id || undefined,
+        credits: data.course?.credits ?? undefined,
         grade: data.grade || undefined,
         notes: data.notes || undefined
-      }]);
+      };
+
+      // If overriding constraints, mark the course as a constraint violation
+      if (overrideConstraints && constraintWarnings[i]) {
+        courseToAdd.constraint_violation = true;
+        courseToAdd.constraint_violation_reason = constraintWarnings[i].map(v => v.description).join('; ');
+      }
+
+      try {
+        await onCoursesAdded([courseToAdd]);
       } catch (error) {
         newErrors.push({
           course: data.course,
@@ -327,8 +382,22 @@ useEffect(() => {
     if (newErrors.length > 0) {
       setErrors(newErrors);
     } else {
+      setConstraintWarnings({});
+      setShowConstraintWarning(null);
       onClose();
     }
+  };
+
+  const handleConstraintOverride = () => {
+    setLoading(true);
+    setShowConstraintWarning(null);
+    addCoursesToPlan(courseData, true);
+  };
+
+  const handleConstraintCancel = () => {
+    setConstraintWarnings({});
+    setShowConstraintWarning(null);
+    setLoading(false);
   };
 
   const toggleCourseExpansion = (index) => {
@@ -665,6 +734,58 @@ useEffect(() => {
           </div>
         </div>
       </div>
+
+      {/* Constraint Warning Modal */}
+      {showConstraintWarning !== null && constraintWarnings[showConstraintWarning] && (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6 shadow-2xl">
+            <div className="flex items-start gap-3 mb-4">
+              <AlertCircle className="text-orange-500 flex-shrink-0 mt-1" size={24} />
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Constraint Violation Warning
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                  The course <strong>{courseData[showConstraintWarning]?.course?.code}</strong> violates the following constraint(s):
+                </p>
+                <div className="space-y-2 mb-4">
+                  {constraintWarnings[showConstraintWarning].map((violation, idx) => (
+                    <div key={idx} className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded p-2">
+                      <p className="text-sm font-medium text-orange-800 dark:text-orange-300">
+                        {violation.description}
+                      </p>
+                      {violation.reason && (
+                        <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                          {violation.reason}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded p-3 mb-4">
+                  <p className="text-xs text-yellow-800 dark:text-yellow-300">
+                    <strong>Note:</strong> If you continue, this course will be added to your plan but will <strong>NOT count toward your requirement credits</strong> until the constraint is satisfied.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={handleConstraintCancel}
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConstraintOverride}
+                className="px-4 py-2 bg-orange-600 dark:bg-orange-700 text-white rounded-md hover:bg-orange-700 dark:hover:bg-orange-800 transition-colors"
+              >
+                Add Anyway (Won't Count Credits)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

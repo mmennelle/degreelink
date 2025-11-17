@@ -353,6 +353,12 @@ def upload_requirements():
                 requirement_type = (row.get('requirement_type') or 'simple').strip().lower()
                 semester = (row.get('semester') or '').strip() or None
                 
+                # Auto-detect grouped requirements: if group_name is present, treat as grouped
+                # This handles CSVs where requirement_type says 'simple' but structure is grouped
+                group_name_check = (row.get('group_name') or '').strip()
+                if group_name_check and requirement_type == 'simple':
+                    requirement_type = 'grouped'
+                
                 # Parse year safely
                 year_raw = (row.get('year') or '').strip()
                 year = None
@@ -390,6 +396,9 @@ def upload_requirements():
                     errors.append(f"Row {row_num}: Program {program_name} not found")
                     continue
 
+                # Parse group_name early (needed for constraint processing)
+                group_name = (row.get('group_name') or '').strip()
+                
                 # Parse constraint columns (optional, only on first row of category)
                 constraint_type = row.get('constraint_type', '').strip()
                 description = row.get('description', '').strip()
@@ -444,12 +453,12 @@ def upload_requirements():
                     current_requirement.is_current = True
                     marked_current_versions.add((program.id, semester, year))
 
-                # Process constraints - support both category-level and group-level constraints
+                # Process constraints - support for all requirement types (simple, grouped, conditional)
                 # Category-level: First row of category with no group_name
-                # Group-level: First row of each group within category
-                if requirement_type == 'grouped' and constraint_type:
+                # Group-level: First row of each group within category (grouped/conditional only)
+                if constraint_type:
                     # Determine constraint scope
-                    if group_name:
+                    if group_name and requirement_type in ['grouped', 'conditional']:
                         # Group-level constraint: applies to this specific group only
                         constraint_key = (program.id, category, semester, year, group_name)
                     else:
@@ -475,7 +484,6 @@ def upload_requirements():
 
                 # Handle grouped/conditional requirement groups
                 if requirement_type in ['grouped', 'conditional']:
-                    group_name = (row.get('group_name') or '').strip()
                     if not group_name:
                         errors.append(f"Row {row_num}: Missing group_name for grouped requirement")
                         continue
@@ -550,7 +558,6 @@ def upload_requirements():
         
         for constraint_key, constraint_data in category_constraints.items():
             requirement = constraint_data['requirement']
-            constraint_type = constraint_data.get('constraint_type', '').strip()
             group_name = constraint_data.get('group_name')  # None for category-level, string for group-level
             
             # Build scope_filter for group-level constraints or subject scoping
@@ -566,109 +573,92 @@ def upload_requirements():
                 if subject_list:
                     scope_filter['subject_codes'] = subject_list
             
-            # Create constraint record based on constraint_type
-            # The constraint_type determines how we interpret the other columns
-            params = {}
+            # NEW APPROACH: Check for all constraint types and create them if values are present
+            # This allows mixing multiple constraint parameters in a single CSV row
             
-            if constraint_type in ['min_level_credits', 'credits']:
-                # Credits constraint - JSON params: {"credits_min": X, "credits_max": Y}
+            # 1. Credits constraint - check if min_credits or max_credits are specified
+            if constraint_data['min_credits'] or constraint_data['max_credits']:
+                params = {}
                 if constraint_data['min_credits']:
                     params['credits_min'] = int(constraint_data['min_credits'])
                 if constraint_data['max_credits']:
                     params['credits_max'] = int(constraint_data['max_credits'])
                 
-                if params:
-                    constraint = RequirementConstraint(
-                        requirement_id=requirement.id,
-                        constraint_type='credits',
-                        params=json.dumps(params),
-                        scope_filter=json.dumps(scope_filter) if scope_filter else None,
-                        description=constraint_data.get('description', '')
-                    )
-                    db.session.add(constraint)
-                    constraints_created += 1
+                constraint = RequirementConstraint(
+                    requirement_id=requirement.id,
+                    constraint_type='credits',
+                    params=json.dumps(params),
+                    scope_filter=json.dumps(scope_filter) if scope_filter else None,
+                    description=constraint_data.get('description', '')
+                )
+                db.session.add(constraint)
+                constraints_created += 1
             
-            elif constraint_type == 'courses':
-                # Course count constraint - JSON params: {"courses_min": X, "courses_max": Y}
+            # 2. Course count constraint - check if min_courses or max_courses are specified
+            # BUT only if they're not part of a level or tag constraint
+            if (constraint_data['min_courses'] or constraint_data['max_courses']) and not constraint_data['min_level'] and not constraint_data['tag']:
+                params = {}
                 if constraint_data['min_courses']:
                     params['courses_min'] = int(constraint_data['min_courses'])
                 if constraint_data['max_courses']:
                     params['courses_max'] = int(constraint_data['max_courses'])
                 
-                if params:
-                    constraint = RequirementConstraint(
-                        requirement_id=requirement.id,
-                        constraint_type='courses',
-                        params=json.dumps(params),
-                        scope_filter=json.dumps(scope_filter) if scope_filter else None,
-                        description=constraint_data.get('description', '')
-                    )
-                    db.session.add(constraint)
-                    constraints_created += 1
+                constraint = RequirementConstraint(
+                    requirement_id=requirement.id,
+                    constraint_type='courses',
+                    params=json.dumps(params),
+                    scope_filter=json.dumps(scope_filter) if scope_filter else None,
+                    description=constraint_data.get('description', '')
+                )
+                db.session.add(constraint)
+                constraints_created += 1
             
-            elif constraint_type in ['level', 'min_courses_at_level']:
-                # Level constraint - JSON params: {"level": X, "courses": Y}
-                if constraint_data['min_level']:
-                    params['level'] = int(constraint_data['min_level'])
+            # 3. Level constraint - check if min_level is specified
+            if constraint_data['min_level']:
+                params = {'level': int(constraint_data['min_level'])}
+                # min_courses is used here as min_courses_at_level
                 if constraint_data['min_courses']:
                     params['courses'] = int(constraint_data['min_courses'])
                 
-                if params:
-                    constraint = RequirementConstraint(
-                        requirement_id=requirement.id,
-                        constraint_type='min_courses_at_level',
-                        params=json.dumps(params),
-                        scope_filter=json.dumps(scope_filter) if scope_filter else None,
-                        description=constraint_data.get('description', '')
-                    )
-                    db.session.add(constraint)
-                    constraints_created += 1
+                constraint = RequirementConstraint(
+                    requirement_id=requirement.id,
+                    constraint_type='min_courses_at_level',
+                    params=json.dumps(params),
+                    scope_filter=json.dumps(scope_filter) if scope_filter else None,
+                    description=constraint_data.get('description', '')
+                )
+                db.session.add(constraint)
+                constraints_created += 1
             
-            elif constraint_type in ['tag', 'min_tag_courses', 'max_tag_credits']:
-                # Tag constraint - JSON params: {"tag": "lab", "courses": 2} or {"tag": "research", "credits": 7}
-                tag = constraint_data.get('tag', '').strip()
-                tag_value = constraint_data.get('tag_value', '').strip()
+            # 4. Tag constraint - check if tag and tag_value are specified
+            tag = constraint_data.get('tag', '').strip()
+            tag_value = constraint_data.get('tag_value', '').strip()
+            if tag and tag_value:
+                params = {'tag': tag_value}
                 
-                if tag and tag_value:
-                    params['tag'] = tag_value  # e.g., "true" for has_lab, or course_type value
-                    
-                    # Determine if it's a min_tag_courses or max_tag_credits constraint
-                    if constraint_data['min_courses']:
-                        params['courses'] = int(constraint_data['min_courses'])
-                        actual_constraint_type = 'min_tag_courses'
-                    elif constraint_data['max_credits']:
-                        params['credits'] = int(constraint_data['max_credits'])
-                        actual_constraint_type = 'max_tag_credits'
-                    else:
-                        actual_constraint_type = 'min_tag_courses'
-                        params['courses'] = 1  # Default to at least 1 course
-                    
-                    # Add tag field type to scope for evaluation
-                    scope_filter['tag_field'] = tag  # e.g., "has_lab", "course_type"
-                    
-                    constraint = RequirementConstraint(
-                        requirement_id=requirement.id,
-                        constraint_type=actual_constraint_type,
-                        params=json.dumps(params),
-                        scope_filter=json.dumps(scope_filter) if scope_filter else None,
-                        description=constraint_data.get('description', '')
-                    )
-                    db.session.add(constraint)
-                    constraints_created += 1
-            
-            # If no specific constraint_type, try to infer from what columns are filled
-            elif not constraint_type:
-                # Try to create constraints based on filled columns
-                if constraint_data['min_credits'] or constraint_data['max_credits']:
-                    constraint = RequirementConstraint(
-                        requirement_id=requirement.id,
-                        constraint_type='credits',
-                        description=constraint_data.get('description', ''),
-                        min_credits=int(constraint_data['min_credits']) if constraint_data['min_credits'] else None,
-                        max_credits=int(constraint_data['max_credits']) if constraint_data['max_credits'] else None
-                    )
-                    db.session.add(constraint)
-                    constraints_created += 1
+                # Determine if it's a min_tag_courses or max_tag_credits constraint
+                # min_courses is used here as the number of courses with the tag
+                if constraint_data['min_courses']:
+                    params['courses'] = int(constraint_data['min_courses'])
+                    actual_constraint_type = 'min_tag_courses'
+                else:
+                    # Default to at least 1 course with the tag
+                    params['courses'] = 1
+                    actual_constraint_type = 'min_tag_courses'
+                
+                # Add tag field type to scope for evaluation
+                tag_scope_filter = scope_filter.copy()
+                tag_scope_filter['tag_field'] = tag  # e.g., "has_lab", "course_type"
+                
+                constraint = RequirementConstraint(
+                    requirement_id=requirement.id,
+                    constraint_type=actual_constraint_type,
+                    params=json.dumps(params),
+                    scope_filter=json.dumps(tag_scope_filter) if tag_scope_filter else None,
+                    description=constraint_data.get('description', '')
+                )
+                db.session.add(constraint)
+                constraints_created += 1
 
         # FIFTH PASS: Set current flags atomically per version
         from models.program import ProgramRequirement

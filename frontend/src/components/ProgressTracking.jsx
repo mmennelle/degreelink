@@ -2,7 +2,7 @@
 import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import { createPortal } from 'react-dom';
-import { X, Plus, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Plus, BookOpen, ChevronDown, ChevronUp, AlertCircle, CheckCircle } from 'lucide-react';
 
 // Static class map for consistent styling
 const COLOR = {
@@ -293,7 +293,21 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 	const [showCourses, setShowCourses] = useState(false);
 	const [suggestions, setSuggestions] = useState([]);
 	const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+	const [showConstraints, setShowConstraints] = useState(false);
 	const { name, status, completedCredits, totalCredits, description, programRequirement } = requirement;
+	
+	// Log suggestions state whenever it changes
+	React.useEffect(() => {
+		console.log(`[${name}] suggestions state updated:`, suggestions.length, 'items');
+		if (suggestions.length > 0) {
+			console.log(`[${name}] First suggestion:`, suggestions[0]);
+		}
+	}, [suggestions, name]);
+	
+	// Extract constraint information from requirement
+	const constraints = requirement.constraint_results || [];
+	const constraintsSatisfied = requirement.constraints_satisfied !== false;
+	const hasConstraints = constraints.length > 0;
 	const requirementCourses = React.useMemo(() => {
 		if (!plan?.courses) return [];
 		const normalizeCategory = (category) => (category || '').toLowerCase().replace(/[\/\-\s]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -316,13 +330,134 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 	const generateSuggestions = useCallback(async () => {
 		if (loadingSuggestions || !plan) return;
 		setLoadingSuggestions(true);
+		
+		console.log('=== generateSuggestions START ===');
+		console.log('requirement:', requirement);
+		console.log('program:', program);
+		console.log('hasConstraints:', hasConstraints);
+		console.log('constraints:', constraints);
+		
 		try {
 			const out = [];
 			const targetInstitution = program?.institution;
+			
+			// Extract constraint filters from requirement
+			const constraintFilters = {
+				minLevel: null,
+				excludeTags: [],
+				maxTagCredits: {}
+			};
+			
+			// Parse constraints to extract filtering rules
+			if (hasConstraints) {
+				constraints.forEach(c => {
+					const params = c.params || {};
+					if (c.constraint_type === 'min_level_credits' && params.level_min) {
+						constraintFilters.minLevel = params.level_min;
+					}
+					// Track tags that are at max capacity
+					if (c.constraint_type === 'max_tag_credits' && !c.satisfied) {
+						const tag = params.tag;
+						if (tag) constraintFilters.excludeTags.push(tag);
+					}
+				});
+			}
+			console.log('constraintFilters after initial parse:', constraintFilters);
+			
+			// Helper to check if course passes constraint filters
+			const passesConstraintFilters = (course) => {
+				// Check minimum level requirement
+				if (constraintFilters.minLevel) {
+					const courseLevel = course.course_level || course.course_number_numeric || 0;
+					if (courseLevel > 0 && courseLevel < constraintFilters.minLevel) {
+						return false;
+					}
+					// If we can't determine level but there's a min level requirement,
+					// be conservative and reject unless it's clearly a high-level course
+					if (courseLevel === 0 && constraintFilters.minLevel >= 3000) {
+						return false;
+					}
+				}
+				// Check tag exclusions
+				if (constraintFilters.excludeTags.length > 0 && course.course_type) {
+					if (constraintFilters.excludeTags.includes(course.course_type)) {
+						return false;
+					}
+				}
+				return true;
+			};
+			
+			// Try to find the actual requirement definition from the program
+			// This gives us access to constraints and better metadata
+			let actualRequirement = null;
+			if (program && program.requirements) {
+				actualRequirement = program.requirements.find(req => 
+					req.category === requirement.category || req.id === requirement.id
+				);
+			}
+			console.log('actualRequirement found:', actualRequirement);
+			if (actualRequirement && actualRequirement.constraints) {
+				console.log('actualRequirement.constraints:', actualRequirement.constraints);
+			}
+			if (actualRequirement && actualRequirement.groups !== undefined) {
+				console.log('actualRequirement.groups:', actualRequirement.groups);
+				console.log('actualRequirement.groups.length:', actualRequirement.groups?.length);
+			}
+			
+			// If we found the actual requirement and it has constraints, update our constraint data
+			if (actualRequirement && actualRequirement.constraints && actualRequirement.constraints.length > 0) {
+				console.log('Re-extracting constraints from actualRequirement');
+				// Re-extract constraint filters from the actual requirement
+				actualRequirement.constraints.forEach(c => {
+					console.log('Processing constraint:', c.constraint_type, c.params);
+					const params = c.params || {};
+					if (c.constraint_type === 'min_level_credits' && params.level_min) {
+						constraintFilters.minLevel = params.level_min;
+						console.log('Set minLevel filter to:', params.level_min);
+					}
+					if (c.constraint_type === 'max_tag_credits' && !c.satisfied) {
+						const tag = params.tag;
+						if (tag) {
+							constraintFilters.excludeTags.push(tag);
+							console.log('Added tag to exclude:', tag);
+						}
+					}
+				});
+			}
+			console.log('constraintFilters after actualRequirement:', constraintFilters);
+			
+			// Smart defaults: For university-level (BS, BA) programs, only exclude clearly developmental courses
+			// Don't apply a blanket 2000-level filter since some valid 1000-level courses exist (like MATH 1125, 1126)
+			// The backend will have proper course_level data and grouped requirements should handle this
+			if (!constraintFilters.minLevel && program?.degree_type && ['BS', 'BA', 'MS', 'MA', 'PhD'].includes(program.degree_type.toUpperCase())) {
+				// Only exclude courses explicitly marked as developmental (below 1000 level)
+				constraintFilters.minLevel = 1000;
+				console.log('Applied smart default minLevel filter for university program:', constraintFilters.minLevel);
+			}
+			
+			console.log('Final constraintFilters:', constraintFilters);
+			
 			// For grouped requirements, prefer authoritative backend suggestions tied to program requirement definitions
-			if ((requirement?.requirement_type === 'grouped' || requirement?.programRequirement?.requirement_type === 'grouped') && requirement?.id && program?.id) {
+			// The progress data comes pre-filtered by program (current vs transfer), so we can trust
+			// that the requirement belongs to the program being displayed
+			const requirementBelongsToProgram = true; // Requirements are already filtered by program in calculate_progress
+			
+			console.log('requirementBelongsToProgram:', requirementBelongsToProgram);
+			console.log('requirement.program_id:', requirement?.program_id, '(Note: not included in progress data)');
+			console.log('program.id:', program?.id);
+			
+			// Use actualRequirement if we found it, otherwise fall back to what we have
+			const reqToUse = actualRequirement || requirement;
+			console.log('reqToUse:', reqToUse);
+			console.log('reqToUse.id:', reqToUse?.id);
+			console.log('reqToUse.requirement_type:', reqToUse?.requirement_type);
+			
+			if ((reqToUse?.requirement_type === 'grouped' || programRequirement?.requirement_type === 'grouped') && 
+			    reqToUse?.id && program?.id && requirementBelongsToProgram) {
+				console.log('Attempting backend API call for grouped requirement suggestions');
 				try {
-					const resp = await api.getProgramRequirementSuggestions(program.id, requirement.id);
+					const resp = await api.getProgramRequirementSuggestions(program.id, reqToUse.id);
+					console.log('Backend suggestions response:', resp);
 					const items = [];
 					(resp?.suggestions || []).forEach(group => {
 						(group.course_options || []).forEach(({ course, option_info, group_name }) => {
@@ -332,6 +467,9 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 							const level = course.course_level ?? null;
 							const num = course.course_number_numeric ?? null;
 							if (already || (level !== null && level < 1000) || (num !== null && num < 100)) return;
+							
+							// Apply constraint filters
+							if (!passesConstraintFilters(course)) return;
 							items.push({
 								id: course.id,
 								code: course.code,
@@ -347,16 +485,44 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 							});
 						});
 					});
+					console.log('Processed items from backend:', items.length);
+					console.log('Backend items detail:', items.slice(0, 3));
 					setSuggestions(items.slice(0, 12));
+					console.log('SET SUGGESTIONS (backend):', items.slice(0, 12).length, 'items');
 					return;
-				} catch {
+				} catch (err) {
+					console.log('Backend suggestions failed, falling through to local heuristics:', err);
 					// Fall through to local heuristics if backend suggestions fail
 				}
+			} else {
+				console.log('Skipping backend API - using local heuristics because:');
+				console.log('  - reqToUse.requirement_type:', reqToUse?.requirement_type);
+				console.log('  - reqToUse.id:', reqToUse?.id);
+				console.log('  - program.id:', program?.id);
+				console.log('  - requirementBelongsToProgram:', requirementBelongsToProgram);
 			}
 			// Helper: de-dupe accumulator
 			const pushUnique = (course, extra = {}) => {
-				// exclude developmental courses (< 1000 level) when metadata is present
-				if (typeof course.course_level === 'number' && course.course_level < 1000) return;
+				// Exclude developmental/remedial courses (< 1000 level or explicitly marked)
+				if (typeof course.course_level === 'number') {
+					if (course.course_level < 1000) return;
+				} else if (typeof course.course_number_numeric === 'number') {
+					// Fallback: if no course_level but has course_number_numeric
+					if (course.course_number_numeric < 1000) return;
+				}
+				// Exclude courses with "No equivalent" or similar non-transferable indicators
+				if (course.title && (
+					course.title.includes('No equivalent') ||
+					course.title.includes('No Equivalent')
+				)) {
+					return;
+				}
+				// Exclude courses with NE suffix (non-equivalent courses)
+				if (course.code && course.code.endsWith('NE')) {
+					return;
+				}
+				// Apply constraint filters
+				if (!passesConstraintFilters(course)) return;
 				if (!out.find(e => e.id === course.id)) {
 					out.push({
 						id: course.id,
@@ -368,6 +534,8 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 						requirement_category: name,
 						is_preferred: false,
 						detectedCategory: name,
+						course_level: course.course_level,
+						course_type: course.course_type,
 						...extra
 					});
 				}
@@ -375,8 +543,40 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 
 			// Collect IDs already on the plan to avoid suggesting duplicates
 			const existingIds = new Set((plan.courses || []).map(pc => pc.course?.id).filter(Boolean));
+			console.log('existingIds:', existingIds);
 
-			if (!programRequirement || programRequirement.requirement_type === 'simple') {
+			// Special case: If requirement is marked as "simple" but has groups with course_options,
+			// treat it like a grouped requirement and use the specific course codes
+			const hasGroupOptions = reqToUse?.groups?.length > 0 && 
+			                        reqToUse.groups.some(g => g.course_options && g.course_options.length > 0);
+			
+			if (hasGroupOptions) {
+				console.log('Simple requirement has groups with course options - using specific course codes');
+				for (const group of reqToUse.groups) {
+					if (!group.course_options) continue;
+					for (const option of group.course_options) {
+						try {
+							let searchUrl = `/api/courses?search=${encodeURIComponent(option.course_code)}`;
+							const institutionToSearch = option.institution || targetInstitution;
+							if (institutionToSearch) searchUrl += `&institution=${encodeURIComponent(institutionToSearch)}`;
+							const res = await fetch(searchUrl);
+							if (res.ok) {
+								const data = await res.json();
+								const course = data.courses?.[0];
+								if (course && !existingIds.has(course.id)) {
+									pushUnique(course, { 
+										group_name: group.group_name, 
+										is_preferred: option.is_preferred, 
+										notes: option.notes 
+									});
+								}
+							}
+						} catch { /* ignore */ }
+					}
+				}
+			} else if (!programRequirement || programRequirement.requirement_type === 'simple') {
+				console.log('Using simple requirement local heuristics');
+				console.log('requirement name:', name);
 				// Map requirement category keywords to subject codes and optional title filters
 				const subjectMap = {
 					'english composition': { subjects: ['ENGL', 'ENG'], titleIncludesAny: ['composition', 'writing', 'rhetoric'] },
@@ -456,8 +656,9 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 						}
 					}
 				}
-			} else if (programRequirement.requirement_type === 'grouped' && programRequirement.groups) {
-				for (const group of programRequirement.groups) {
+			} else if ((reqToUse?.requirement_type === 'grouped' || programRequirement?.requirement_type === 'grouped') && (reqToUse?.groups || programRequirement?.groups)) {
+				const groupsToUse = reqToUse?.groups || programRequirement?.groups;
+				for (const group of groupsToUse) {
 					if (!group.course_options) continue;
 						for (const option of group.course_options) {
 							try {
@@ -475,9 +676,18 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 				}
 			}
 			// Trim to a reasonable number to keep UI focused
+			console.log('Final suggestions count:', out.length);
+			console.log('Final suggestions:', out.slice(0, 3));
+			console.log('SET SUGGESTIONS (local heuristics):', out.slice(0, 12).length, 'items');
 			setSuggestions(out.slice(0, 12));
-		} catch { setSuggestions([]); } finally { setLoadingSuggestions(false); }
-	}, [programRequirement, loadingSuggestions, name, plan, program]);
+		} catch (err) { 
+			console.error('generateSuggestions error:', err);
+			setSuggestions([]); 
+		} finally { 
+			setLoadingSuggestions(false);
+			console.log('=== generateSuggestions END ===');
+		}
+	}, [programRequirement, loadingSuggestions, name, plan, program, hasConstraints, constraints]);
 
 	const getStatusChip = (status) => {
 		switch (status) {
@@ -526,11 +736,19 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 					{showCourses && (
 						<div className={`mt-3 space-y-2 ${compact ? '' : 'max-h-32 overflow-y-auto'}`}>
 							{requirementCourses.length > 0 ? requirementCourses.map((pc) => (
-								<div key={pc.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+								<div key={pc.id} className={`rounded-lg p-3 ${pc.constraint_violation ? 'bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700' : 'bg-gray-50 dark:bg-gray-700'}`}>
 									<div className="flex items-start justify-between gap-2">
 										<div className="flex-1 min-w-0">
-											<h6 className="text-sm font-medium text-gray-900 dark:text-gray-100">{pc.course?.code}: {pc.course?.title}</h6>
+											<div className="flex items-center gap-1">
+												<h6 className="text-sm font-medium text-gray-900 dark:text-gray-100">{pc.course?.code}: {pc.course?.title}</h6>
+												{pc.constraint_violation && (
+													<span className="px-1.5 py-0.5 text-xs bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200 rounded" title={pc.constraint_violation_reason}>⚠️</span>
+												)}
+											</div>
 											<p className="text-xs text-gray-600 dark:text-gray-400">{(pc.credits || pc.course?.credits) ?? 0} credits • {pc.course?.institution}</p>
+											{pc.constraint_violation && pc.constraint_violation_reason && (
+												<p className="text-xs text-orange-600 dark:text-orange-400 mt-1">⚠️ {pc.constraint_violation_reason}</p>
+											)}
 										</div>
 										<div className="flex items-center gap-2">
 										  <span className={`px-2 py-1 text-xs rounded border ${badgeByCourseStatus(pc.status)}`}>{pc.status === 'in_progress' ? 'In Progress' : pc.status === 'completed' ? 'Completed' : 'Planned'}</span>
@@ -545,6 +763,51 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 					)}
 				</div>
 			)}
+			{hasConstraints && (
+				<div className="mb-2">
+					<button onClick={() => setShowConstraints(v => !v)} className="w-full flex items-center justify-between text-sm font-medium text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 transition-colors">
+						<span className="flex items-center">
+							<AlertCircle size={14} className="mr-1" />
+							Constraints ({constraints.length})
+							{!constraintsSatisfied && <span className="ml-2 px-1.5 py-0.5 text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded">Not Met</span>}
+							{constraintsSatisfied && <span className="ml-2 px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">✓</span>}
+						</span>
+						{showConstraints ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+					</button>
+					{showConstraints && (
+						<div className="mt-3 space-y-2">
+							{constraints.map((constraint, idx) => (
+								<div key={idx} className={`rounded-lg p-3 border ${constraint.satisfied ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700'}`}>
+									<div className="flex items-start gap-2">
+										<div className="flex-shrink-0 mt-0.5">
+											{constraint.satisfied ? (
+												<CheckCircle size={16} className="text-green-600 dark:text-green-400" />
+											) : (
+												<AlertCircle size={16} className="text-red-600 dark:text-red-400" />
+											)}
+										</div>
+										<div className="flex-1 min-w-0">
+											<p className={`text-xs font-medium ${constraint.satisfied ? 'text-green-800 dark:text-green-300' : 'text-red-800 dark:text-red-300'}`}>
+												{constraint.description || constraint.constraint_type}
+											</p>
+											{!constraint.satisfied && constraint.reason && (
+												<p className="text-xs text-red-600 dark:text-red-400 mt-1">{constraint.reason}</p>
+											)}
+											{constraint.tally && Object.keys(constraint.tally).length > 0 && (
+												<div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+													{Object.entries(constraint.tally).map(([key, value]) => (
+														<span key={key} className="mr-2">{key}: {value}</span>
+													))}
+												</div>
+											)}
+										</div>
+									</div>
+								</div>
+							))}
+						</div>
+					)}
+				</div>
+			)}
 			{onAddCourse && (
 				<div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
 					<button onClick={() => { if (!showSuggestions && suggestions.length === 0) generateSuggestions(); setShowSuggestions(v => !v); }} className="w-full flex items-center justify-between text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
@@ -555,18 +818,21 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 							{loadingSuggestions ? (
 								<div className="flex items-center justify-center py-4"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div><span className="ml-2 text-sm text-gray-600 dark:text-gray-400">Loading suggestions...</span></div>
 							) : suggestions.length > 0 ? (
-								(compact ? suggestions.slice(0, 3) : suggestions.slice(0, 4)).map((course) => (
-									<div key={course.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
-										<div className="flex items-start justify-between">
-											<div className="flex-1 min-w-0">
-												<h6 className="text-sm font-medium text-gray-900 dark:text-gray-100">{course.code}: {course.title}</h6>
-												<p className="text-xs text-gray-600 dark:text-gray-400">{course.credits} credits • {course.institution}</p>
-												{course.group_name && (<p className="text-xs text-blue-600 dark:text-blue-400">{course.group_name}</p>)}
+								<>
+									{console.log(`[${name}] RENDERING ${suggestions.length} suggestions, showing ${compact ? 3 : 4}`)}
+									{(compact ? suggestions.slice(0, 3) : suggestions.slice(0, 4)).map((course) => (
+										<div key={course.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+											<div className="flex items-start justify-between">
+												<div className="flex-1 min-w-0">
+													<h6 className="text-sm font-medium text-gray-900 dark:text-gray-100">{course.code}: {course.title}</h6>
+													<p className="text-xs text-gray-600 dark:text-gray-400">{course.credits} credits • {course.institution}</p>
+													{course.group_name && (<p className="text-xs text-blue-600 dark:text-blue-400">{course.group_name}</p>)}
+												</div>
+												<button onClick={() => onAddCourse([{ ...course, detectedCategory: course.requirement_category }])} className="ml-2 px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800/70 transition-colors">Add</button>
 											</div>
-											<button onClick={() => onAddCourse([{ ...course, detectedCategory: course.requirement_category }])} className="ml-2 px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800/70 transition-colors">Add</button>
 										</div>
-									</div>
-								))
+									))}
+								</>
 							) : (<p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">No suggestions available for this requirement</p>)}
 						</div>
 					)}

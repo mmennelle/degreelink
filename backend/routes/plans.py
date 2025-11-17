@@ -307,7 +307,9 @@ def add_course_to_plan(plan_id):
         requirement_group_id=data.get('requirement_group_id'),  # ADDED
         credits=data.get('credits'),  # ADDED
         grade=data.get('grade'),  # ADDED
-        notes=data.get('notes', '')
+        notes=data.get('notes', ''),
+        constraint_violation=data.get('constraint_violation', False),  # ADDED
+        constraint_violation_reason=data.get('constraint_violation_reason')  # ADDED
     )
     
     try:
@@ -362,7 +364,9 @@ def add_course_to_plan_by_code(plan_code):
         requirement_group_id=data.get('requirement_group_id'),  # ADDED
         credits=data.get('credits'),  # ADDED
         grade=data.get('grade'),  # ADDED
-        notes=data.get('notes', '')
+        notes=data.get('notes', ''),
+        constraint_violation=data.get('constraint_violation', False),  # ADDED
+        constraint_violation_reason=data.get('constraint_violation_reason')  # ADDED
     )
     
     try:
@@ -380,6 +384,66 @@ def add_course_to_plan_by_code(plan_code):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': 'Failed to add course to plan'}), 500
+
+@bp.route('/<int:plan_id>/validate-course-constraints', methods=['POST'])
+def validate_course_constraints(plan_id):
+    """Validate if adding a course would violate constraints - requires prior code access"""
+    
+    if not check_plan_access(plan_id):
+        return jsonify({'error': 'Access denied. Use plan code to access this plan.'}), 403
+    
+    plan = Plan.query.get_or_404(plan_id)
+    data = request.get_json()
+    
+    course_id = data.get('course_id')
+    requirement_category = data.get('requirement_category')
+    requirement_group_id = data.get('requirement_group_id')
+    
+    if not course_id or not requirement_category:
+        return jsonify({'error': 'course_id and requirement_category required'}), 400
+    
+    try:
+        result = plan.check_course_constraint_violations(
+            course_id, 
+            requirement_category,
+            requirement_group_id
+        )
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({'error': f'Failed to validate constraints: {str(e)}'}), 500
+
+@bp.route('/by-code/<plan_code>/validate-course-constraints', methods=['POST'])
+@require_plan_access
+def validate_course_constraints_by_code(plan_code):
+    """Validate if adding a course would violate constraints using plan code"""
+    
+    if not plan_code or len(plan_code.strip()) != 8:
+        return jsonify({'error': 'Invalid plan code format'}), 400
+    
+    clean_code = ''.join(c for c in plan_code.upper().strip() if c.isalnum())
+    plan = Plan.find_by_code(clean_code)
+    
+    if not plan:
+        return jsonify({'error': 'Plan not found or access denied'}), 404
+    
+    data = request.get_json()
+    
+    course_id = data.get('course_id')
+    requirement_category = data.get('requirement_category')
+    requirement_group_id = data.get('requirement_group_id')
+    
+    if not course_id or not requirement_category:
+        return jsonify({'error': 'course_id and requirement_category required'}), 400
+    
+    try:
+        result = plan.check_course_constraint_violations(
+            course_id, 
+            requirement_category,
+            requirement_group_id
+        )
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({'error': f'Failed to validate constraints: {str(e)}'}), 500
 
 @bp.route('/<int:plan_id>/courses/<int:plan_course_id>', methods=['PUT'])
 def update_plan_course(plan_id, plan_course_id):

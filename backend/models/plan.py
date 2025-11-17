@@ -269,8 +269,17 @@ class Plan(db.Model):
             
             for constraint in req.constraints:
                 try:
-                    constraint_eval = constraint.evaluate(relevant_courses)
-                    constraint_results.append(constraint_eval)
+                    # Filter out courses marked as constraint violations before evaluating
+                    valid_courses = [c for c in relevant_courses if not getattr(c, 'constraint_violation', False)]
+                    constraint_eval = constraint.evaluate(valid_courses)
+                    constraint_results.append({
+                        **constraint_eval,
+                        'constraint_type': constraint.constraint_type,
+                        'constraint_id': constraint.id,
+                        'description': constraint.description,
+                        'params': constraint.get_params(),  # Include params for frontend filtering
+                        'scope_filter': constraint.get_scope_filter()
+                    })
                     
                     if not constraint_eval.get('satisfied', False):
                         all_constraints_satisfied = False
@@ -283,9 +292,23 @@ class Plan(db.Model):
                     constraint_results.append({
                         'satisfied': False,
                         'reason': f'Evaluation error: {str(e)}',
-                        'constraint_type': constraint.constraint_type
+                        'constraint_type': constraint.constraint_type,
+                        'constraint_id': getattr(constraint, 'id', None),
+                        'description': getattr(constraint, 'description', '')
                     })
                     all_constraints_satisfied = False
+        
+        # Recalculate credits excluding constraint-violating courses
+        valid_earned = 0
+        for gr in group_results:
+            for course_dict in gr.get('courses_used', []):
+                if not course_dict.get('constraint_violation', False):
+                    valid_earned += course_dict.get('credits', 0)
+        
+        # Use valid_earned if we filtered any violating courses
+        if valid_earned != total_earned:
+            total_earned = valid_earned
+            clamped = min(total_earned, req_total) if req_total else total_earned
         
         # Overall satisfaction requires BOTH base satisfaction AND all constraints satisfied
         overall_satisfied = satisfied and all_constraints_satisfied
@@ -300,6 +323,7 @@ class Plan(db.Model):
         
         return {
             'id': getattr(req, 'id', None),
+            'program_id': prog_id,  # Add program_id so frontend knows which program this belongs to
             'name': getattr(req, 'category', ''),
             'category': getattr(req, 'category', ''),
             'status': req_status,
@@ -402,6 +426,7 @@ class Plan(db.Model):
         
         return {
             'id': getattr(req, 'id', None),
+            'program_id': prog_id,  # Add program_id so frontend knows which program this belongs to
             'name': getattr(req, 'category', ''),
             'category': getattr(req, 'category', ''),
             'status': req_status,
@@ -458,6 +483,83 @@ class Plan(db.Model):
 
         # Fallback: return None (either no mapping to target institution, or only 'no equivalent')
         return None
+    
+    def check_course_constraint_violations(self, course_id, requirement_category, requirement_group_id=None):
+        """Check if adding a course would violate any constraints.
+        
+        Returns:
+            dict with 'violates' (bool) and 'violations' (list of violation descriptions)
+        """
+        from .course import Course
+        
+        course = Course.query.get(course_id)
+        if not course or not self.target_program:
+            return {'violates': False, 'violations': []}
+        
+        # Find the requirement this course would apply to
+        requirement = next(
+            (req for req in self.target_program.requirements 
+             if req.category == requirement_category),
+            None
+        )
+        
+        if not requirement or not hasattr(requirement, 'constraints') or not requirement.constraints:
+            return {'violates': False, 'violations': []}
+        
+        # Get existing courses for this requirement (excluding constraint violations)
+        existing_courses = [
+            pc for pc in self.courses 
+            if pc.requirement_category == requirement_category 
+            and not getattr(pc, 'constraint_violation', False)
+        ]
+        
+        # Create a temporary PlanCourse object for the new course
+        temp_plan_course = PlanCourse(
+            course=course,
+            credits=course.credits,
+            requirement_category=requirement_category,
+            requirement_group_id=requirement_group_id
+        )
+        
+        # Test with the new course added
+        test_courses = existing_courses + [temp_plan_course]
+        
+        violations = []
+        for constraint in requirement.constraints:
+            try:
+                # Check if constraint applies to this specific course based on scope
+                scope = constraint.get_scope_filter()
+                
+                # If there's a group scope and it doesn't match, skip this constraint
+                if scope.get('group_name') and requirement_group_id:
+                    # Get group name for this requirement_group_id
+                    from .program import RequirementGroup
+                    group = RequirementGroup.query.get(requirement_group_id)
+                    if group and group.group_name != scope.get('group_name'):
+                        continue
+                
+                eval_result = constraint.evaluate(test_courses)
+                
+                if not eval_result.get('satisfied', True):
+                    violations.append({
+                        'constraint_type': constraint.constraint_type,
+                        'description': constraint.description or eval_result.get('reason', 'Constraint not satisfied'),
+                        'reason': eval_result.get('reason', ''),
+                        'constraint_id': constraint.id
+                    })
+            except Exception as e:
+                # If evaluation fails, be conservative and report potential violation
+                violations.append({
+                    'constraint_type': getattr(constraint, 'constraint_type', 'unknown'),
+                    'description': f'Could not evaluate constraint: {str(e)}',
+                    'reason': str(e),
+                    'constraint_id': getattr(constraint, 'id', None)
+                })
+        
+        return {
+            'violates': len(violations) > 0,
+            'violations': violations
+        }
     
     def get_unmet_requirements(self):
         unmet = []
@@ -602,13 +704,21 @@ class Plan(db.Model):
 
         # Pull a modest set; we'll validate each against the requirement
         # Exclude developmental or non-credit-bearing courses (below 1000 level) when possible
+        # Be strict: if course_level is NULL, use course_number_numeric as fallback
         try:
             candidates = query.filter(
-                ((Course.course_level == None) | (Course.course_level >= 1000)) &
-                ((Course.course_number_numeric == None) | (Course.course_number_numeric >= 100))
+                ((Course.course_level != None) & (Course.course_level >= 1000)) |
+                ((Course.course_level == None) & (Course.course_number_numeric >= 1000))
             ).limit(30).all()
         except Exception:
+            # Fallback if the above filter fails
             candidates = query.limit(30).all()
+        
+        # Additional filtering: remove courses with "No equivalent" or NE suffix
+        candidates = [c for c in candidates if c.code and not (
+            c.code.endswith('NE') or 
+            (c.title and 'no equivalent' in c.title.lower())
+        )]
 
         valid = []
         for course in candidates:
@@ -832,6 +942,8 @@ class PlanCourse(db.Model):
     requirement_category = db.Column(db.String(100), index=True)  
     requirement_group_id = db.Column(db.Integer, db.ForeignKey('requirement_groups.id'), nullable=True, index=True)  
     notes = db.Column(db.Text)
+    constraint_violation = db.Column(db.Boolean, default=False, index=True)  # Course violates a constraint
+    constraint_violation_reason = db.Column(db.Text)  # Why it violates (for UI display)
     
     course = db.relationship('Course', backref='plan_courses')
     requirement_group = db.relationship('RequirementGroup', foreign_keys=[requirement_group_id])
@@ -856,5 +968,7 @@ class PlanCourse(db.Model):
             'credits': self.credits or (self.course.credits if self.course else 0),
             'requirement_category': self.requirement_category,
             'requirement_group_id': self.requirement_group_id,  
-            'notes': self.notes
+            'notes': self.notes,
+            'constraint_violation': self.constraint_violation or False,
+            'constraint_violation_reason': self.constraint_violation_reason
         }
