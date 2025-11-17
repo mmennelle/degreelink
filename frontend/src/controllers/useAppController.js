@@ -95,15 +95,11 @@ export default function useAppController() {
 
 
   const handleAddToPlan = useCallback(async (courses) => {
-    if (!selectedPlanId) { 
-      setAddToPlanModal({ isOpen: true, courses });
-      return;
-    }
-    try {
-      const updated = await api.addCourses(selectedPlanId, courses);
-      setPlans([updated]);
-    } catch (e) { console.error(e); }
-  }, [selectedPlanId]);
+    // Always open the modal so users can assign requirement category
+    // Ensure courses is always an array
+    const coursesArray = Array.isArray(courses) ? courses : [courses];
+    setAddToPlanModal({ isOpen: true, courses: coursesArray });
+  }, []);
 
   const clearPlanAccess = useCallback(async () => {
     await api.clearPlanAccess();

@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import api from '../services/api';
 import CourseSearch from './CourseSearch';
 import AddCourseToPlanModal from './AddCourseToPlanModal';
+import ViewAllCoursesModal from './ViewAllCoursesModal';
 import { usePlans } from '../hooks/usePlans';
 import { usePrograms } from '../hooks/usePrograms';
 import { usePlanProgress } from '../hooks/usePlanProgress';
@@ -63,6 +64,7 @@ const PlanBuilder = ({
   const [editPlanOpen, setEditPlanOpen] = useState(false);
   const [editCourseState, setEditCourseState] = useState({ isOpen: false, planCourse: null });
   const [overlayCloseTick, setOverlayCloseTick] = useState(0);
+  const [showViewAllCourses, setShowViewAllCourses] = useState(false);
 
   const getProgram = useCallback((programId) => programsList.find(p => p.id === programId), [programsList]);
   const getCurrentProgram = useCallback(() => selectedPlan?.current_program || getProgram(selectedPlan?.current_program_id), [selectedPlan, getProgram]);
@@ -202,7 +204,10 @@ const PlanBuilder = ({
               viewIndex={viewIndex}
               setViewIndex={setViewIndex}
             />
-            <PlanActions onAddCourse={() => { setOverlayCloseTick(t => t + 1); setShowCourseSearch(true); }} />
+            <PlanActions 
+              onAddCourse={() => { setOverlayCloseTick(t => t + 1); setShowCourseSearch(true); }}
+              onViewAllCourses={() => setShowViewAllCourses(true)}
+            />
           </div>
         )}
       </div>
@@ -267,6 +272,13 @@ const PlanBuilder = ({
           onRemove={handleRemovePlanCourse}
         />
       )}
+
+      {/* View All Courses Modal */}
+      <ViewAllCoursesModal
+        isOpen={showViewAllCourses}
+        onClose={() => setShowViewAllCourses(false)}
+        plan={selectedPlan}
+      />
     </div>
   );
 };

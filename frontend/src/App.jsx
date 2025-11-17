@@ -123,12 +123,16 @@ export default function App() {
           {c.addToPlanModal.isOpen && (
             <AddCourseToPlanModal
               isOpen={c.addToPlanModal.isOpen}
-              planId={c.selectedPlanId}
               courses={c.addToPlanModal.courses}
+              plan={Array.isArray(c.plans) ? c.plans.find(p => p.id === c.selectedPlanId) : null}
+              program={(() => {
+                const selectedPlan = Array.isArray(c.plans) ? c.plans.find(p => p.id === c.selectedPlanId) : null;
+                return Array.isArray(c.programs) && selectedPlan ? c.programs.find(prog => prog.id === selectedPlan.program_id) : null;
+              })()}
               onClose={() => c.setAddToPlanModal({isOpen:false, courses:[]})}
-              onConfirm={async (planId) => {
-                if (!planId) return;
-                await c.handleAddToPlan(c.addToPlanModal.courses);
+              onCoursesAdded={async (courseDataArray) => {
+                // Reload the plan after courses are added
+                await c.loadPlansAndPrograms();
                 c.setAddToPlanModal({isOpen:false, courses:[]});
               }}
             />
