@@ -291,10 +291,12 @@ export default function ProgressTracking({
 function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCourse, plan, program, compact = false }) {
 	const [showSuggestions, setShowSuggestions] = useState(false);
 	const [showCourses, setShowCourses] = useState(false);
-	const [suggestions, setSuggestions] = useState([]);
+	const [suggestions, setSuggestions] = useState([]); // For simple requirements, flat array
+	const [groupedSuggestions, setGroupedSuggestions] = useState({}); // For grouped requirements, keyed by group_name
+	const [expandedGroups, setExpandedGroups] = useState({}); // Track which groups are expanded
 	const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 	const [showConstraints, setShowConstraints] = useState(false);
-	const { name, status, completedCredits, totalCredits, description, programRequirement } = requirement;
+	const { name, status, completedCredits, totalCredits, description, programRequirement} = requirement;
 	
 	// Log suggestions state whenever it changes
 	React.useEffect(() => {
@@ -458,9 +460,17 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 				try {
 					const resp = await api.getProgramRequirementSuggestions(program.id, reqToUse.id);
 					console.log('Backend suggestions response:', resp);
-					const items = [];
-					(resp?.suggestions || []).forEach(group => {
-						(group.course_options || []).forEach(({ course, option_info, group_name }) => {
+					
+					// Group suggestions by group_name
+					const grouped = {};
+					const groups = reqToUse?.groups || programRequirement?.groups || [];
+					
+					(resp?.suggestions || []).forEach(groupData => {
+						const groupInfo = groupData.group;
+						const groupName = groupInfo?.group_name || 'Other';
+						
+						const groupCourses = [];
+						(groupData.course_options || []).forEach(({ course, option_info, group_name }) => {
 							if (!course) return;
 							// Filter out courses already on plan and exclude developmental (< 1000 level or numeric < 100)
 							const already = (plan?.courses || []).some(pc => pc.course?.id === course.id);
@@ -470,25 +480,34 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 							
 							// Apply constraint filters
 							if (!passesConstraintFilters(course)) return;
-							items.push({
+							groupCourses.push({
 								id: course.id,
 								code: course.code,
 								title: course.title,
 								credits: course.credits,
 								institution: course.institution,
 								description: course.description,
-								group_name,
+								group_name: groupName,
 								is_preferred: option_info?.is_preferred || false,
 								notes: option_info?.notes || '',
 								requirement_category: requirement.name || requirement.category,
 								detectedCategory: requirement.name || requirement.category,
+								requirement_group_id: groupInfo?.id
 							});
 						});
+						
+						if (groupCourses.length > 0) {
+							grouped[groupName] = {
+								groupInfo: groupInfo,
+								courses: groupCourses.slice(0, 12) // Limit per group
+							};
+						}
 					});
-					console.log('Processed items from backend:', items.length);
-					console.log('Backend items detail:', items.slice(0, 3));
-					setSuggestions(items.slice(0, 12));
-					console.log('SET SUGGESTIONS (backend):', items.slice(0, 12).length, 'items');
+					
+					console.log('Processed grouped suggestions:', Object.keys(grouped).length, 'groups');
+					setGroupedSuggestions(grouped);
+					setSuggestions([]); // Clear flat suggestions for grouped requirements
+					console.log('SET GROUPED SUGGESTIONS:', Object.keys(grouped));
 					return;
 				} catch (err) {
 					console.log('Backend suggestions failed, falling through to local heuristics:', err);
@@ -707,15 +726,15 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 	};
 
 	return (
-		<div className="p-4 overflow-y-auto" style={{ maxHeight: 'inherit' }}>
-			<div className="flex items-start justify-between gap-3 mb-4">
+		<div className="p-3 sm:p-4 overflow-y-auto" style={{ maxHeight: 'inherit' }}>
+			<div className="flex items-start justify-between gap-2 sm:gap-3 mb-4">
 				<div className="flex-1 min-w-0">
-					<h4 className="text-base font-semibold text-gray-900 dark:text-gray-100 truncate">{name}</h4>
-					<div className="flex items-center gap-2 mt-1">
-						<span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusChip(requirement.status)}`}>{getStatusText(requirement.status)}</span>
-						{totalCredits ? (<span className="text-xs text-gray-500 dark:text-gray-400">{(completedCredits ?? 0)}/{totalCredits} credits</span>) : null}
+					<h4 className="text-base font-semibold text-gray-900 dark:text-gray-100 break-words">{name}</h4>
+					<div className="flex items-center flex-wrap gap-2 mt-1">
+						<span className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap ${getStatusChip(requirement.status)}`}>{getStatusText(requirement.status)}</span>
+						{totalCredits ? (<span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{(completedCredits ?? 0)}/{totalCredits} credits</span>) : null}
 					</div>
-					{description && <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">{description}</p>}
+					{description && <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 break-words">{description}</p>}
 				</div>
 				<div className="flex-shrink-0">
 					<button aria-label="Close details" onClick={onClose} className={`p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors ${compact ? 'hidden sm:inline-flex' : ''}`}><X size={18} /></button>
@@ -730,31 +749,38 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 			)}
 			{plan?.courses && (
 				<div className="mb-2">
-					<button onClick={() => setShowCourses(v => !v)} className="w-full flex items-center justify-between text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
+					<button onClick={() => setShowCourses(v => !v)} className="w-full flex items-center justify-between text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors p-1 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded">
 						<span className="flex items-center"><BookOpen size={14} className="mr-1" />Current Courses ({requirementCourses.length})</span>{showCourses ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
 					</button>
 					{showCourses && (
-						<div className={`mt-3 space-y-2 ${compact ? '' : 'max-h-32 overflow-y-auto'}`}>
+						<div className={`mt-3 space-y-2 ${compact ? '' : 'max-h-48 sm:max-h-64 overflow-y-auto pr-1'}`}>
 							{requirementCourses.length > 0 ? requirementCourses.map((pc) => (
-								<div key={pc.id} className={`rounded-lg p-3 ${pc.constraint_violation ? 'bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700' : 'bg-gray-50 dark:bg-gray-700'}`}>
-									<div className="flex items-start justify-between gap-2">
+								<div key={pc.id} className={`rounded-lg p-2 sm:p-3 ${pc.constraint_violation ? 'bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700' : 'bg-gray-50 dark:bg-gray-700'}`}>
+									<div className="flex flex-col sm:flex-row sm:items-start gap-2">
 										<div className="flex-1 min-w-0">
-											<div className="flex items-center gap-1">
-												<h6 className="text-sm font-medium text-gray-900 dark:text-gray-100">{pc.course?.code}: {pc.course?.title}</h6>
+											<div className="flex items-center gap-1 flex-wrap">
+												<h6 className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">{pc.course?.code}: {pc.course?.title}</h6>
 												{pc.constraint_violation && (
-													<span className="px-1.5 py-0.5 text-xs bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200 rounded" title={pc.constraint_violation_reason}>⚠️</span>
+													<span className="px-1.5 py-0.5 text-xs bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200 rounded flex-shrink-0" title={pc.constraint_violation_reason}>⚠️</span>
 												)}
 											</div>
-											<p className="text-xs text-gray-600 dark:text-gray-400">{(pc.credits || pc.course?.credits) ?? 0} credits • {pc.course?.institution}</p>
+											<p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{(pc.credits || pc.course?.credits) ?? 0} credits • {pc.course?.institution}</p>
 											{pc.constraint_violation && pc.constraint_violation_reason && (
 												<p className="text-xs text-orange-600 dark:text-orange-400 mt-1">⚠️ {pc.constraint_violation_reason}</p>
 											)}
 										</div>
-										<div className="flex items-center gap-2">
-										  <span className={`px-2 py-1 text-xs rounded border ${badgeByCourseStatus(pc.status)}`}>{pc.status === 'in_progress' ? 'In Progress' : pc.status === 'completed' ? 'Completed' : 'Planned'}</span>
-																					{onEditPlanCourse && (
-											<button onClick={() => onEditPlanCourse(pc)} className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-500">Edit</button>
-										  )}
+										<div className="flex items-center gap-2 sm:flex-col sm:items-end">
+											<span className={`px-2 py-1 text-xs rounded border whitespace-nowrap ${badgeByCourseStatus(pc.status)}`}>
+												{pc.status === 'in_progress' ? 'In Progress' : pc.status === 'completed' ? 'Completed' : 'Planned'}
+											</span>
+											{onEditPlanCourse && (
+												<button 
+													onClick={() => onEditPlanCourse(pc)} 
+													className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-500 whitespace-nowrap"
+												>
+													Edit
+												</button>
+											)}
 										</div>
 									</div>
 								</div>
@@ -765,19 +791,21 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 			)}
 			{hasConstraints && (
 				<div className="mb-2">
-					<button onClick={() => setShowConstraints(v => !v)} className="w-full flex items-center justify-between text-sm font-medium text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 transition-colors">
-						<span className="flex items-center">
-							<AlertCircle size={14} className="mr-1" />
-							Constraints ({constraints.length})
-							{!constraintsSatisfied && <span className="ml-2 px-1.5 py-0.5 text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded">Not Met</span>}
-							{constraintsSatisfied && <span className="ml-2 px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">✓</span>}
+					<button onClick={() => setShowConstraints(v => !v)} className="w-full flex items-center justify-between text-sm font-medium text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 transition-colors p-1 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded">
+						<span className="flex items-center flex-wrap gap-1">
+							<span className="flex items-center">
+								<AlertCircle size={14} className="mr-1" />
+								Constraints ({constraints.length})
+							</span>
+							{!constraintsSatisfied && <span className="px-1.5 py-0.5 text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded">Not Met</span>}
+							{constraintsSatisfied && <span className="px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">✓</span>}
 						</span>
-						{showConstraints ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+						{showConstraints ? <ChevronUp size={14} className="flex-shrink-0 ml-2" /> : <ChevronDown size={14} className="flex-shrink-0 ml-2" />}
 					</button>
 					{showConstraints && (
 						<div className="mt-3 space-y-2">
 							{constraints.map((constraint, idx) => (
-								<div key={idx} className={`rounded-lg p-3 border ${constraint.satisfied ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700'}`}>
+								<div key={idx} className={`rounded-lg p-2 sm:p-3 border ${constraint.satisfied ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700'}`}>
 									<div className="flex items-start gap-2">
 										<div className="flex-shrink-0 mt-0.5">
 											{constraint.satisfied ? (
@@ -787,16 +815,16 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 											)}
 										</div>
 										<div className="flex-1 min-w-0">
-											<p className={`text-xs font-medium ${constraint.satisfied ? 'text-green-800 dark:text-green-300' : 'text-red-800 dark:text-red-300'}`}>
+											<p className={`text-xs font-medium break-words ${constraint.satisfied ? 'text-green-800 dark:text-green-300' : 'text-red-800 dark:text-red-300'}`}>
 												{constraint.description || constraint.constraint_type}
 											</p>
 											{!constraint.satisfied && constraint.reason && (
-												<p className="text-xs text-red-600 dark:text-red-400 mt-1">{constraint.reason}</p>
+												<p className="text-xs text-red-600 dark:text-red-400 mt-1 break-words">{constraint.reason}</p>
 											)}
 											{constraint.tally && Object.keys(constraint.tally).length > 0 && (
-												<div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+												<div className="text-xs text-gray-600 dark:text-gray-400 mt-1 flex flex-wrap gap-2">
 													{Object.entries(constraint.tally).map(([key, value]) => (
-														<span key={key} className="mr-2">{key}: {value}</span>
+														<span key={key} className="whitespace-nowrap">{key}: {value}</span>
 													))}
 												</div>
 											)}
@@ -810,28 +838,145 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 			)}
 			{onAddCourse && (
 				<div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
-					<button onClick={() => { if (!showSuggestions && suggestions.length === 0) generateSuggestions(); setShowSuggestions(v => !v); }} className="w-full flex items-center justify-between text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
+					<button onClick={() => { if (!showSuggestions && suggestions.length === 0 && Object.keys(groupedSuggestions).length === 0) generateSuggestions(); setShowSuggestions(v => !v); }} className="w-full flex items-center justify-between text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
 						<span className="flex items-center"><Plus size={14} className="mr-1" />Course Suggestions</span>{showSuggestions ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
 					</button>
 					{showSuggestions && (
-						<div className="mt-3 space-y-2">
+						<div className="mt-3 space-y-3">
 							{loadingSuggestions ? (
 								<div className="flex items-center justify-center py-4"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div><span className="ml-2 text-sm text-gray-600 dark:text-gray-400">Loading suggestions...</span></div>
+							) : Object.keys(groupedSuggestions).length > 0 ? (
+								<>
+									{/* Display grouped suggestions */}
+									{Object.entries(groupedSuggestions).map(([groupName, groupData]) => {
+										const isExpanded = expandedGroups[groupName];
+										const coursesToShow = compact ? groupData.courses.slice(0, 2) : groupData.courses.slice(0, 3);
+										const hasMore = groupData.courses.length > coursesToShow.length;
+										const groupInfo = groupData.groupInfo || {};
+										
+										// Calculate group progress
+										const groupCourses = requirementCourses.filter(pc => {
+											return groupData.groupInfo?.course_options?.some(opt => 
+												opt.course_code === pc.course?.code
+											);
+										});
+										const groupCreditsCompleted = groupCourses.reduce((sum, c) => 
+											sum + (c.credits || c.course?.credits || 0), 0
+										);
+										const groupCreditsRequired = groupInfo.credits_required || 0;
+										const groupCoursesRequired = groupInfo.courses_required || 0;
+										
+										return (
+											<div key={groupName} className="border border-gray-200 dark:border-gray-600 rounded-lg p-2 sm:p-3 bg-white dark:bg-gray-800">
+												<button 
+													onClick={() => setExpandedGroups(prev => ({...prev, [groupName]: !prev[groupName]}))}
+													className="w-full flex items-center justify-between mb-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded p-1 transition-colors"
+												>
+													<div className="flex-1 min-w-0">
+														<h6 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{groupName}</h6>
+														<div className="flex flex-wrap items-center gap-1 sm:gap-2 mt-1">
+															{groupCreditsRequired > 0 && (
+																<span className="text-xs text-gray-600 dark:text-gray-400">
+																	{groupCreditsCompleted}/{groupCreditsRequired} credits
+																</span>
+															)}
+															{groupCoursesRequired > 0 && (
+																<span className="text-xs text-purple-600 dark:text-purple-400">
+																	{groupCourses.length}/{groupCoursesRequired} courses
+																</span>
+															)}
+															{groupCourses.length > 0 && (
+																<span className="px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">
+																	{groupCourses.length} added
+																</span>
+															)}
+														</div>
+													</div>
+													<div className="flex-shrink-0 ml-2">
+														{isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+													</div>
+												</button>
+												
+												{isExpanded && (
+													<div className="space-y-2 mt-2">
+														{groupData.courses.map((course) => (
+															<div key={course.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-2">
+																<div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+																	<div className="flex-1 min-w-0">
+																		<h6 className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">{course.code}: {course.title}</h6>
+																		<p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{course.credits} credits • {course.institution}</p>
+																		{course.notes && (
+																			<p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">{course.notes}</p>
+																		)}
+																	</div>
+																	<button 
+																		onClick={() => onAddCourse([{ ...course, detectedCategory: course.requirement_category, requirement_group_id: course.requirement_group_id }])} 
+																		className="px-3 py-1.5 text-xs sm:text-sm bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800/70 transition-colors flex-shrink-0 w-full sm:w-auto text-center font-medium"
+																	>
+																		Add
+																	</button>
+																</div>
+															</div>
+														))}
+													</div>
+												)}
+												
+												{!isExpanded && coursesToShow.length > 0 && (
+													<div className="space-y-2 mt-2">
+														{coursesToShow.map((course) => (
+															<div key={course.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-2">
+																<div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+																	<div className="flex-1 min-w-0">
+																		<h6 className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">{course.code}: {course.title}</h6>
+																		<p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{course.credits} credits</p>
+																	</div>
+																	<button 
+																		onClick={() => onAddCourse([{ ...course, detectedCategory: course.requirement_category, requirement_group_id: course.requirement_group_id }])} 
+																		className="px-3 py-1.5 text-xs sm:text-sm bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800/70 transition-colors flex-shrink-0 w-full sm:w-auto text-center font-medium"
+																	>
+																		Add
+																	</button>
+																</div>
+															</div>
+														))}
+													</div>
+												)}
+												
+												{!isExpanded && hasMore && (
+													<button 
+														onClick={() => setExpandedGroups(prev => ({...prev, [groupName]: true}))}
+														className="text-xs text-blue-600 dark:text-blue-400 hover:underline w-full text-center py-2 mt-1 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded transition-colors"
+													>
+														Show {groupData.courses.length - coursesToShow.length} more...
+													</button>
+												)}
+											</div>
+										);
+									})}
+								</>
 							) : suggestions.length > 0 ? (
 								<>
+									{/* Display flat suggestions for simple requirements */}
 									{console.log(`[${name}] RENDERING ${suggestions.length} suggestions, showing ${compact ? 3 : 4}`)}
-									{(compact ? suggestions.slice(0, 3) : suggestions.slice(0, 4)).map((course) => (
-										<div key={course.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
-											<div className="flex items-start justify-between">
-												<div className="flex-1 min-w-0">
-													<h6 className="text-sm font-medium text-gray-900 dark:text-gray-100">{course.code}: {course.title}</h6>
-													<p className="text-xs text-gray-600 dark:text-gray-400">{course.credits} credits • {course.institution}</p>
-													{course.group_name && (<p className="text-xs text-blue-600 dark:text-blue-400">{course.group_name}</p>)}
+									<div className="space-y-2">
+										{(compact ? suggestions.slice(0, 3) : suggestions.slice(0, 4)).map((course) => (
+											<div key={course.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-2 sm:p-3">
+												<div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+													<div className="flex-1 min-w-0">
+														<h6 className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">{course.code}: {course.title}</h6>
+														<p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{course.credits} credits • {course.institution}</p>
+														{course.group_name && (<p className="text-xs text-blue-600 dark:text-blue-400 mt-1">{course.group_name}</p>)}
+													</div>
+													<button 
+														onClick={() => onAddCourse([{ ...course, detectedCategory: course.requirement_category }])} 
+														className="px-3 py-1.5 text-xs sm:text-sm bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800/70 transition-colors flex-shrink-0 w-full sm:w-auto text-center font-medium"
+													>
+														Add
+													</button>
 												</div>
-												<button onClick={() => onAddCourse([{ ...course, detectedCategory: course.requirement_category }])} className="ml-2 px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800/70 transition-colors">Add</button>
 											</div>
-										</div>
-									))}
+										))}
+									</div>
 								</>
 							) : (<p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">No suggestions available for this requirement</p>)}
 						</div>

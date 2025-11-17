@@ -163,10 +163,18 @@ useEffect(() => {
     const status = {};
     
     program.requirements.forEach(req => {
+      // For grouped requirements, calculate total from groups if credits_required is 0
+      let totalRequired = req.credits_required;
+      if (req.requirement_type === 'grouped' && req.groups && totalRequired === 0) {
+        totalRequired = req.groups.reduce((sum, group) => 
+          sum + (group.credits_required || 0), 0
+        );
+      }
+      
       const categoryStatus = {
         category: req.category,
         type: req.requirement_type,
-        totalRequired: req.credits_required,
+        totalRequired: totalRequired,
         totalCompleted: 0,
         groups: {}
       };
@@ -225,25 +233,31 @@ useEffect(() => {
     const categoryStatus = requirementStatus[data.requirement_category];
     if (!categoryStatus) return { valid: true };
 
+    // For grouped requirements, only validate at the group level, not the category level
+    if (requirement.requirement_type === 'grouped') {
+      if (data.requirement_group_id) {
+        const groupStatus = categoryStatus.groups[data.requirement_group_id];
+        if (groupStatus && groupStatus.isFull) {
+          return {
+            valid: false,
+            error: `${groupStatus.name} group already has the required ${
+              groupStatus.coursesRequired ? 
+              `${groupStatus.coursesRequired} course(s)` : 
+              `${groupStatus.creditsRequired} credits`
+            }`
+          };
+        }
+      }
+      // For grouped requirements, don't check total category credits
+      return { valid: true };
+    }
+
+    // For simple requirements, check total category credits
     if (categoryStatus.totalCompleted >= categoryStatus.totalRequired) {
       return {
         valid: false,
         error: `${data.requirement_category} requirement already has ${categoryStatus.totalCompleted} of ${categoryStatus.totalRequired} required credits`
       };
-    }
-
-    if (requirement.requirement_type === 'grouped' && data.requirement_group_id) {
-      const groupStatus = categoryStatus.groups[data.requirement_group_id];
-      if (groupStatus && groupStatus.isFull) {
-        return {
-          valid: false,
-          error: `${groupStatus.name} group already has the required ${
-            groupStatus.coursesRequired ? 
-            `${groupStatus.coursesRequired} course(s)` : 
-            `${groupStatus.creditsRequired} credits`
-          }`
-        };
-      }
     }
 
     return { valid: true };
