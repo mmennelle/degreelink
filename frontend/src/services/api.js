@@ -386,6 +386,15 @@ class ApiService {
       body: formData
     });
   }
+  
+  async uploadConstraints(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request('/upload/constraints', {
+      method: 'POST',
+      body: formData
+    });
+  }
 }
 
 const api = new ApiService();

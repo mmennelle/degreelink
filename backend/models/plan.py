@@ -140,10 +140,19 @@ class Plan(db.Model):
                 return s
 
         def status_key(s):
-            k = (s or '').strip().lower()
-            if k in ('all courses', ''):
+            label = (s or '').strip().lower()
+            # All Courses shows everything
+            if label in ('', 'all', 'all courses', 'all-courses'):
                 return None
-            return k.replace(' ', '_')
+            # Map common UI labels to internal status values
+            mapping = {
+                'completed courses': 'completed',
+                'completed': 'completed',
+                'in progress': 'in_progress',
+                'in-progress': 'in_progress',
+                'planned': 'planned',
+            }
+            return mapping.get(label, None)
 
         # Overview: compute both current and transfer progress
         if program is None:
@@ -182,63 +191,36 @@ class Plan(db.Model):
                 relevant_courses.append(pc)
 
         requirements_data = []
+        
+        # Check if grouped evaluation is enabled
+        try:
+            from config import Config as _Cfg
+            use_grouped_evaluation = _Cfg.PROGRESS_USE_GROUPED_EVALUATION
+        except Exception:
+            use_grouped_evaluation = False
+        
+        # For "All Courses" view (status_filter is None), preserve legacy behavior
+        # to show anticipated progress from planned/in_progress courses with equivalencies.
+        # Only use strict grouped evaluation when filtering by specific status.
+        if use_grouped_evaluation and status_filter is not None:
+            use_strict_grouped_eval = True
+        else:
+            use_strict_grouped_eval = False
+        
         for req in program.requirements or []:
+            req_type = getattr(req, 'requirement_type', 'simple')
             req_total = getattr(req, 'credits_required', 0) or 0
-            completed = 0
-            applied = []
-
-            req_canon = canon(getattr(req, 'category', ''))
-            group_ids = []
-            if getattr(req, 'requirement_type', '') == 'grouped':
-                try:
-                    group_ids = [g.id for g in (req.groups or [])]
-                except Exception:
-                    group_ids = []
-
-            for pc in relevant_courses:
-                course_canon = canon(getattr(pc, 'requirement_category', ''))
-                cat_match = (course_canon == req_canon)
-                group_match = (group_ids and getattr(pc, 'requirement_group_id', None) in group_ids)
-                if not (cat_match or group_match):
-                    continue
-
-                credits = (pc.credits
-                        or (pc.course.credits if pc.course else 0)
-                        or 0)
-                completed += credits
-                ci = {
-                    'id': pc.course.id if pc.course else None,
-                    'code': pc.course.code if pc.course else '',
-                    'title': pc.course.title if pc.course else '',
-                    'credits': credits,
-                    'status': pc.status,
-                    'grade': pc.grade,
-                }
-                if prog_id == getattr(self, 'program_id', None):
-                    # Only show equivalent info for the target program
-                    try:
-                        eq = self._get_equivalent_course(pc, program)
-                        if eq:
-                            ci['equivalent_code'] = eq.code
-                            ci['equivalent_title'] = eq.title
-                    except Exception:
-                        pass
-                applied.append(ci)
-
-            clamped = min(completed, req_total)
-            req_status = ('met' if (req_total > 0 and clamped >= req_total) else
-                        ('part' if clamped > 0 else 'none'))
-            requirements_data.append({
-                'id': getattr(req, 'id', None),
-                'name': getattr(req, 'category', ''),
-                'category': getattr(req, 'category', ''),
-                'status': req_status,
-                'completedCredits': clamped,
-                'totalCredits': req_total,
-                'courses': applied,
-                'description': getattr(req, 'description', ''),
-                'requirement_type': getattr(req, 'requirement_type', ''),
-            })
+            
+            # Use grouped evaluator for grouped requirements when flag is enabled and strict mode is on
+            if use_strict_grouped_eval and req_type == 'grouped':
+                requirements_data.append(
+                    self._evaluate_grouped_requirement(req, relevant_courses, req_total, program, prog_id)
+                )
+            else:
+                # Simple requirements or grouped with flag disabled (legacy behavior)
+                requirements_data.append(
+                    self._evaluate_simple_requirement(req, relevant_courses, req_total, program, prog_id, canon)
+                )
 
         total_required = sum(r['totalCredits'] for r in requirements_data)
         total_earned = sum(r['completedCredits'] for r in requirements_data)
@@ -254,6 +236,206 @@ class Plan(db.Model):
             'total_credits_required': total_required,
         }
 
+    def _evaluate_grouped_requirement(self, req, relevant_courses, req_total, program, prog_id):
+        """Evaluate a grouped requirement using the proper group evaluator."""
+        try:
+            eval_result = req.evaluate_completion(relevant_courses)
+        except Exception as e:
+            # Log error and return empty result
+            import logging
+            logging.warning(f"Grouped evaluation failed for requirement {req.id}: {e}")
+            eval_result = None
+        
+        # Extract results from evaluator
+        total_earned = int((eval_result or {}).get('credits_earned', 0))
+        clamped = min(total_earned, req_total) if req_total else total_earned
+        satisfied = (eval_result or {}).get('satisfied', False)
+        
+        # Extract courses from group_results for constraint evaluation
+        applied = []
+        group_results = (eval_result or {}).get('group_results', [])
+        for gr in group_results:
+            for course_dict in gr.get('courses_used', []):
+                # course_dict is already a dict from PlanCourse.to_dict()
+                applied.append(course_dict)
+        
+        # --- Phase 2: Evaluate constraints if present ---
+        constraint_results = []
+        all_constraints_satisfied = True
+        
+        if hasattr(req, 'constraints') and req.constraints:
+            import logging
+            logging.info(f"Evaluating {len(req.constraints)} constraint(s) for requirement {req.id} ({req.category})")
+            
+            for constraint in req.constraints:
+                try:
+                    # Filter out courses marked as constraint violations before evaluating
+                    valid_courses = [c for c in relevant_courses if not getattr(c, 'constraint_violation', False)]
+                    constraint_eval = constraint.evaluate(valid_courses)
+                    constraint_results.append({
+                        **constraint_eval,
+                        'constraint_type': constraint.constraint_type,
+                        'constraint_id': constraint.id,
+                        'description': constraint.description,
+                        'params': constraint.get_params(),  # Include params for frontend filtering
+                        'scope_filter': constraint.get_scope_filter()
+                    })
+                    
+                    if not constraint_eval.get('satisfied', False):
+                        all_constraints_satisfied = False
+                        logging.info(f"Constraint {constraint.constraint_type} NOT satisfied: {constraint_eval.get('reason', '')}")
+                    else:
+                        logging.info(f"Constraint {constraint.constraint_type} satisfied")
+                        
+                except Exception as e:
+                    logging.warning(f"Constraint evaluation failed for constraint {constraint.id} ({constraint.constraint_type}): {e}")
+                    constraint_results.append({
+                        'satisfied': False,
+                        'reason': f'Evaluation error: {str(e)}',
+                        'constraint_type': constraint.constraint_type,
+                        'constraint_id': getattr(constraint, 'id', None),
+                        'description': getattr(constraint, 'description', '')
+                    })
+                    all_constraints_satisfied = False
+        
+        # Recalculate credits excluding constraint-violating courses
+        valid_earned = 0
+        for gr in group_results:
+            for course_dict in gr.get('courses_used', []):
+                if not course_dict.get('constraint_violation', False):
+                    valid_earned += course_dict.get('credits', 0)
+        
+        # Use valid_earned if we filtered any violating courses
+        if valid_earned != total_earned:
+            total_earned = valid_earned
+            clamped = min(total_earned, req_total) if req_total else total_earned
+        
+        # Overall satisfaction requires BOTH base satisfaction AND all constraints satisfied
+        overall_satisfied = satisfied and all_constraints_satisfied
+        
+        # Determine status based on overall satisfaction
+        if overall_satisfied or (req_total and clamped >= req_total and all_constraints_satisfied):
+            req_status = 'met'
+        elif clamped > 0:
+            req_status = 'part'
+        else:
+            req_status = 'none'
+        
+        return {
+            'id': getattr(req, 'id', None),
+            'program_id': prog_id,  # Add program_id so frontend knows which program this belongs to
+            'name': getattr(req, 'category', ''),
+            'category': getattr(req, 'category', ''),
+            'status': req_status,
+            'completedCredits': clamped,
+            'totalCredits': req_total,
+            'courses': applied,
+            'description': getattr(req, 'description', ''),
+            'requirement_type': 'grouped',
+            'group_results': group_results,
+            'constraint_results': constraint_results if constraint_results else [],
+            'constraints_satisfied': all_constraints_satisfied,
+        }
+
+    def _evaluate_simple_requirement(self, req, relevant_courses, req_total, program, prog_id, canon):
+        """Evaluate a simple requirement or grouped requirement in legacy mode."""
+        req_canon = canon(getattr(req, 'category', ''))
+        req_type = getattr(req, 'requirement_type', 'simple')
+        
+        # For grouped requirements in legacy mode, collect group IDs and allowed codes
+        group_ids = []
+        allowed_codes = set()
+        if req_type == 'grouped':
+            try:
+                for g in (req.groups or []):
+                    group_ids.append(g.id)
+                    for opt in (g.course_options or []):
+                        code_norm = (getattr(opt, 'course_code', '') or '').upper().replace('-', ' ').strip()
+                        if code_norm:
+                            allowed_codes.add(code_norm)
+            except Exception:
+                pass
+        
+        # Accumulate matching courses
+        completed = 0
+        applied = []
+        
+        for pc in relevant_courses:
+            course_canon = canon(getattr(pc, 'requirement_category', ''))
+            cat_match = (course_canon == req_canon)
+            group_match = (group_ids and getattr(pc, 'requirement_group_id', None) in group_ids)
+            
+            # For target program grouped requirements without direct group assignment,
+            # allow equivalency-driven or direct code match
+            if not group_match and allowed_codes and prog_id == getattr(self, 'program_id', None):
+                try:
+                    eq_course = self._get_equivalent_course(pc, program)
+                    if eq_course:
+                        eq_code_norm = (eq_course.code or '').upper().replace('-', ' ').strip()
+                        if eq_code_norm in allowed_codes:
+                            group_match = True
+                except Exception:
+                    pass
+                
+                # Also check if the course itself is a target institution course in the allowed codes
+                if not group_match and getattr(pc, 'course', None):
+                    if getattr(pc.course, 'institution', None) == program.institution:
+                        try:
+                            own_code_norm = (pc.course.code or '').upper().replace('-', ' ').strip()
+                            if own_code_norm in allowed_codes:
+                                group_match = True
+                        except Exception:
+                            pass
+            
+            if not (cat_match or group_match):
+                continue
+            
+            # Course matches - add its credits
+            credits = (pc.credits or (pc.course.credits if pc.course else 0) or 0)
+            completed += credits
+            
+            ci = {
+                'id': pc.course.id if pc.course else None,
+                'code': pc.course.code if pc.course else '',
+                'title': pc.course.title if pc.course else '',
+                'credits': credits,
+                'status': pc.status,
+                'grade': pc.grade,
+            }
+            
+            # Add equivalency info for target program courses
+            if prog_id == getattr(self, 'program_id', None):
+                try:
+                    eq = self._get_equivalent_course(pc, program)
+                    if eq:
+                        ci['equivalent_code'] = eq.code
+                        ci['equivalent_title'] = eq.title
+                except Exception:
+                    pass
+            
+            applied.append(ci)
+        
+        # Calculate final status
+        clamped = min(completed, req_total) if req_total else completed
+        if req_total > 0 and clamped >= req_total:
+            req_status = 'met'
+        elif clamped > 0:
+            req_status = 'part'
+        else:
+            req_status = 'none'
+        
+        return {
+            'id': getattr(req, 'id', None),
+            'program_id': prog_id,  # Add program_id so frontend knows which program this belongs to
+            'name': getattr(req, 'category', ''),
+            'category': getattr(req, 'category', ''),
+            'status': req_status,
+            'completedCredits': clamped,
+            'totalCredits': req_total,
+            'courses': applied,
+            'description': getattr(req, 'description', ''),
+            'requirement_type': req_type,
+        }
 
     
     def _is_course_relevant_to_program(self, plan_course, program):
@@ -282,18 +464,102 @@ class Plan(db.Model):
         
         if not plan_course.course:
             return None
-        
-        # Find equivalency mapping
-        equivalency = Equivalency.query.filter_by(
-            from_course_id=plan_course.course.id
-        ).first()
-        
-        if equivalency and equivalency.to_course:
-            # Check if equivalent course is at target institution
-            if equivalency.to_course.institution == target_program.institution:
-                return equivalency.to_course
-        
+
+        # Prefer an equivalency that maps specifically to the target institution.
+        try:
+            # Join to the Course table for the target (to_course) to filter by institution.
+            to_alias = Course
+            eq = (Equivalency.query
+                  .join(to_alias, Equivalency.to_course_id == to_alias.id)
+                  .filter(
+                      Equivalency.from_course_id == plan_course.course.id,
+                      to_alias.institution == target_program.institution
+                  )
+                  .first())
+            if eq and eq.to_course:
+                return eq.to_course
+        except Exception:
+            pass
+
+        # Fallback: return None (either no mapping to target institution, or only 'no equivalent')
         return None
+    
+    def check_course_constraint_violations(self, course_id, requirement_category, requirement_group_id=None):
+        """Check if adding a course would violate any constraints.
+        
+        Returns:
+            dict with 'violates' (bool) and 'violations' (list of violation descriptions)
+        """
+        from .course import Course
+        
+        course = Course.query.get(course_id)
+        if not course or not self.target_program:
+            return {'violates': False, 'violations': []}
+        
+        # Find the requirement this course would apply to
+        requirement = next(
+            (req for req in self.target_program.requirements 
+             if req.category == requirement_category),
+            None
+        )
+        
+        if not requirement or not hasattr(requirement, 'constraints') or not requirement.constraints:
+            return {'violates': False, 'violations': []}
+        
+        # Get existing courses for this requirement (excluding constraint violations)
+        existing_courses = [
+            pc for pc in self.courses 
+            if pc.requirement_category == requirement_category 
+            and not getattr(pc, 'constraint_violation', False)
+        ]
+        
+        # Create a temporary PlanCourse object for the new course
+        temp_plan_course = PlanCourse(
+            course=course,
+            credits=course.credits,
+            requirement_category=requirement_category,
+            requirement_group_id=requirement_group_id
+        )
+        
+        # Test with the new course added
+        test_courses = existing_courses + [temp_plan_course]
+        
+        violations = []
+        for constraint in requirement.constraints:
+            try:
+                # Check if constraint applies to this specific course based on scope
+                scope = constraint.get_scope_filter()
+                
+                # If there's a group scope and it doesn't match, skip this constraint
+                if scope.get('group_name') and requirement_group_id:
+                    # Get group name for this requirement_group_id
+                    from .program import RequirementGroup
+                    group = RequirementGroup.query.get(requirement_group_id)
+                    if group and group.group_name != scope.get('group_name'):
+                        continue
+                
+                eval_result = constraint.evaluate(test_courses)
+                
+                if not eval_result.get('satisfied', True):
+                    violations.append({
+                        'constraint_type': constraint.constraint_type,
+                        'description': constraint.description or eval_result.get('reason', 'Constraint not satisfied'),
+                        'reason': eval_result.get('reason', ''),
+                        'constraint_id': constraint.id
+                    })
+            except Exception as e:
+                # If evaluation fails, be conservative and report potential violation
+                violations.append({
+                    'constraint_type': getattr(constraint, 'constraint_type', 'unknown'),
+                    'description': f'Could not evaluate constraint: {str(e)}',
+                    'reason': str(e),
+                    'constraint_id': getattr(constraint, 'id', None)
+                })
+        
+        return {
+            'violates': len(violations) > 0,
+            'violations': violations
+        }
     
     def get_unmet_requirements(self):
         unmet = []
@@ -438,13 +704,21 @@ class Plan(db.Model):
 
         # Pull a modest set; we'll validate each against the requirement
         # Exclude developmental or non-credit-bearing courses (below 1000 level) when possible
+        # Be strict: if course_level is NULL, use course_number_numeric as fallback
         try:
             candidates = query.filter(
-                ((Course.course_level == None) | (Course.course_level >= 1000)) &
-                ((Course.course_number_numeric == None) | (Course.course_number_numeric >= 100))
+                ((Course.course_level != None) & (Course.course_level >= 1000)) |
+                ((Course.course_level == None) & (Course.course_number_numeric >= 1000))
             ).limit(30).all()
         except Exception:
+            # Fallback if the above filter fails
             candidates = query.limit(30).all()
+        
+        # Additional filtering: remove courses with "No equivalent" or NE suffix
+        candidates = [c for c in candidates if c.code and not (
+            c.code.endswith('NE') or 
+            (c.title and 'no equivalent' in c.title.lower())
+        )]
 
         valid = []
         for course in candidates:
@@ -668,8 +942,18 @@ class PlanCourse(db.Model):
     requirement_category = db.Column(db.String(100), index=True)  
     requirement_group_id = db.Column(db.Integer, db.ForeignKey('requirement_groups.id'), nullable=True, index=True)  
     notes = db.Column(db.Text)
+    constraint_violation = db.Column(db.Boolean, default=False, index=True)  # Course violates a constraint
+    constraint_violation_reason = db.Column(db.Text)  # Why it violates (for UI display)
     
     course = db.relationship('Course', backref='plan_courses')
+    requirement_group = db.relationship('RequirementGroup', foreign_keys=[requirement_group_id])
+    
+    @property
+    def group_name(self):
+        """Get the group name from the related RequirementGroup."""
+        if self.requirement_group:
+            return self.requirement_group.group_name
+        return None
     
     def to_dict(self):
         return {
@@ -684,5 +968,7 @@ class PlanCourse(db.Model):
             'credits': self.credits or (self.course.credits if self.course else 0),
             'requirement_category': self.requirement_category,
             'requirement_group_id': self.requirement_group_id,  
-            'notes': self.notes
+            'notes': self.notes,
+            'constraint_violation': self.constraint_violation or False,
+            'constraint_violation_reason': self.constraint_violation_reason
         }

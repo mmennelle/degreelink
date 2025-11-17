@@ -58,6 +58,7 @@ class ProgramRequirement(db.Model):
     
     
     groups = db.relationship('RequirementGroup', backref='requirement', cascade='all, delete-orphan')
+    constraints = db.relationship('RequirementConstraint', back_populates='requirement', cascade='all, delete-orphan')
     
     def to_dict(self):
         return {
@@ -72,7 +73,8 @@ class ProgramRequirement(db.Model):
             'semester': self.semester,
             'year': self.year,
             'is_current': self.is_current,
-            'groups': [group.to_dict() for group in self.groups]
+            'groups': [group.to_dict() for group in self.groups],
+            'constraints': [constraint.to_dict() for constraint in self.constraints]
         }
     
     def evaluate_completion(self, student_courses):
@@ -113,9 +115,11 @@ class ProgramRequirement(db.Model):
             group_result = group.evaluate_completion(student_courses)
             group_results.append(group_result)
             
-            if group_result['satisfied']:
-                total_satisfied_credits += group_result['credits_earned']
-            else:
+            # Add credits earned from this group regardless of satisfaction status
+            # to support partial credit accumulation
+            total_satisfied_credits += group_result.get('credits_earned', 0)
+            
+            if not group_result.get('satisfied', False):
                 all_groups_satisfied = False
         
         return {
@@ -164,7 +168,21 @@ class RequirementGroup(db.Model):
     
     def evaluate_completion(self, student_courses):
         
-        
+        # Trivial satisfaction: if this group requires zero courses or explicitly zero credits,
+        # consider it satisfied without consuming any student courses.
+        if (self.courses_required is not None and self.courses_required == 0) and (
+            self.credits_required is None or self.credits_required == 0
+        ):
+            return {
+                'satisfied': True,
+                'courses_taken': 0,
+                'courses_required': 0,
+                'credits_earned': 0,
+                'credits_required': (self.credits_required or 0),
+                'courses_used': [],
+                'group_name': self.group_name
+            }
+
         option_codes = [opt.course_code for opt in self.course_options]
         
         matching_courses = []

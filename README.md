@@ -25,6 +25,75 @@
 6. GET /get-plan/{code} (retrieve plan using code from step 5)
 
 
+## Phase 1 feature flags (grouped evaluation + auto-assignment)
+
+This project now supports stricter grouped requirement evaluation and automatic group assignment behind feature flags. These are off by default to preserve current behavior and can be enabled per environment.
+
+- PROGRESS_USE_GROUPED_EVALUATION (default: false)
+    - When true, progress/audit for requirement_type='grouped' uses the strict evaluator (ProgramRequirement.evaluate_completion). Group rules like courses_required or credits_required at the group level are enforced. Zero-credit, course-count-only groups (e.g., exit exams) will show as complete when satisfied.
+    - API remains backward-compatible and adds a non-breaking field group_results to grouped requirement entries for transparency.
+
+- AUTO_ASSIGN_REQUIREMENT_GROUPS (default: false)
+    - When true, newly added or updated plan courses are automatically assigned to a RequirementGroup if their code matches a GroupCourseOption in the target program. If multiple matches exist, options marked is_preferred are chosen first; otherwise a deterministic order is applied.
+
+Enable flags in bash (Linux/macOS):
+
+```bash
+export PROGRESS_USE_GROUPED_EVALUATION=true
+export AUTO_ASSIGN_REQUIREMENT_GROUPS=true
+# then start the backend as you normally do
+```
+
+Effects you should see when enabled:
+- Grouped requirements honor the exact course options you list in your CSV uploads (docs/equic-csvs/*). Courses not listed won’t be counted toward grouped requirements.
+- Responses include group_results detailing which groups are satisfied and which courses were used.
+- Zero-credit groups that require a specific number of courses will be considered met when the count is satisfied.
+
+Authoring tips for grouped requirements:
+- Enumerate explicit course codes in the course_option column for each group. Use is_preferred to guide auto-assignment.
+- To avoid mixing tracks (e.g., PHYS 103x vs 106x), place each track in a separate group under the same category.
+
+To revert to legacy behavior:
+- Set both flags to false (or unset them) and restart the backend.
+
+
+## CSV Data Formats
+
+The system supports CSV uploads for courses, equivalencies, and program requirements. **As of January 2025**, program requirements use a unified CSV format that combines requirements and constraints.
+
+### Unified Program Requirements Format
+
+Program requirements and constraints are now uploaded in a **single CSV file** with optional constraint columns. This eliminates the need for separate uploads and reduces redundancy.
+
+**Key Features:**
+- Constraint columns are optional and only filled on the first row of each category
+- Course listings follow with empty constraint columns
+- Backward compatible with legacy format
+
+**Sample Structure:**
+```csv
+program_name,category,requirement_type,semester,year,is_current,group_name,course_code,institution,is_preferred,min_credits,max_credits,min_courses,max_courses,min_level,min_courses_at_level,tag_requirement,scope_subject_codes
+"Biology B.S.","BIOS Electives",grouped,Fall,2025,true,"Electives",BIOS 300,"State University",false,10,"",3,"",3000,2,has_lab:true:2,BIOS
+"Biology B.S.","BIOS Electives",grouped,Fall,2025,true,"Electives",BIOS 301,"State University",true,"","","","","","","",""
+"Biology B.S.","BIOS Electives",grouped,Fall,2025,true,"Electives",BIOS 305,"State University",false,"","","","","","","",""
+```
+
+**Constraint Types:**
+- **Credits**: `min_credits`, `max_credits` - Total credit requirements
+- **Courses**: `min_courses`, `max_courses` - Course count requirements
+- **Level**: `min_level`, `min_courses_at_level` - Upper-division requirements (e.g., 3000+ level)
+- **Tag**: `tag_requirement` - Format "tag:value:count" (e.g., "has_lab:true:2" for 2 lab courses)
+- **Scope**: `scope_subject_codes` - Apply constraints to specific subjects only
+
+**Documentation:**
+- Full format guide: `docs/UNIFIED_CSV_FORMAT.md`
+- Implementation details: `docs/UNIFIED_CSV_IMPLEMENTATION.md`
+- Sample file: `docs/equic-csvs/sample-templates/unified_program_requirements.csv`
+
+### Other CSV Formats
+- **Courses**: Standard course catalog data (code, title, credits, description, has_lab, course_type)
+- **Equivalencies**: Course transfer mappings between institutions
+
 
 # Course Equivalency Finder App
 

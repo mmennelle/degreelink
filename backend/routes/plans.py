@@ -5,6 +5,7 @@ import secrets
 import time
 from functools import wraps
 from services.progress_service import ProgressService
+from config import Config
 
 bp = Blueprint('plans', __name__, url_prefix='/api/plans')
 
@@ -306,10 +307,15 @@ def add_course_to_plan(plan_id):
         requirement_group_id=data.get('requirement_group_id'),  # ADDED
         credits=data.get('credits'),  # ADDED
         grade=data.get('grade'),  # ADDED
-        notes=data.get('notes', '')
+        notes=data.get('notes', ''),
+        constraint_violation=data.get('constraint_violation', False),  # ADDED
+        constraint_violation_reason=data.get('constraint_violation_reason')  # ADDED
     )
     
     try:
+        # Auto-assign requirement group if enabled and not provided
+        if Config.AUTO_ASSIGN_REQUIREMENT_GROUPS and not plan_course.requirement_group_id and plan.target_program and plan_course.course:
+            _assign_requirement_group(plan, plan_course)
         db.session.add(plan_course)
         db.session.commit()
         return jsonify(plan_course.to_dict()), 201
@@ -358,10 +364,15 @@ def add_course_to_plan_by_code(plan_code):
         requirement_group_id=data.get('requirement_group_id'),  # ADDED
         credits=data.get('credits'),  # ADDED
         grade=data.get('grade'),  # ADDED
-        notes=data.get('notes', '')
+        notes=data.get('notes', ''),
+        constraint_violation=data.get('constraint_violation', False),  # ADDED
+        constraint_violation_reason=data.get('constraint_violation_reason')  # ADDED
     )
     
     try:
+        # Auto-assign requirement group if enabled and not provided
+        if Config.AUTO_ASSIGN_REQUIREMENT_GROUPS and not plan_course.requirement_group_id and plan.target_program and plan_course.course:
+            _assign_requirement_group(plan, plan_course)
         db.session.add(plan_course)
         db.session.commit()
         
@@ -373,6 +384,66 @@ def add_course_to_plan_by_code(plan_code):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': 'Failed to add course to plan'}), 500
+
+@bp.route('/<int:plan_id>/validate-course-constraints', methods=['POST'])
+def validate_course_constraints(plan_id):
+    """Validate if adding a course would violate constraints - requires prior code access"""
+    
+    if not check_plan_access(plan_id):
+        return jsonify({'error': 'Access denied. Use plan code to access this plan.'}), 403
+    
+    plan = Plan.query.get_or_404(plan_id)
+    data = request.get_json()
+    
+    course_id = data.get('course_id')
+    requirement_category = data.get('requirement_category')
+    requirement_group_id = data.get('requirement_group_id')
+    
+    if not course_id or not requirement_category:
+        return jsonify({'error': 'course_id and requirement_category required'}), 400
+    
+    try:
+        result = plan.check_course_constraint_violations(
+            course_id, 
+            requirement_category,
+            requirement_group_id
+        )
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({'error': f'Failed to validate constraints: {str(e)}'}), 500
+
+@bp.route('/by-code/<plan_code>/validate-course-constraints', methods=['POST'])
+@require_plan_access
+def validate_course_constraints_by_code(plan_code):
+    """Validate if adding a course would violate constraints using plan code"""
+    
+    if not plan_code or len(plan_code.strip()) != 8:
+        return jsonify({'error': 'Invalid plan code format'}), 400
+    
+    clean_code = ''.join(c for c in plan_code.upper().strip() if c.isalnum())
+    plan = Plan.find_by_code(clean_code)
+    
+    if not plan:
+        return jsonify({'error': 'Plan not found or access denied'}), 404
+    
+    data = request.get_json()
+    
+    course_id = data.get('course_id')
+    requirement_category = data.get('requirement_category')
+    requirement_group_id = data.get('requirement_group_id')
+    
+    if not course_id or not requirement_category:
+        return jsonify({'error': 'course_id and requirement_category required'}), 400
+    
+    try:
+        result = plan.check_course_constraint_violations(
+            course_id, 
+            requirement_category,
+            requirement_group_id
+        )
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({'error': f'Failed to validate constraints: {str(e)}'}), 500
 
 @bp.route('/<int:plan_id>/courses/<int:plan_course_id>', methods=['PUT'])
 def update_plan_course(plan_id, plan_course_id):
@@ -398,6 +469,11 @@ def update_plan_course(plan_id, plan_course_id):
     plan_course.notes = data.get('notes', plan_course.notes)
     
     try:
+        # Auto-assign on update if still not set
+        if Config.AUTO_ASSIGN_REQUIREMENT_GROUPS and not plan_course.requirement_group_id:
+            plan = Plan.query.get(plan_id)
+            if plan and plan.target_program and plan_course.course:
+                _assign_requirement_group(plan, plan_course)
         db.session.commit()
         return jsonify(plan_course.to_dict())
     except Exception as e:
@@ -612,6 +688,83 @@ def session_status():
         session.pop('accessed_plan_id', None)
         session.pop('access_time', None)
         return jsonify({'has_access': False})
+
+
+# --- Helpers ---------------------------------------------------------------
+def _assign_requirement_group(plan: Plan, plan_course: PlanCourse):
+    """Assign plan_course.requirement_group_id based on target program groups.
+
+    Strategy:
+      - Collect all GroupCourseOption whose course_code matches course.code (case-insensitive; hyphen/space normalized).
+      - If multiple matches:
+        1. Prefer is_preferred=True options first
+        2. Then sort by requirement.priority_order (ascending)
+        3. Then by group.courses_required (descending - strictest first)
+        4. Then by group.id (ascending - for deterministic tie-breaking)
+      - Log ambiguities when multiple groups match
+      - Log when no match is found
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        from models.program import ProgramRequirement, RequirementGroup, GroupCourseOption
+    except Exception:
+        logger.error("Failed to import models for group assignment")
+        return
+    
+    if not plan_course.course:
+        return
+    
+    code_norm = (plan_course.course.code or '').upper().replace('-', ' ').strip()
+    course_inst = getattr(plan_course.course, 'institution', None)
+    
+    matches = []
+    for req in (plan.target_program.requirements or []):
+        if getattr(req, 'requirement_type', '') != 'grouped':
+            continue
+        for grp in (req.groups or []):
+            for opt in (grp.course_options or []):
+                opt_code_norm = (opt.course_code or '').upper().replace('-', ' ').strip()
+                opt_inst = opt.institution
+                
+                # Match if codes match and institution is compatible
+                code_match = (opt_code_norm == code_norm)
+                inst_match = (not opt_inst) or (opt_inst == course_inst)
+                
+                if code_match and inst_match:
+                    matches.append((req, grp, opt))
+    
+    if not matches:
+        logger.info(f"No group match for course {code_norm} (institution: {course_inst}) in plan {plan.id}")
+        return
+    
+    # Log ambiguity if multiple matches
+    if len(matches) > 1:
+        group_details = [f"Group '{m[1].group_name}' in req '{m[0].category}'" for m in matches]
+        logger.info(f"Multiple group matches for course {code_norm} in plan {plan.id}: {', '.join(group_details)}")
+    
+    # Prefer preferred options first
+    preferred = [m for m in matches if getattr(m[2], 'is_preferred', False)]
+    candidates = preferred if preferred else matches
+    
+    # Sort deterministically by priority
+    # 1. requirement.priority_order (lower = higher priority)
+    # 2. group.courses_required (higher = stricter requirement, higher priority)
+    # 3. group.id (lower = first created, tie-breaker)
+    candidates.sort(key=lambda m: (
+        getattr(m[0], 'priority_order', 0) or 0,
+        -1 * (getattr(m[1], 'courses_required', 0) or 0),
+        getattr(m[1], 'id', 0) or 0
+    ))
+    
+    chosen_req, chosen_group, chosen_opt = candidates[0]
+    plan_course.requirement_group_id = chosen_group.id
+    
+    logger.debug(
+        f"Assigned course {code_norm} to group '{chosen_group.group_name}' "
+        f"(id: {chosen_group.id}) in requirement '{chosen_req.category}' for plan {plan.id}"
+    )
 
 # For advisor access - could be expanded with proper authentication
 @bp.route('/advisor/plans', methods=['GET'])
