@@ -172,6 +172,19 @@ class ApiService {
       return this.request(`/programs/${id}`);
     }
     
+    async updateProgram(id, data) {
+      return this.request(`/programs/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data)
+      });
+    }
+    
+    async deleteProgram(id) {
+      return this.request(`/programs/${id}`, {
+        method: 'DELETE'
+      });
+    }
+    
     async getProgramRequirementSuggestions(programId, requirementId) {
       return this.request(`/programs/${programId}/requirements/${requirementId}/suggestions`);
     }

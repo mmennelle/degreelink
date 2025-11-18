@@ -422,3 +422,65 @@ def bulk_update_requirements(program_id):
         db.session.rollback()
         return jsonify({'error': f'Failed to commit changes: {str(e)}'}), 500
 
+
+@bp.route('/<int:program_id>', methods=['PUT'])
+@require_admin
+def update_program(program_id):
+    """
+    Update a program's basic information.
+    Only advisors can update programs.
+    """
+    from models.program import Program
+    
+    program = Program.query.get_or_404(program_id)
+    data = request.get_json()
+    
+    try:
+        # Update allowed fields
+        if 'name' in data:
+            program.name = data['name']
+        if 'institution' in data:
+            program.institution = data['institution']
+        if 'degree_type' in data:
+            program.degree_type = data['degree_type']
+        if 'total_credits_required' in data:
+            program.total_credits_required = int(data['total_credits_required']) if data['total_credits_required'] else None
+        if 'description' in data:
+            program.description = data['description']
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Program updated successfully',
+            'program': program.to_dict()
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to update program: {str(e)}'}), 500
+
+
+@bp.route('/<int:program_id>', methods=['DELETE'])
+@require_admin
+def delete_program(program_id):
+    """
+    Delete a program and all its associated requirements.
+    Only advisors can delete programs.
+    WARNING: This will cascade delete all requirements, groups, and constraints.
+    """
+    from models.program import Program
+    
+    program = Program.query.get_or_404(program_id)
+    program_name = program.name
+    
+    try:
+        db.session.delete(program)
+        db.session.commit()
+        
+        return jsonify({
+            'message': f'Program "{program_name}" deleted successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to delete program: {str(e)}'}), 500
+
+

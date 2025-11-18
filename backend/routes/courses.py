@@ -2,8 +2,18 @@ from flask import Blueprint, request, jsonify
 from auth import require_admin
 from models import db, Course, Equivalency
 from sqlalchemy import or_
+import os
+from hmac import compare_digest
 
 bp = Blueprint('courses', __name__, url_prefix='/api/courses')
+
+def is_admin_request():
+    """Check if the current request has a valid admin token."""
+    token = os.environ.get('ADMIN_API_TOKEN')
+    if not token:
+        return False
+    provided = request.headers.get('X-Admin-Token')
+    return provided and compare_digest(str(provided), str(token))
 
 @bp.route('', methods=['GET'])
 def get_courses():
@@ -14,7 +24,10 @@ def get_courses():
     subject = request.args.get('subject', '')
     level = request.args.get('level', type=int)
     page = request.args.get('page', 1, type=int)
-    per_page = min(request.args.get('per_page', 20, type=int), 100)
+    
+    # Allow admins to request up to 10000 courses, regular users limited to 100
+    max_per_page = 10000 if is_admin_request() else 100
+    per_page = min(request.args.get('per_page', 20, type=int), max_per_page)
 
     query = Course.query
 
