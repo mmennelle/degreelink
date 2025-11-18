@@ -236,3 +236,175 @@ def get_requirement_suggestions(program_id, requirement_id):
         'requirement': requirement.to_dict(),
         'suggestions': suggestions
     })
+
+@bp.route('/<int:program_id>/requirements', methods=['GET'])
+def get_program_requirements_by_version(program_id):
+    """
+    Get all requirements for a specific program version.
+    Query params: semester, year
+    """
+    semester = request.args.get('semester')
+    year = request.args.get('year')
+    
+    if not semester or not year:
+        return jsonify({'error': 'semester and year are required'}), 400
+    
+    try:
+        year_int = int(year)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'year must be an integer'}), 400
+    
+    program = Program.query.get_or_404(program_id)
+    
+    requirements = ProgramRequirement.query.filter_by(
+        program_id=program_id,
+        semester=semester,
+        year=year_int
+    ).all()
+    
+    result = []
+    for req in requirements:
+        req_data = req.to_dict()
+        # Include groups and options for grouped requirements
+        if req.requirement_type in ['grouped', 'conditional'] and req.groups:
+            groups_data = []
+            for group in req.groups:
+                group_data = {
+                    'id': group.id,
+                    'group_name': group.group_name,
+                    'options': [opt.to_dict() for opt in group.course_options]
+                }
+                groups_data.append(group_data)
+            req_data['groups'] = groups_data
+        result.append(req_data)
+    
+    return jsonify({'requirements': result})
+
+@bp.route('/<int:program_id>/requirements/bulk', methods=['PUT'])
+@require_admin
+def bulk_update_requirements(program_id):
+    """
+    Bulk update requirements for a specific program version.
+    Expects JSON with: semester, year, requirements array
+    """
+    data = request.get_json() or {}
+    semester = data.get('semester')
+    year = data.get('year')
+    requirements_data = data.get('requirements', [])
+    
+    if not semester or year is None:
+        return jsonify({'error': 'semester and year are required'}), 400
+    
+    try:
+        year_int = int(year)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'year must be an integer'}), 400
+    
+    program = Program.query.get_or_404(program_id)
+    
+    updated_count = 0
+    errors = []
+    
+    for req_data in requirements_data:
+        req_id = req_data.get('id')
+        if not req_id:
+            continue
+            
+        requirement = ProgramRequirement.query.filter_by(
+            id=req_id,
+            program_id=program_id
+        ).first()
+        
+        if not requirement:
+            errors.append(f'Requirement {req_id} not found')
+            continue
+        
+        try:
+            # Update basic fields
+            if 'requirement_type' in req_data:
+                requirement.requirement_type = req_data['requirement_type']
+            if 'credits_required' in req_data:
+                requirement.credits_required = int(req_data['credits_required'])
+            if 'description' in req_data:
+                requirement.description = req_data['description']
+            
+            # Update groups and options for all requirement types (simple, grouped, conditional)
+            if 'groups' in req_data and requirement.requirement_type in ['grouped', 'conditional', 'simple']:
+                for group_data in req_data['groups']:
+                    group_id = group_data.get('id')
+                    
+                    # Handle new groups (id starts with 'new-group-')
+                    if group_id and str(group_id).startswith('new-group-'):
+                        # Create new group
+                        new_group = RequirementGroup(
+                            requirement_id=requirement.id,
+                            group_name=group_data.get('group_name', 'New Group'),
+                            courses_required=int(group_data.get('courses_required', 0)),
+                            credits_required=int(group_data.get('credits_required', 0)) if group_data.get('credits_required') else None,
+                            description=group_data.get('description')
+                        )
+                        db.session.add(new_group)
+                        db.session.flush()  # Get the new group ID
+                        
+                        # Add options to new group
+                        if 'options' in group_data:
+                            for option_data in group_data['options']:
+                                new_option = GroupCourseOption(
+                                    group_id=new_group.id,
+                                    course_code=option_data.get('course_code'),
+                                    institution=option_data.get('institution'),
+                                    is_preferred=bool(option_data.get('is_preferred', False))
+                                )
+                                db.session.add(new_option)
+                    
+                    # Handle existing groups
+                    elif group_id:
+                        group = RequirementGroup.query.filter_by(
+                            id=group_id,
+                            requirement_id=requirement.id
+                        ).first()
+                        
+                        if group and 'options' in group_data:
+                            for option_data in group_data['options']:
+                                option_id = option_data.get('id')
+                                
+                                # Handle new options (id starts with 'new-option-')
+                                if option_id and str(option_id).startswith('new-option-'):
+                                    new_option = GroupCourseOption(
+                                        group_id=group.id,
+                                        course_code=option_data.get('course_code'),
+                                        institution=option_data.get('institution'),
+                                        is_preferred=bool(option_data.get('is_preferred', False))
+                                    )
+                                    db.session.add(new_option)
+                                
+                                # Handle existing options
+                                elif option_id:
+                                    option = GroupCourseOption.query.filter_by(
+                                        id=option_id,
+                                        group_id=group.id
+                                    ).first()
+                                    
+                                    if option:
+                                        if 'course_code' in option_data:
+                                            option.course_code = option_data['course_code']
+                                        if 'institution' in option_data:
+                                            option.institution = option_data['institution']
+                                        if 'is_preferred' in option_data:
+                                            option.is_preferred = bool(option_data['is_preferred'])
+            
+            updated_count += 1
+        except Exception as e:
+            errors.append(f'Error updating requirement {req_id}: {str(e)}')
+    
+    try:
+        db.session.commit()
+        return jsonify({
+            'message': f'Updated {updated_count} requirements',
+            'updated_count': updated_count,
+            'errors': errors if errors else None
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to commit changes: {str(e)}'}), 500
+

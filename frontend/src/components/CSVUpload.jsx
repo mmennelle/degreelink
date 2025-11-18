@@ -1,12 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { Upload, FileText, AlertCircle, CheckCircle, Download, Settings } from 'lucide-react';
 import api from '../services/api';
+import UploadConfirmationModal from './UploadConfirmationModal';
+import ProgramRequirementsEditModal from './ProgramRequirementsEditModal';
 
 const CSVUpload = () => {
   const [uploadType, setUploadType] = useState('courses');
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
   const [dragActive, setDragActive] = useState(false);
+  
+  // Preview and confirmation modal state
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [previewData, setPreviewData] = useState(null);
+  const [pendingFile, setPendingFile] = useState(null);
+
+  // Edit modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingProgram, setEditingProgram] = useState(null);
+  const [editingSemester, setEditingSemester] = useState(null);
+  const [editingYear, setEditingYear] = useState(null);
 
   // Program versions state for requirements management
   const [programVersions, setProgramVersions] = useState([]);
@@ -54,6 +67,17 @@ const CSVUpload = () => {
     setUploadResult(null);
 
     try {
+      // For requirements uploads, show preview modal first
+      if (uploadType === 'requirements') {
+        const preview = await api.previewRequirements(file);
+        setPreviewData(preview);
+        setPendingFile(file);
+        setShowConfirmModal(true);
+        setUploading(false);
+        return;
+      }
+
+      // For other upload types, proceed directly
       let result;
       switch (uploadType) {
         case 'courses':
@@ -62,25 +86,69 @@ const CSVUpload = () => {
         case 'equivalencies':
           result = await api.uploadEquivalencies(file);
           break;
-        case 'requirements':
-          result = await api.uploadRequirements(file);
-          break;
         default:
           throw new Error('Invalid upload type');
       }
       
       setUploadResult(result);
-
-      // After uploading requirements, refresh versions listing
-      if (uploadType === 'requirements') {
-        await loadProgramVersions();
-      }
     } catch (error) {
       console.error('Upload failed:', error);
       setUploadResult({ error: error.message });
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleConfirmUpload = async (editedData) => {
+    if (!pendingFile) return;
+
+    setShowConfirmModal(false);
+    setUploading(true);
+    setUploadResult(null);
+
+    try {
+      // If user edited the data, we could send it to a different endpoint
+      // For now, we proceed with the original file upload
+      // Future enhancement: send editedData to backend for modification before upload
+      const result = await api.uploadRequirements(pendingFile);
+      setUploadResult(result);
+      
+      // Refresh program versions after upload
+      await loadProgramVersions();
+    } catch (error) {
+      console.error('Upload failed:', error);
+      setUploadResult({ error: error.message });
+    } finally {
+      setUploading(false);
+      setPendingFile(null);
+      setPreviewData(null);
+    }
+  };
+
+  const handleCancelUpload = () => {
+    setShowConfirmModal(false);
+    setPendingFile(null);
+    setPreviewData(null);
+    setUploading(false);
+  };
+
+  const handleEditRequirements = (program, semester, year) => {
+    setEditingProgram(program);
+    setEditingSemester(semester);
+    setEditingYear(year);
+    setShowEditModal(true);
+  };
+
+  const handleCloseEditModal = () => {
+    setShowEditModal(false);
+    setEditingProgram(null);
+    setEditingSemester(null);
+    setEditingYear(null);
+  };
+
+  const handleSaveEditModal = async () => {
+    // Reload program versions after save
+    await loadProgramVersions();
   };
 
   const handleFileChange = (event) => {
@@ -134,24 +202,26 @@ const CSVUpload = () => {
 "CHEM 111","Community College","CHEM 1210","State University","direct","Laboratory component included","Dr. Davis"`;
       filename = 'sample_equivalencies.csv';
     } else if (type === 'requirements') {
-      // Updated unified format with category-level AND group-level constraints
+      // Updated unified format with new requirement type semantics
       csvContent = `program_name,category,requirement_type,semester,year,is_current,group_name,course_code,institution,is_preferred,constraint_type,description,min_credits,max_credits,min_level,min_courses,max_courses,tag,tag_value,scope_subject_codes
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Major Required Courses",BIOS 101,"State University",false,credits,"Category-level: Minimum 40 credits in Core Major",40,,,,,,,"BIOS"
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Major Required Courses",BIOS 201,"State University",true,,,,,,,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Major Required Courses",BIOS 301,"State University",false,,,,,,,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Biology Lab",BIOS 102L,"State University",false,min_tag_courses,"Group-level: At least 2 lab courses in this group",,,,,2,has_lab,true,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Biology Lab",BIOS 202L,"State University",false,,,,,,,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Biology Lab",BIOS 302L,"State University",false,,,,,,,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Biology 4000",BIOS 401,"State University",false,min_courses_at_level,"Group-level: At least 3 courses at 4000 level in this group",,,4000,3,,,,"BIOS"
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Biology 4000",BIOS 402,"State University",true,,,,,,,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Biology 4000",BIOS 405,"State University",false,,,,,,,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Biology 4000",BIOS 410,"State University",false,,,,,,,,,,
-"Biology B.S.","General Electives",grouped,Fall,2025,true,"Open Electives",,"",false,courses,"Choose 3 courses",,,,,3,,,,
-"Biology B.S.","Humanities",grouped,Fall,2025,true,"Literature & Writing",ENG 205,"State University",false,courses,"Category-level: Choose 3 total Humanities courses",,,,3,,,
-"Biology B.S.","Humanities",grouped,Fall,2025,true,"Literature & Writing",ENG 210,"State University",false,,,,,,,,,,
-"Biology B.S.","Humanities",grouped,Fall,2025,true,"Literature & Writing",LIT 101,"Community College",false,,,,,,,,,,
-"Biology B.S.","Humanities",grouped,Fall,2025,true,"Philosophy",PHIL 101,"State University",true,,,,,,,,,,
-"Biology B.S.","Humanities",grouped,Fall,2025,true,"Philosophy",PHIL 201,"State University",false,,,,,,,,,,`;
+"Biology B.S.","Biology Electives",simple,Fall,2025,true,"Elective Options",BIOS 301,"State University",false,credits,"Simple: Choose any 15 credits from this pool",15,,,,,,,
+"Biology B.S.","Biology Electives",simple,Fall,2025,true,"Elective Options",BIOS 302,"State University",false,,,,,,,,,,
+"Biology B.S.","Biology Electives",simple,Fall,2025,true,"Elective Options",BIOS 303,"State University",true,,,,,,,,,,
+"Biology B.S.","Biology Electives",simple,Fall,2025,true,"Elective Options",BIOS 401,"State University",false,,,,,,,,,,
+"Biology B.S.","Biology Electives",simple,Fall,2025,true,"Elective Options",BIOS 402,"State University",false,,,,,,,,,,
+"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Required Theory",BIOS 101,"State University",false,courses,"Grouped: Must complete ALL groups - 2 courses from Theory",,,,,2,,,,
+"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Required Theory",BIOS 201,"State University",true,,,,,,,,,,
+"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Required Theory",BIOS 301,"State University",false,,,,,,,,,,
+"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Required Labs",BIOS 102L,"State University",false,courses,"Grouped: AND 2 lab courses from Labs",,,,,2,,,,
+"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Required Labs",BIOS 202L,"State University",false,,,,,,,,,,
+"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Required Labs",BIOS 302L,"State University",true,,,,,,,,,,
+"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Advanced Courses",BIOS 401,"State University",false,min_courses_at_level,"Grouped: AND 3 courses at 4000 level",,,4000,3,,,,"BIOS"
+"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Advanced Courses",BIOS 402,"State University",true,,,,,,,,,,
+"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Advanced Courses",BIOS 405,"State University",false,,,,,,,,,,
+"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Advanced Courses",BIOS 410,"State University",false,,,,,,,,,,
+"Biology B.S.","Math Sequence",conditional,Fall,2025,true,"Calculus I",MATH 151,"State University",false,courses,"Conditional: Sequential requirements - start with Calc I",,,,,1,,,,
+"Biology B.S.","Math Sequence",conditional,Fall,2025,true,"Calculus II",MATH 152,"State University",false,courses,"Conditional: Then take Calc II (prerequisite: Calc I)",,,,,1,,,,
+"Biology B.S.","Math Sequence",conditional,Fall,2025,true,"Calculus III",MATH 251,"State University",false,courses,"Conditional: Then take Calc III (prerequisite: Calc II)",,,,,1,,,,`;
       filename = 'sample_program_requirements.csv';
     }
 
@@ -200,16 +270,16 @@ const CSVUpload = () => {
     } else if (uploadType === 'requirements') {
       return {
         title: 'Program Requirements Upload Instructions (Unified Format)',
-        description: 'Upload a CSV with requirements and embedded constraints. Constraints are optional and specified on the first row of a category (category-level) or first row of a group (group-level). Category-level constraints apply to all groups in that category. Group-level constraints apply only to courses in that specific group.',
+        description: 'Upload CSV with requirements and optional constraints. SIMPLE = pool of courses (choose any to meet credits). GROUPED = subdivided pools (must satisfy ALL groups). CONDITIONAL = sequential/prerequisite requirements.',
         columns: [
           { name: 'program_name', description: 'Name of the program (e.g., "Biology B.S.")', required: true },
-          { name: 'category', description: 'Requirement category (e.g., "Core Major Requirements")', required: true },
-          { name: 'requirement_type', description: 'Type: simple, grouped, conditional', required: true },
+          { name: 'category', description: 'Requirement category (e.g., "Biology Electives")', required: true },
+          { name: 'requirement_type', description: 'Type: simple (pool), grouped (all groups required), conditional (sequential)', required: true },
           { name: 'semester', description: 'Academic semester (Fall, Spring, Summer)', required: true },
           { name: 'year', description: 'Academic year (e.g., 2025)', required: true },
           { name: 'is_current', description: 'Is this the current version? (true/false)', required: true },
-          { name: 'group_name', description: 'Group name for grouped/conditional types. Leave empty for category-level constraints.', required: false },
-          { name: 'course_code', description: 'Course code (e.g., "BIOS 301") for grouped requirements', required: false },
+          { name: 'group_name', description: 'Group name for organizing course options', required: false },
+          { name: 'course_code', description: 'Course code (e.g., "BIOS 301")', required: false },
           { name: 'institution', description: 'Institution offering the course', required: false },
           { name: 'is_preferred', description: 'Mark as preferred option (true/false)', required: false },
           { name: 'constraint_type', description: 'Optional constraint: credits, courses, min_courses_at_level, min_tag_courses, max_tag_credits', required: false },
@@ -260,6 +330,7 @@ const CSVUpload = () => {
         return (
           <>
             <p>• <strong>{uploadResult.requirements_created || 0}</strong> requirements created</p>
+            <p>• <strong>{uploadResult.requirements_updated || 0}</strong> requirements updated</p>
             <p>• <strong>{uploadResult.groups_created || 0}</strong> requirement groups created</p>
             <p>• <strong>{uploadResult.options_created || 0}</strong> course options created</p>
             {uploadResult.constraints_created > 0 && (
@@ -310,7 +381,7 @@ const CSVUpload = () => {
             <p className="text-sm text-gray-600 dark:text-gray-300">
               {uploadType === 'courses' && '📚 Upload course catalog data with codes, titles, credits, and descriptions.'}
               {uploadType === 'equivalencies' && '🔗 Upload course transfer mappings between institutions.'}
-              {uploadType === 'requirements' && '⚙️ Upload program requirements in unified format with embedded constraints. Supports both category-level (applies to all groups) and group-level (applies to specific group) constraints.'}
+              {uploadType === 'requirements' && '⚙️ Upload program requirements with three types: SIMPLE (pool of courses, choose any), GROUPED (multiple mandatory groups), CONDITIONAL (sequential/prerequisite).'}
             </p>
           </div>
         </div>
@@ -512,12 +583,12 @@ const CSVUpload = () => {
             
             {uploadType === 'requirements' && (
               <>
+                <li>• <strong>SIMPLE</strong>: Pool of courses where students choose any to meet credit goal (e.g., "15 credits from biology electives")</li>
+                <li>• <strong>GROUPED</strong>: Multiple mandatory groups - students must satisfy ALL groups (e.g., "2 from Theory AND 2 from Lab")</li>
+                <li>• <strong>CONDITIONAL</strong>: Sequential/prerequisite requirements - courses in specific order (e.g., "Calc I before Calc II")</li>
                 <li>• Programs must exist before uploading requirements</li>
-                <li>• For grouped requirements, include multiple rows for each course option in the group</li>
-                <li>• Constraints are optional - specify on first row of category (category-level) or first row of group (group-level)</li>
-                <li>• Category-level constraints apply to ALL groups in the category</li>
-                <li>• Group-level constraints apply ONLY to courses in that specific group</li>
-                <li>• Leave group_name empty when specifying a category-level constraint</li>
+                <li>• Include multiple rows for each course option in a group</li>
+                <li>• Constraints are optional - specify on first row to apply rules</li>
                 <li>• Constraint types: credits, courses, min_courses_at_level, min_tag_courses, max_tag_credits</li>
               </>
             )}
@@ -538,49 +609,45 @@ const CSVUpload = () => {
         {/* Requirements-Specific Examples */}
         {uploadType === 'requirements' && (
           <div className="mt-4 p-4 bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-600 rounded-md">
-            <h5 className="font-medium text-purple-800 dark:text-purple-300 mb-2">📝 Requirements CSV Examples (Unified Format):</h5>
+            <h5 className="font-medium text-purple-800 dark:text-purple-300 mb-2">📝 Requirement Type Examples:</h5>
             
             <div className="space-y-3 text-sm text-purple-700 dark:text-purple-300">
               <div>
-                <strong>Category-Level Constraint (applies to all groups):</strong>
+                <strong>SIMPLE Type (Pool - Choose Any):</strong>
                 <code className="block mt-1 p-2 bg-white dark:bg-gray-800 rounded text-xs overflow-x-auto">
-                  "Biology B.S.","Core Major",grouped,Fall,2025,true,"",,,false,credits,"Min 40cr in Core Major",40,,,,,,,BIOS
+                  "Biology B.S.","Electives",simple,Fall,2025,true,"Elective Options",BIOS 301,"State U",false,credits,"Choose 15cr",15,,,,,,,
+                  <br />
+                  "Biology B.S.","Electives",simple,Fall,2025,true,"Elective Options",BIOS 302,"State U",false,,,,,,,,,,
+                  <br />
+                  "Biology B.S.","Electives",simple,Fall,2025,true,"Elective Options",BIOS 401,"State U",false,,,,,,,,,,
                 </code>
-                <p className="text-xs mt-1">Note: group_name is empty - constraint applies to entire category</p>
+                <p className="text-xs mt-1">Students can pick ANY courses from pool to reach 15 credits</p>
               </div>
               
               <div>
-                <strong>Group-Level Constraint (applies to specific group only):</strong>
+                <strong>GROUPED Type (Multiple Mandatory Groups):</strong>
                 <code className="block mt-1 p-2 bg-white dark:bg-gray-800 rounded text-xs overflow-x-auto">
-                  "Biology B.S.","Core Major",grouped,Fall,2025,true,"Biology Lab",BIOS 102L,"State U",false,min_tag_courses,"Min 2 lab courses",,,,,2,has_lab,true,
+                  "Biology B.S.","Core",grouped,Fall,2025,true,"Theory",BIOS 101,"State U",false,courses,"2 from Theory",,,,,2,,,,
                   <br />
-                  "Biology B.S.","Core Major",grouped,Fall,2025,true,"Biology Lab",BIOS 202L,"State U",false,,,,,,,,,,
+                  "Biology B.S.","Core",grouped,Fall,2025,true,"Theory",BIOS 201,"State U",false,,,,,,,,,,
+                  <br />
+                  "Biology B.S.","Core",grouped,Fall,2025,true,"Lab",BIOS 102L,"State U",false,courses,"AND 2 from Lab",,,,,2,,,,
+                  <br />
+                  "Biology B.S.","Core",grouped,Fall,2025,true,"Lab",BIOS 202L,"State U",false,,,,,,,,,,
                 </code>
-                <p className="text-xs mt-1">Constraint on first row of "Biology Lab" group applies only to that group</p>
+                <p className="text-xs mt-1">Students must complete 2 from Theory AND 2 from Lab (all groups required)</p>
               </div>
               
               <div>
-                <strong>Multiple Groups with Different Constraints:</strong>
+                <strong>CONDITIONAL Type (Sequential/Prerequisites):</strong>
                 <code className="block mt-1 p-2 bg-white dark:bg-gray-800 rounded text-xs overflow-x-auto">
-                  "Biology B.S.","Core Major",grouped,Fall,2025,true,"Group A",BIOS 301,"State U",false,courses,"Choose 2 from Group A",,,,,2,,,,
+                  "Biology B.S.","Math Sequence",conditional,Fall,2025,true,"Calc I",MATH 151,"State U",false,courses,"Start with Calc I",,,,,1,,,,
                   <br />
-                  "Biology B.S.","Core Major",grouped,Fall,2025,true,"Group A",BIOS 302,"State U",false,,,,,,,,,,
+                  "Biology B.S.","Math Sequence",conditional,Fall,2025,true,"Calc II",MATH 152,"State U",false,courses,"Then Calc II",,,,,1,,,,
                   <br />
-                  "Biology B.S.","Core Major",grouped,Fall,2025,true,"Group B",BIOS 401,"State U",false,min_courses_at_level,"Min 3 at 4000 level",,,4000,3,,,,"BIOS"
-                  <br />
-                  "Biology B.S.","Core Major",grouped,Fall,2025,true,"Group B",BIOS 402,"State U",false,,,,,,,,,,
+                  "Biology B.S.","Math Sequence",conditional,Fall,2025,true,"Calc III",MATH 251,"State U",false,courses,"Then Calc III",,,,,1,,,,
                 </code>
-                <p className="text-xs mt-1">Same category, different groups, each with its own constraint</p>
-              </div>
-              
-              <div>
-                <strong>Grouped Requirement Without Constraints:</strong>
-                <code className="block mt-1 p-2 bg-white dark:bg-gray-800 rounded text-xs overflow-x-auto">
-                  "Biology B.S.","Electives",grouped,Fall,2025,true,"Open Electives",BIOS 300,"State U",false,,,,,,,,,,
-                  <br />
-                  "Biology B.S.","Electives",grouped,Fall,2025,true,"Open Electives",BIOS 305,"State U",false,,,,,,,,,,
-                </code>
-                <p className="text-xs mt-1">No constraints - just course options</p>
+                <p className="text-xs mt-1">Sequential requirements - each course is a prerequisite for the next</p>
               </div>
             </div>
           </div>
@@ -653,10 +720,34 @@ const CSVUpload = () => {
                     versions.map((v, idx) => (
                       <tr key={`${program.id}-${idx}`} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                         {idx === 0 ? (
-                          <td className="px-3 py-2 font-medium" rowSpan={versions.length}>{program.name}</td>
+                          <td className="px-3 py-2 font-medium" rowSpan={versions.length}>
+                            <button
+                              onClick={() => handleEditRequirements(program, v.semester, v.year)}
+                              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline text-left"
+                              title="Click to edit requirements"
+                            >
+                              {program.name}
+                            </button>
+                          </td>
                         ) : null}
-                        <td className="px-3 py-2">{v.semester || 'N/A'}</td>
-                        <td className="px-3 py-2">{v.year || 'N/A'}</td>
+                        <td className="px-3 py-2">
+                          <button
+                            onClick={() => handleEditRequirements(program, v.semester, v.year)}
+                            className="text-gray-900 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
+                            title="Click to edit this version"
+                          >
+                            {v.semester || 'N/A'}
+                          </button>
+                        </td>
+                        <td className="px-3 py-2">
+                          <button
+                            onClick={() => handleEditRequirements(program, v.semester, v.year)}
+                            className="text-gray-900 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
+                            title="Click to edit this version"
+                          >
+                            {v.year || 'N/A'}
+                          </button>
+                        </td>
                         <td className="px-3 py-2">{v.requirement_count}</td>
                         <td className="px-3 py-2">
                           {v.is_current ? (
@@ -701,6 +792,26 @@ const CSVUpload = () => {
           <p className="text-sm mt-1">Track your bulk import operations and results</p>
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <UploadConfirmationModal
+          previewData={previewData}
+          onConfirm={handleConfirmUpload}
+          onCancel={handleCancelUpload}
+        />
+      )}
+
+      {/* Edit Requirements Modal */}
+      {showEditModal && editingProgram && (
+        <ProgramRequirementsEditModal
+          program={editingProgram}
+          semester={editingSemester}
+          year={editingYear}
+          onClose={handleCloseEditModal}
+          onSave={handleSaveEditModal}
+        />
+      )}
     </div>
   );
 };
