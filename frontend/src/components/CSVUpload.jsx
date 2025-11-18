@@ -273,8 +273,8 @@ const CSVUpload = () => {
       };
     } else if (uploadType === 'requirements') {
       return {
-        title: 'Program Requirements Upload Instructions (Unified Format)',
-        description: 'Upload CSV with requirements and optional constraints. SIMPLE = pool of courses (choose any to meet credits). GROUPED = subdivided pools (must satisfy ALL groups). Prerequisites are handled at the course level.',
+        title: 'Program Requirements Upload Instructions',
+        description: 'Upload CSV with requirements and optional constraints. SIMPLE = pool of courses (choose any to meet credits). GROUPED = subdivided pools (must satisfy ALL groups). ',
         columns: [
           { name: 'program_name', description: 'Name of the program (e.g., "Biology B.S.")', required: true },
           { name: 'category', description: 'Requirement category (e.g., "Biology Electives")', required: true },
@@ -295,7 +295,7 @@ const CSVUpload = () => {
           { name: 'max_courses', description: 'Maximum number of courses', required: false },
           { name: 'tag', description: 'Tag field name (has_lab, course_type)', required: false },
           { name: 'tag_value', description: 'Required tag value (true, lab, research)', required: false },
-          { name: 'scope_subject_codes', description: 'Limit to subjects (comma-separated: "BIOS,CHEM")', required: false }
+          { name: 'scope_subject_codes', description: 'Limit to subjects (space-separated: "BIOS CHEM")', required: false }
         ]
       };
     }
@@ -385,7 +385,7 @@ const CSVUpload = () => {
             <p className="text-sm text-gray-600 dark:text-gray-300">
               {uploadType === 'courses' && '📚 Upload course catalog data with codes, titles, credits, and descriptions.'}
               {uploadType === 'equivalencies' && '🔗 Upload course transfer mappings between institutions.'}
-              {uploadType === 'requirements' && '⚙️ Upload program requirements with two types: SIMPLE (pool of courses, choose any), GROUPED (multiple mandatory groups). Prerequisites are now handled at the course level.'}
+              {uploadType === 'requirements' && '⚙️ Upload program requirements with two types: SIMPLE (pool of courses, choose any), GROUPED (multiple mandatory groups).'}
             </p>
           </div>
         </div>
@@ -589,22 +589,10 @@ const CSVUpload = () => {
               <>
                 <li>• <strong>SIMPLE</strong>: Pool of courses where students choose any to meet credit goal (e.g., "15 credits from biology electives")</li>
                 <li>• <strong>GROUPED</strong>: Multiple mandatory groups - students must satisfy ALL groups (e.g., "2 from Theory AND 2 from Lab")</li>
-                <li>• Prerequisites are now handled at the course level via the 'prerequisites' field in courses CSV</li>
                 <li>• Programs must exist before uploading requirements</li>
                 <li>• Include multiple rows for each course option in a group</li>
-                <li>• Constraints are optional - specify on first row to apply rules</li>
+                <li>• Constraints are optional - specify on the first row of each group to apply rules</li>
                 <li>• Constraint types: credits, courses, min_courses_at_level, min_tag_courses, max_tag_credits</li>
-              </>
-            )}
-            
-            {uploadType === 'constraints' && (
-              <>
-                <li>• Upload requirements first - constraints link to existing requirements</li>
-                <li>• Program name and requirement category must match exactly</li>
-                <li>• Only use constraints on "grouped" requirement types</li>
-                <li>• Leave unused parameter columns empty (but include the comma)</li>
-                <li>• Valid constraint types: min_level_credits, min_tag_courses, max_tag_credits, min_courses_at_level</li>
-                <li>• Valid course_type values: lecture, lecture_lab, lab_only, research, seminar, independent_study</li>
               </>
             )}
           </ul>
@@ -625,7 +613,7 @@ const CSVUpload = () => {
                   <br />
                   "Biology B.S.","Electives",simple,Fall,2025,true,"Elective Options",BIOS 401,"State U",false,,,,,,,,,,
                 </code>
-                <p className="text-xs mt-1">Students can pick ANY courses from pool to reach 15 credits</p>
+                <p className="text-s mt-1">Students can pick ANY courses from pool to reach 15 credits</p>
               </div>
               
               <div>
@@ -639,19 +627,7 @@ const CSVUpload = () => {
                   <br />
                   "Biology B.S.","Core",grouped,Fall,2025,true,"Lab",BIOS 202L,"State U",false,,,,,,,,,,
                 </code>
-                <p className="text-xs mt-1">Students must complete 2 from Theory AND 2 from Lab (all groups required)</p>
-              </div>
-              
-              <div>
-                <strong>Prerequisites (Course-Level):</strong>
-                <code className="block mt-1 p-2 bg-white dark:bg-gray-800 rounded text-xs overflow-x-auto">
-                  Prerequisites are now specified in the courses CSV using the 'prerequisites' field.
-                  <br />
-                  Example: MATH 152 has "MATH 151" in prerequisites column
-                  <br />
-                  MATH 251 has "MATH 152" in prerequisites column
-                </code>
-                <p className="text-xs mt-1">Prerequisites are validated per-course, considering equivalencies across institutions</p>
+                <p className="text-s mt-1">Students must complete 2 from Theory AND 2 from Lab (all groups required)</p>
               </div>
             </div>
           </div>

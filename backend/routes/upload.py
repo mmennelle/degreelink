@@ -997,8 +997,8 @@ def upload_requirements():
             # Add subject scoping if present
             scope_subjects = constraint_data.get('scope_subjects', '').strip()
             if scope_subjects:
-                # Parse comma-separated subject codes
-                subject_list = [s.strip() for s in scope_subjects.split(',') if s.strip()]
+                # Parse space-separated subject codes
+                subject_list = [s.strip() for s in scope_subjects.split() if s.strip()]
                 if subject_list:
                     scope_filter['subject_codes'] = subject_list
             
@@ -1254,8 +1254,8 @@ def upload_constraints():
                 # Add scope filter if provided
                 scope_subjects = row.get('scope_subject_codes', '').strip()
                 if scope_subjects:
-                    # Split comma-separated subject codes
-                    subject_codes = [s.strip() for s in scope_subjects.split(',') if s.strip()]
+                    # Split space-separated subject codes
+                    subject_codes = [s.strip() for s in scope_subjects.split() if s.strip()]
                     if subject_codes:
                         scope_filter['subject_codes'] = subject_codes
 

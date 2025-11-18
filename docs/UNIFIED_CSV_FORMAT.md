@@ -195,13 +195,13 @@ program_name,category,requirement_type,semester,year,is_current,group_name,cours
 **What it does:** Limits the constraint to only apply to courses from specific subject codes.
 
 **How to use:**
-- Add `scope_subject_codes` with comma-separated subject codes
+- Add `scope_subject_codes` with space-separated subject codes
 - Works with any constraint type
 - Example: Only count BIOS and BIO courses
 
 | constraint_type | min_courses | scope_subject_codes |
 |-----------------|-------------|---------------------|
-| courses         | 3           | BIOS,BIO            |
+| courses         | 3           | BIOS BIO            |
 
 ## Backend Processing
 
@@ -365,12 +365,12 @@ course_type,research,7
 
 | Column | Description | Format | Example |
 |--------|-------------|--------|---------|
-| `scope_subject_codes` | Limit constraints to specific departments | Comma-separated subject codes in quotes | `"BIOS,CHEM"` |
+| `scope_subject_codes` | Limit constraints to specific departments | Space-separated subject codes | `BIOS CHEM` |
 
 **Example:**
 ```csv
 min_credits,scope_subject_codes
-10,"BIOS"
+10,BIOS
 ```
 *"Require at least 10 credits from BIOS courses"*
 
