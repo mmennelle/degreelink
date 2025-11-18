@@ -17,6 +17,12 @@
   --tw-gradient-to: theme('colors.indigo.950');
 }
 
+/* Prevent horizontal scrolling on mobile */
+html, body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
 body {
   background-image: linear-gradient(
     to right,

@@ -18,6 +18,10 @@ export function useCarouselDrag(viewIndex, setViewIndex, slideCount) {
   }, [setViewIndex, slideCount]);
 
   const onPointerDown = useCallback((e) => {
+    // For touch events, prevent default to stop scrolling behavior
+    if (e.type === 'touchstart') {
+      e.preventDefault();
+    }
     const x = e.touches ? e.touches[0].clientX : e.clientX;
     startXRef.current = x;
     hasMovedRef.current = false;
@@ -26,6 +30,10 @@ export function useCarouselDrag(viewIndex, setViewIndex, slideCount) {
 
   const onPointerMove = useCallback((e) => {
     if (!dragging) return;
+    // Prevent default to stop page scrolling during swipe
+    if (e.type === 'touchmove') {
+      e.preventDefault();
+    }
     const x = e.touches ? e.touches[0].clientX : e.clientX;
     const delta = x - startXRef.current;
     if (Math.abs(delta) > 3) hasMovedRef.current = true;
@@ -46,24 +54,25 @@ export function useCarouselDrag(viewIndex, setViewIndex, slideCount) {
   useEffect(() => {
     const el = frameRef.current;
     if (!el) return;
-    // Attach listeners (pointer + touch for broader support)
+    // Use non-passive listeners for touch to allow preventDefault
+    el.addEventListener('touchstart', onPointerDown, { passive: false });
+    el.addEventListener('touchmove', onPointerMove, { passive: false });
+    el.addEventListener('touchend', endDrag);
+    el.addEventListener('touchcancel', endDrag);
+    // Keep pointer events for desktop
     el.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', endDrag);
     window.addEventListener('pointercancel', endDrag);
-    el.addEventListener('touchstart', onPointerDown, { passive: true });
-    el.addEventListener('touchmove', onPointerMove, { passive: true });
-    el.addEventListener('touchend', endDrag);
-    el.addEventListener('touchcancel', endDrag);
     return () => {
-      el.removeEventListener('pointerdown', onPointerDown);
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', endDrag);
-      window.removeEventListener('pointercancel', endDrag);
       el.removeEventListener('touchstart', onPointerDown);
       el.removeEventListener('touchmove', onPointerMove);
       el.removeEventListener('touchend', endDrag);
       el.removeEventListener('touchcancel', endDrag);
+      el.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', endDrag);
+      window.removeEventListener('pointercancel', endDrag);
     };
   }, [onPointerDown, onPointerMove, endDrag]);
 
