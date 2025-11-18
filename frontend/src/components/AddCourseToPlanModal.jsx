@@ -64,6 +64,12 @@ const AddCourseToPlanModal = ({
       return acc;
     }, {});
   });
+
+  // Add state for viewport height to handle iOS keyboard
+  const [viewportHeight, setViewportHeight] = useState(() => 
+    typeof window !== 'undefined' ? (window.visualViewport?.height || window.innerHeight) : 800
+  );
+
   // Close when clicking the backdrop (outside the dialog)
     const onBackdrop = useCallback((e) => {
       if (e.target === e.currentTarget) onClose?.();
@@ -94,6 +100,16 @@ useEffect(() => {
 
   // Defer focussing to after render
   const t = setTimeout(focusFirst, 0);
+
+  // Handle viewport changes for iOS keyboard
+  const handleViewportChange = () => {
+    const newHeight = window.visualViewport?.height || window.innerHeight;
+    setViewportHeight(newHeight);
+  };
+
+  window.addEventListener('resize', handleViewportChange);
+  window.visualViewport?.addEventListener('resize', handleViewportChange);
+  window.visualViewport?.addEventListener('scroll', handleViewportChange);
 
   // Key handling for Esc and Tab cycle
   const onKeyDown = (e) => {
@@ -130,6 +146,9 @@ useEffect(() => {
   return () => {
     clearTimeout(t);
     document.removeEventListener('keydown', onKeyDown, true);
+    window.removeEventListener('resize', handleViewportChange);
+    window.visualViewport?.removeEventListener('resize', handleViewportChange);
+    window.visualViewport?.removeEventListener('scroll', handleViewportChange);
   };
 }, [isOpen, focusFirst, onClose]);
 
@@ -424,6 +443,7 @@ useEffect(() => {
   if (!isOpen) return null;
 
   const isBulkMode = courses.length > 1;
+  const modalMaxHeight = Math.min(viewportHeight * 0.9, 800);
 
   return (
     <div
@@ -437,7 +457,11 @@ useEffect(() => {
       aria-labelledby="add-course-title"
       aria-describedby="add-course-description"
       tabIndex={-1}
-      className="bg-white dark:bg-gray-800 rounded-t-lg sm:rounded-lg w-full sm:max-w-md h-[90vh] sm:h-auto overflow-y-auto outline-none transition-colors"
+      className="bg-white dark:bg-gray-800 rounded-t-lg sm:rounded-lg w-full sm:max-w-md overflow-y-auto outline-none transition-colors"
+      style={{ 
+        maxHeight: `${modalMaxHeight}px`,
+        height: 'auto'
+      }}
     >
         {/* Header */}
         <div className="px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">

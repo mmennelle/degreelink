@@ -15,6 +15,11 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
   const [programs, setPrograms] = useState([]);
   const [loadingPrograms, setLoadingPrograms] = useState(false);
 
+  // Add state for viewport height to handle iOS keyboard
+  const [viewportHeight, setViewportHeight] = useState(() => 
+    typeof window !== 'undefined' ? (window.visualViewport?.height || window.innerHeight) : 800
+  );
+
   const dialogRef = useRef(null);
   const restoreFocusRef = useRef(null);
 
@@ -56,6 +61,16 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
     // Fetch programs when modal opens
     fetchPrograms();
 
+    // Handle viewport changes for iOS keyboard
+    const handleViewportChange = () => {
+      const newHeight = window.visualViewport?.height || window.innerHeight;
+      setViewportHeight(newHeight);
+    };
+
+    window.addEventListener('resize', handleViewportChange);
+    window.visualViewport?.addEventListener('resize', handleViewportChange);
+    window.visualViewport?.addEventListener('scroll', handleViewportChange);
+
     const onKeyDown = (e) => {
       if (!dialogRef.current) return;
 
@@ -90,6 +105,9 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
     return () => {
       clearTimeout(t);
       document.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('resize', handleViewportChange);
+      window.visualViewport?.removeEventListener('resize', handleViewportChange);
+      window.visualViewport?.removeEventListener('scroll', handleViewportChange);
     };
   }, [isOpen, focusFirst, onClose]);
 
@@ -215,6 +233,8 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
 
   if (!isOpen) return null;
 
+  const modalMaxHeight = Math.min(viewportHeight * 0.9, 800);
+
   return (
     <div
       className="fixed inset-0 bg-black/50 dark:bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
@@ -227,7 +247,11 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
         aria-labelledby="create-plan-title"
         aria-describedby="create-plan-description"
         tabIndex={-1}
-        className="bg-white dark:bg-gray-800 rounded-t-lg sm:rounded-lg w-full sm:max-w-md h-[90vh] sm:h-auto overflow-y-auto outline-none transition-colors"
+        className="bg-white dark:bg-gray-800 rounded-t-lg sm:rounded-lg w-full sm:max-w-md overflow-y-auto outline-none transition-colors"
+        style={{ 
+          maxHeight: `${modalMaxHeight}px`,
+          height: 'auto'
+        }}
       >
         {/* Header */}
         <div className="sticky top-0 bg-white dark:bg-gray-800 px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700 rounded-t-lg">
@@ -262,7 +286,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
                 }
               }}
               placeholder={userMode === 'advisor' ? "Enter Student's Full Name" : "Enter Your Name"}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors ${
+              className={`w-full px-3 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors ${
                 errors.student_name ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
               }`}
             />
@@ -282,7 +306,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
               value={formData.student_email}
               onChange={(e) => handleInputChange('student_email', e.target.value)}
               placeholder={userMode === 'advisor' ? "student@example.com (optional)" : "your@example.com (optional)"}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors ${
+              className={`w-full px-3 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors ${
                 errors.student_email ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
               }`}
             />
@@ -307,7 +331,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
                 value={formData.plan_name}
                 onChange={(e) => handleInputChange('plan_name', e.target.value)}
                 placeholder="e.g., Fall 2025 Transfer Plan"
-                className={`flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors ${
+                className={`flex-1 px-3 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors ${
                   errors.plan_name ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
                 }`}
               />
@@ -315,7 +339,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
                 type="button"
                 onClick={generatePlanName}
                 disabled={!formData.student_name}
-                className="px-3 py-2 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-3 py-3 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 title="Auto-generate plan name"
               >
                 Auto
@@ -335,7 +359,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
               value={formData.current_program_id}
               onChange={(e) => handleInputChange('current_program_id', parseInt(e.target.value))}
               disabled={loadingPrograms || programs.length === 0}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+              className={`w-full px-3 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                 errors.current_program_id ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
               }`}
             >
@@ -371,7 +395,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
               value={formData.program_id}
               onChange={(e) => handleInputChange('program_id', parseInt(e.target.value))}
               disabled={loadingPrograms || programs.length === 0}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+              className={`w-full px-3 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                 errors.program_id ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
               }`}
             >

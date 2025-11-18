@@ -737,7 +737,7 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 					{description && <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 break-words">{description}</p>}
 				</div>
 				<div className="flex-shrink-0">
-					<button aria-label="Close details" onClick={onClose} className={`p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors ${compact ? 'hidden sm:inline-flex' : ''}`}><X size={18} /></button>
+					<button aria-label="Close details" onClick={onClose} className={`p-2.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${compact ? 'hidden sm:inline-flex' : ''}`}><X size={18} /></button>
 				</div>
 			</div>
 			{totalCredits > 0 && (

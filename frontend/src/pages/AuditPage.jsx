@@ -84,35 +84,39 @@ export default function AuditPage({ selectedPlanId, plans }) {
 
       <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl shadow">
         <h3 className="text-lg font-medium mb-2">Requirement Breakdown</h3>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-            <thead>
-              <tr>
-                <th className="px-3 py-2 text-left font-medium">Category</th>
-                <th className="px-3 py-2 text-left font-medium">Credits Required</th>
-                <th className="px-3 py-2 text-left font-medium">Credits Completed</th>
-                <th className="px-3 py-2 text-left font-medium">Remaining</th>
-                <th className="px-3 py-2 text-left font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {requirement_progress.map((r) => (
-                <tr key={r.id || r.category} className="hover:bg-gray-100 dark:hover:bg-gray-700">
-                  <td className="px-3 py-2 whitespace-nowrap">{r.category}</td>
-                  <td className="px-3 py-2">{r.credits_required}</td>
-                  <td className="px-3 py-2">{r.credits_completed}</td>
-                  <td className="px-3 py-2">{r.credits_remaining}</td>
-                  <td className="px-3 py-2">
-                    {r.is_complete ? (
-                      <span className="text-green-600 dark:text-green-400">Complete</span>
-                    ) : (
-                      <span className="text-yellow-600 dark:text-yellow-400">In Progress</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="overflow-x-auto -mx-4 sm:mx-0">
+          <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+            <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                <thead className="bg-gray-100 dark:bg-gray-700">
+                  <tr>
+                    <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Category</th>
+                    <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Required</th>
+                    <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Completed</th>
+                    <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Remaining</th>
+                    <th className="px-3 py-3 text-left font-medium text-gray-700 dark:text-gray-300">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {requirement_progress.map((r) => (
+                    <tr key={r.id || r.category} className="hover:bg-gray-100 dark:hover:bg-gray-700">
+                      <td className="px-3 py-3 whitespace-nowrap font-medium">{r.category}</td>
+                      <td className="px-3 py-3 whitespace-nowrap">{r.credits_required}</td>
+                      <td className="px-3 py-3 whitespace-nowrap">{r.credits_completed}</td>
+                      <td className="px-3 py-3 whitespace-nowrap">{r.credits_remaining}</td>
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        {r.is_complete ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">Complete</span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300">In Progress</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 
