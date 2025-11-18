@@ -401,10 +401,28 @@ class ApiService {
     });
   }
   
+  async previewCourses(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request('/upload/courses/preview', {
+      method: 'POST',
+      body: formData
+    });
+  }
+  
   async uploadEquivalencies(file) {
     const formData = new FormData();
     formData.append('file', file);
     return this.request('/upload/equivalencies', {
+      method: 'POST',
+      body: formData
+    });
+  }
+  
+  async previewEquivalencies(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request('/upload/equivalencies/preview', {
       method: 'POST',
       body: formData
     });

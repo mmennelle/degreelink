@@ -14,10 +14,8 @@ import api from '../services/api';
  *   satisfy ALL groups (each group has its own requirements).
  *   Example: "Complete 2 courses from Group A AND 3 courses from Group B"
  * 
- * - CONDITIONAL: Sequential/prerequisite-based requirements. Courses must be 
- *   completed in a specific order based on prerequisites.
- *   Example: "Take MATH 101 before MATH 201"
- *   (Note: Currently treated as simple; full prerequisite logic pending)
+ * Prerequisites are now handled at the course level via the Course.prerequisites field.
+ * Use the courses CSV to specify prerequisites for each course.
  */
 const ProgramRequirementsEditModal = ({ program, semester, year, onClose, onSave }) => {
   const [loading, setLoading] = useState(true);
@@ -391,7 +389,6 @@ const ProgramRequirementsEditModal = ({ program, semester, year, onClose, onSave
                                   >
                                     <option value="simple">Simple</option>
                                     <option value="grouped">Grouped</option>
-                                    <option value="conditional">Conditional</option>
                                   </select>
                                 </div>
                                 <div>
@@ -597,7 +594,7 @@ const ProgramRequirementsEditModal = ({ program, semester, year, onClose, onSave
                           </div>
                         )}
 
-                        {/* Groups (for grouped/conditional requirements) */}
+                        {/* Groups (for all requirement types) */}
                         {req.requirement_type !== 'simple' && req.groups && req.groups.length > 0 && (
                           <div className="mt-4 space-y-3 border-t border-gray-200 dark:border-gray-600 pt-3">
                             {req.groups.map((group, groupIdx) => {

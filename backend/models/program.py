@@ -83,8 +83,6 @@ class ProgramRequirement(db.Model):
             return self._evaluate_simple_requirement(student_courses)
         elif self.requirement_type == 'grouped':
             return self._evaluate_grouped_requirement(student_courses)
-        elif self.requirement_type == 'conditional':
-            return self._evaluate_conditional_requirement(student_courses)
         else:
             return {'satisfied': False, 'error': 'Unknown requirement type'}
     
@@ -167,18 +165,6 @@ class ProgramRequirement(db.Model):
             'remaining_credits': max(0, self.credits_required - total_satisfied_credits),
             'all_groups_must_be_satisfied': True
         }
-    
-    def _evaluate_conditional_requirement(self, student_courses):
-        """
-        CONDITIONAL = Sequential/prerequisite-based requirements.
-        Student must complete courses in a specific order based on prerequisites.
-        
-        For now, this is a placeholder that falls back to simple evaluation.
-        Future enhancement: implement prerequisite chain validation.
-        """
-        # TODO: Implement proper prerequisite logic
-        # For now, treat as a simple requirement where order doesn't matter
-        return self._evaluate_simple_requirement(student_courses)
 
 class RequirementGroup(db.Model):
     __tablename__ = 'requirement_groups'

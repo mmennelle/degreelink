@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { X, AlertTriangle, CheckCircle, Plus, Edit, Trash2, ChevronDown, ChevronRight, Save } from 'lucide-react';
 
-const UploadConfirmationModal = ({ previewData, onConfirm, onCancel }) => {
+const UploadConfirmationModal = ({ previewData, onConfirm, onCancel, uploadType = 'requirements' }) => {
   const [expandedSections, setExpandedSections] = useState({
     programsNew: true,
     requirementsNew: true,
     requirementsUpdated: true,
-    groupsDeleted: true
+    groupsDeleted: true,
+    coursesNew: true,
+    coursesUpdated: true,
+    equivalenciesNew: true,
+    equivalenciesUpdated: true
   });
   
   const [editedData, setEditedData] = useState({
@@ -21,14 +25,17 @@ const UploadConfirmationModal = ({ previewData, onConfirm, onCancel }) => {
   // Initialize editedData when previewData changes
   useEffect(() => {
     if (previewData) {
-      setEditedData({
-        requirements: {
-          new: previewData.requirements?.new || [],
-          updated: previewData.requirements?.updated || []
-        }
-      });
+      if (uploadType === 'requirements') {
+        setEditedData({
+          requirements: {
+            new: previewData.requirements?.new || [],
+            updated: previewData.requirements?.updated || []
+          }
+        });
+      }
+      // For courses and equivalencies, we don't need editing - just preview
     }
-  }, [previewData]);
+  }, [previewData, uploadType]);
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({
@@ -58,17 +65,59 @@ const UploadConfirmationModal = ({ previewData, onConfirm, onCancel }) => {
   };
 
   const handleConfirm = () => {
-    onConfirm(editedData);
+    if (uploadType === 'requirements') {
+      onConfirm(editedData);
+    } else {
+      // For courses and equivalencies, just confirm without edited data
+      onConfirm();
+    }
   };
 
   if (!previewData) return null;
 
-  const { summary, programs, requirements, groups, errors, warnings } = previewData;
-  const hasChanges = summary.programs_new > 0 || 
-                    summary.requirements_new > 0 || 
-                    summary.requirements_updated > 0 ||
-                    summary.groups_new > 0 ||
-                    summary.groups_deleted > 0;
+  // Determine what kind of data we have and calculate summary
+  let summary, hasChanges, errors, warnings;
+  
+  if (uploadType === 'requirements') {
+    const { summary: reqSummary, programs, requirements, groups, errors: reqErrors, warnings: reqWarnings } = previewData;
+    summary = reqSummary;
+    errors = reqErrors;
+    warnings = reqWarnings;
+    hasChanges = summary.programs_new > 0 || 
+                summary.requirements_new > 0 || 
+                summary.requirements_updated > 0 ||
+                summary.groups_new > 0 ||
+                summary.groups_deleted > 0;
+  } else if (uploadType === 'courses') {
+    const { courses, errors: courseErrors, warnings: courseWarnings } = previewData;
+    errors = courseErrors;
+    warnings = courseWarnings;
+    summary = {
+      courses_new: courses?.new?.length || 0,
+      courses_updated: courses?.updated?.length || 0,
+      courses_unchanged: courses?.unchanged?.length || 0
+    };
+    hasChanges = summary.courses_new > 0 || summary.courses_updated > 0;
+  } else if (uploadType === 'equivalencies') {
+    const { equivalencies, errors: equivErrors, warnings: equivWarnings } = previewData;
+    errors = equivErrors;
+    warnings = equivWarnings;
+    summary = {
+      equivalencies_new: equivalencies?.new?.length || 0,
+      equivalencies_updated: equivalencies?.updated?.length || 0,
+      equivalencies_unchanged: equivalencies?.unchanged?.length || 0
+    };
+    hasChanges = summary.equivalencies_new > 0 || summary.equivalencies_updated > 0;
+  }
+
+  // Get title based on upload type
+  const getTitle = () => {
+    switch (uploadType) {
+      case 'courses': return 'Confirm Courses Upload';
+      case 'equivalencies': return 'Confirm Equivalencies Upload';
+      default: return 'Confirm Requirements Upload';
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
@@ -76,7 +125,7 @@ const UploadConfirmationModal = ({ previewData, onConfirm, onCancel }) => {
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Confirm Requirements Upload
+            {getTitle()}
           </h2>
           <button
             onClick={onCancel}
@@ -92,36 +141,85 @@ const UploadConfirmationModal = ({ previewData, onConfirm, onCancel }) => {
           {/* Summary */}
           <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
             <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-3">Upload Summary</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <div className="text-gray-600 dark:text-gray-400">Total Rows</div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{summary.total_rows}</div>
+            
+            {uploadType === 'requirements' && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <div className="text-gray-600 dark:text-gray-400">Total Rows</div>
+                  <div className="text-2xl font-bold text-gray-900 dark:text-white">{summary.total_rows}</div>
+                </div>
+                <div>
+                  <div className="text-gray-600 dark:text-gray-400">New Programs</div>
+                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">{summary.programs_new}</div>
+                </div>
+                <div>
+                  <div className="text-gray-600 dark:text-gray-400">New Requirements</div>
+                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">{summary.requirements_new}</div>
+                </div>
+                <div>
+                  <div className="text-gray-600 dark:text-gray-400">Updated Requirements</div>
+                  <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{summary.requirements_updated}</div>
+                </div>
+                <div>
+                  <div className="text-gray-600 dark:text-gray-400">New Groups</div>
+                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">{summary.groups_new}</div>
+                </div>
+                <div>
+                  <div className="text-gray-600 dark:text-gray-400">Deleted Groups</div>
+                  <div className="text-2xl font-bold text-red-600 dark:text-red-400">{summary.groups_deleted}</div>
+                </div>
+                <div>
+                  <div className="text-gray-600 dark:text-gray-400">Unchanged</div>
+                  <div className="text-2xl font-bold text-gray-400 dark:text-gray-500">{summary.requirements_unchanged}</div>
+                </div>
               </div>
-              <div>
-                <div className="text-gray-600 dark:text-gray-400">New Programs</div>
-                <div className="text-2xl font-bold text-green-600 dark:text-green-400">{summary.programs_new}</div>
+            )}
+
+            {uploadType === 'courses' && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <div className="text-gray-600 dark:text-gray-400">New Courses</div>
+                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">{summary.courses_new}</div>
+                </div>
+                <div>
+                  <div className="text-gray-600 dark:text-gray-400">Updated Courses</div>
+                  <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{summary.courses_updated}</div>
+                </div>
+                <div>
+                  <div className="text-gray-600 dark:text-gray-400">Unchanged</div>
+                  <div className="text-2xl font-bold text-gray-400 dark:text-gray-500">{summary.courses_unchanged}</div>
+                </div>
+                <div>
+                  <div className="text-gray-600 dark:text-gray-400">Total</div>
+                  <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {summary.courses_new + summary.courses_updated + summary.courses_unchanged}
+                  </div>
+                </div>
               </div>
-              <div>
-                <div className="text-gray-600 dark:text-gray-400">New Requirements</div>
-                <div className="text-2xl font-bold text-green-600 dark:text-green-400">{summary.requirements_new}</div>
+            )}
+
+            {uploadType === 'equivalencies' && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <div className="text-gray-600 dark:text-gray-400">New Equivalencies</div>
+                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">{summary.equivalencies_new}</div>
+                </div>
+                <div>
+                  <div className="text-gray-600 dark:text-gray-400">Updated Equivalencies</div>
+                  <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{summary.equivalencies_updated}</div>
+                </div>
+                <div>
+                  <div className="text-gray-600 dark:text-gray-400">Unchanged</div>
+                  <div className="text-2xl font-bold text-gray-400 dark:text-gray-500">{summary.equivalencies_unchanged}</div>
+                </div>
+                <div>
+                  <div className="text-gray-600 dark:text-gray-400">Total</div>
+                  <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {summary.equivalencies_new + summary.equivalencies_updated + summary.equivalencies_unchanged}
+                  </div>
+                </div>
               </div>
-              <div>
-                <div className="text-gray-600 dark:text-gray-400">Updated Requirements</div>
-                <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{summary.requirements_updated}</div>
-              </div>
-              <div>
-                <div className="text-gray-600 dark:text-gray-400">New Groups</div>
-                <div className="text-2xl font-bold text-green-600 dark:text-green-400">{summary.groups_new}</div>
-              </div>
-              <div>
-                <div className="text-gray-600 dark:text-gray-400">Deleted Groups</div>
-                <div className="text-2xl font-bold text-red-600 dark:text-red-400">{summary.groups_deleted}</div>
-              </div>
-              <div>
-                <div className="text-gray-600 dark:text-gray-400">Unchanged</div>
-                <div className="text-2xl font-bold text-gray-400 dark:text-gray-500">{summary.requirements_unchanged}</div>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Errors */}
@@ -154,8 +252,165 @@ const UploadConfirmationModal = ({ previewData, onConfirm, onCancel }) => {
             </div>
           )}
 
-          {/* New Programs */}
-          {programs?.new?.length > 0 && (
+          {/* Courses Preview Sections */}
+          {uploadType === 'courses' && (
+            <>
+              {/* New Courses */}
+              {previewData.courses?.new?.length > 0 && (
+                <div className="border border-green-200 dark:border-green-700 rounded-lg">
+                  <button
+                    onClick={() => toggleSection('coursesNew')}
+                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Plus className="text-green-600 dark:text-green-400" size={20} />
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        New Courses ({previewData.courses.new.length})
+                      </h3>
+                    </div>
+                    {expandedSections.coursesNew ? <ChevronDown size={20} className="text-gray-600 dark:text-gray-400" /> : <ChevronRight size={20} className="text-gray-600 dark:text-gray-400" />}
+                  </button>
+                  {expandedSections.coursesNew && (
+                    <div className="p-4 pt-0 space-y-2">
+                      {previewData.courses.new.map((course, idx) => (
+                        <div key={idx} className="bg-green-50 dark:bg-green-900/30 rounded p-3 text-sm">
+                          <div className="font-semibold text-gray-900 dark:text-white">{course.code} - {course.name || course.title}</div>
+                          <div className="text-gray-600 dark:text-gray-300">Institution: {course.institution}</div>
+                          <div className="text-gray-600 dark:text-gray-300">Credits: {course.credits}</div>
+                          {course.prerequisites && <div className="text-gray-600 dark:text-gray-300">Prerequisites: {course.prerequisites}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Updated Courses */}
+              {previewData.courses?.updated?.length > 0 && (
+                <div className="border border-yellow-200 dark:border-yellow-700 rounded-lg">
+                  <button
+                    onClick={() => toggleSection('coursesUpdated')}
+                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Edit className="text-yellow-600 dark:text-yellow-400" size={20} />
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        Updated Courses ({previewData.courses.updated.length})
+                      </h3>
+                    </div>
+                    {expandedSections.coursesUpdated ? <ChevronDown size={20} className="text-gray-600 dark:text-gray-400" /> : <ChevronRight size={20} className="text-gray-600 dark:text-gray-400" />}
+                  </button>
+                  {expandedSections.coursesUpdated && (
+                    <div className="p-4 pt-0 space-y-2">
+                      {previewData.courses.updated.map((course, idx) => (
+                        <div key={idx} className="bg-yellow-50 dark:bg-yellow-900/30 rounded p-3 text-sm">
+                          <div className="font-semibold text-gray-900 dark:text-white">{course.code} - {course.name || course.title}</div>
+                          <div className="text-gray-600 dark:text-gray-300">Institution: {course.institution}</div>
+                          <div className="text-gray-600 dark:text-gray-300">Credits: {course.credits}</div>
+                          {course.prerequisites && <div className="text-gray-600 dark:text-gray-300">Prerequisites: {course.prerequisites}</div>}
+                          {course.changes && course.changes.length > 0 && (
+                            <div className="text-yellow-700 dark:text-yellow-300 text-xs mt-2">
+                              <strong>Changes:</strong> {course.changes.join(', ')}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Equivalencies Preview Sections */}
+          {uploadType === 'equivalencies' && (
+            <>
+              {/* New Equivalencies */}
+              {previewData.equivalencies?.new?.length > 0 && (
+                <div className="border border-green-200 dark:border-green-700 rounded-lg">
+                  <button
+                    onClick={() => toggleSection('equivalenciesNew')}
+                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Plus className="text-green-600 dark:text-green-400" size={20} />
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        New Equivalencies ({previewData.equivalencies.new.length})
+                      </h3>
+                    </div>
+                    {expandedSections.equivalenciesNew ? <ChevronDown size={20} className="text-gray-600 dark:text-gray-400" /> : <ChevronRight size={20} className="text-gray-600 dark:text-gray-400" />}
+                  </button>
+                  {expandedSections.equivalenciesNew && (
+                    <div className="p-4 pt-0 space-y-2">
+                      {previewData.equivalencies.new.map((equiv, idx) => (
+                        <div key={idx} className="bg-green-50 dark:bg-green-900/30 rounded p-3 text-sm">
+                          <div className="font-semibold text-gray-900 dark:text-white">
+                            {equiv.from_course} → {equiv.to_course}
+                          </div>
+                          <div className="text-gray-600 dark:text-gray-300">
+                            Type: {equiv.equivalency_type}
+                          </div>
+                          {equiv.notes && (
+                            <div className="text-gray-600 dark:text-gray-300 text-xs mt-1">
+                              Notes: {equiv.notes}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Updated Equivalencies */}
+              {previewData.equivalencies?.updated?.length > 0 && (
+                <div className="border border-yellow-200 dark:border-yellow-700 rounded-lg">
+                  <button
+                    onClick={() => toggleSection('equivalenciesUpdated')}
+                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Edit className="text-yellow-600 dark:text-yellow-400" size={20} />
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        Updated Equivalencies ({previewData.equivalencies.updated.length})
+                      </h3>
+                    </div>
+                    {expandedSections.equivalenciesUpdated ? <ChevronDown size={20} className="text-gray-600 dark:text-gray-400" /> : <ChevronRight size={20} className="text-gray-600 dark:text-gray-400" />}
+                  </button>
+                  {expandedSections.equivalenciesUpdated && (
+                    <div className="p-4 pt-0 space-y-2">
+                      {previewData.equivalencies.updated.map((equiv, idx) => (
+                        <div key={idx} className="bg-yellow-50 dark:bg-yellow-900/30 rounded p-3 text-sm">
+                          <div className="font-semibold text-gray-900 dark:text-white">
+                            {equiv.from_course} → {equiv.to_course}
+                          </div>
+                          <div className="text-gray-600 dark:text-gray-300">
+                            Type: {equiv.equivalency_type}
+                          </div>
+                          {equiv.changes && equiv.changes.length > 0 && (
+                            <div className="text-yellow-700 dark:text-yellow-300 text-xs mt-1">
+                              Changes: {equiv.changes.join(', ')}
+                            </div>
+                          )}
+                          {equiv.notes && (
+                            <div className="text-gray-600 dark:text-gray-300 text-xs mt-1">
+                              Notes: {equiv.notes}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Requirements Preview Sections */}
+          {uploadType === 'requirements' && (
+            <>
+              {/* New Programs */}
+              {previewData.programs?.new?.length > 0 && (
             <div className="border border-green-200 dark:border-green-700 rounded-lg">
               <button
                 onClick={() => toggleSection('programsNew')}
@@ -183,13 +438,13 @@ const UploadConfirmationModal = ({ previewData, onConfirm, onCancel }) => {
           )}
 
           {/* Existing Programs */}
-          {programs?.existing?.length > 0 && (
+          {previewData.programs?.existing?.length > 0 && (
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg">
               <div className="p-4 bg-gray-50 dark:bg-gray-700">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="text-gray-600 dark:text-gray-400" size={20} />
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    Existing Programs ({programs.existing.length})
+                    Existing Programs ({previewData.programs.existing.length})
                   </h3>
                 </div>
               </div>
@@ -243,7 +498,6 @@ const UploadConfirmationModal = ({ previewData, onConfirm, onCancel }) => {
                               >
                                 <option value="simple">Simple</option>
                                 <option value="grouped">Grouped</option>
-                                <option value="conditional">Conditional</option>
                               </select>
                             </div>
                             {req.semester && (
@@ -333,7 +587,6 @@ const UploadConfirmationModal = ({ previewData, onConfirm, onCancel }) => {
                               >
                                 <option value="simple">Simple</option>
                                 <option value="grouped">Grouped</option>
-                                <option value="conditional">Conditional</option>
                               </select>
                             </div>
                             <div>
@@ -374,7 +627,7 @@ const UploadConfirmationModal = ({ previewData, onConfirm, onCancel }) => {
           )}
 
           {/* Deleted Groups */}
-          {groups?.deleted?.length > 0 && (
+          {previewData.groups?.deleted?.length > 0 && (
             <div className="border border-red-200 dark:border-red-700 rounded-lg">
               <button
                 onClick={() => toggleSection('groupsDeleted')}
@@ -383,14 +636,14 @@ const UploadConfirmationModal = ({ previewData, onConfirm, onCancel }) => {
                 <div className="flex items-center gap-2">
                   <Trash2 className="text-red-600 dark:text-red-400" size={20} />
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    Groups to be Deleted ({groups.deleted.length})
+                    Groups to be Deleted ({previewData.groups.deleted.length})
                   </h3>
                 </div>
                 {expandedSections.groupsDeleted ? <ChevronDown size={20} className="text-gray-600 dark:text-gray-400" /> : <ChevronRight size={20} className="text-gray-600 dark:text-gray-400" />}
               </button>
               {expandedSections.groupsDeleted && (
                 <div className="p-4 pt-0 space-y-2 max-h-64 overflow-y-auto">
-                  {groups.deleted.map((group, idx) => (
+                  {previewData.groups.deleted.map((group, idx) => (
                     <div key={idx} className="bg-red-50 dark:bg-red-900/30 rounded p-3 text-sm">
                       <div className="font-semibold text-gray-900 dark:text-white">
                         {group.program} - {group.category}
@@ -406,22 +659,24 @@ const UploadConfirmationModal = ({ previewData, onConfirm, onCancel }) => {
           )}
 
           {/* New Groups */}
-          {groups?.new?.length > 0 && (
+          {previewData.groups?.new?.length > 0 && (
             <div className="border border-green-200 dark:border-green-700 rounded-lg p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Plus className="text-green-600 dark:text-green-400" size={20} />
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  New Groups ({groups.new.length})
+                  New Groups ({previewData.groups.new.length})
                 </h3>
               </div>
               <div className="space-y-2 text-sm max-h-48 overflow-y-auto">
-                {groups.new.map((group, idx) => (
+                {previewData.groups.new.map((group, idx) => (
                   <div key={idx} className="bg-green-50 dark:bg-green-900/30 rounded p-2 text-gray-900 dark:text-white">
                     {group.program} - {group.category}: {group.group_name}
                   </div>
                 ))}
               </div>
             </div>
+          )}
+            </>
           )}
 
           {!hasChanges && (

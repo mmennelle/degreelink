@@ -67,34 +67,29 @@ const CSVUpload = () => {
     setUploadResult(null);
 
     try {
-      // For requirements uploads, show preview modal first
-      if (uploadType === 'requirements') {
-        const preview = await api.previewRequirements(file);
-        setPreviewData(preview);
-        setPendingFile(file);
-        setShowConfirmModal(true);
-        setUploading(false);
-        return;
-      }
-
-      // For other upload types, proceed directly
-      let result;
+      // Show preview modal for all upload types
+      let preview;
       switch (uploadType) {
+        case 'requirements':
+          preview = await api.previewRequirements(file);
+          break;
         case 'courses':
-          result = await api.uploadCourses(file);
+          preview = await api.previewCourses(file);
           break;
         case 'equivalencies':
-          result = await api.uploadEquivalencies(file);
+          preview = await api.previewEquivalencies(file);
           break;
         default:
           throw new Error('Invalid upload type');
       }
       
-      setUploadResult(result);
+      setPreviewData(preview);
+      setPendingFile(file);
+      setShowConfirmModal(true);
+      setUploading(false);
     } catch (error) {
-      console.error('Upload failed:', error);
+      console.error('Preview failed:', error);
       setUploadResult({ error: error.message });
-    } finally {
       setUploading(false);
     }
   };
@@ -107,14 +102,26 @@ const CSVUpload = () => {
     setUploadResult(null);
 
     try {
-      // If user edited the data, we could send it to a different endpoint
-      // For now, we proceed with the original file upload
-      // Future enhancement: send editedData to backend for modification before upload
-      const result = await api.uploadRequirements(pendingFile);
-      setUploadResult(result);
+      // Upload based on type
+      // Note: editedData parameter available for future enhancement
+      let result;
+      switch (uploadType) {
+        case 'requirements':
+          result = await api.uploadRequirements(pendingFile);
+          // Refresh program versions after requirements upload
+          await loadProgramVersions();
+          break;
+        case 'courses':
+          result = await api.uploadCourses(pendingFile);
+          break;
+        case 'equivalencies':
+          result = await api.uploadEquivalencies(pendingFile);
+          break;
+        default:
+          throw new Error('Invalid upload type');
+      }
       
-      // Refresh program versions after upload
-      await loadProgramVersions();
+      setUploadResult(result);
     } catch (error) {
       console.error('Upload failed:', error);
       setUploadResult({ error: error.message });
@@ -218,10 +225,7 @@ const CSVUpload = () => {
 "Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Advanced Courses",BIOS 401,"State University",false,min_courses_at_level,"Grouped: AND 3 courses at 4000 level",,,4000,3,,,,"BIOS"
 "Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Advanced Courses",BIOS 402,"State University",true,,,,,,,,,,
 "Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Advanced Courses",BIOS 405,"State University",false,,,,,,,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Advanced Courses",BIOS 410,"State University",false,,,,,,,,,,
-"Biology B.S.","Math Sequence",conditional,Fall,2025,true,"Calculus I",MATH 151,"State University",false,courses,"Conditional: Sequential requirements - start with Calc I",,,,,1,,,,
-"Biology B.S.","Math Sequence",conditional,Fall,2025,true,"Calculus II",MATH 152,"State University",false,courses,"Conditional: Then take Calc II (prerequisite: Calc I)",,,,,1,,,,
-"Biology B.S.","Math Sequence",conditional,Fall,2025,true,"Calculus III",MATH 251,"State University",false,courses,"Conditional: Then take Calc III (prerequisite: Calc II)",,,,,1,,,,`;
+"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Advanced Courses",BIOS 410,"State University",false,,,,,,,,,,`;
       filename = 'sample_program_requirements.csv';
     }
 
@@ -270,11 +274,11 @@ const CSVUpload = () => {
     } else if (uploadType === 'requirements') {
       return {
         title: 'Program Requirements Upload Instructions (Unified Format)',
-        description: 'Upload CSV with requirements and optional constraints. SIMPLE = pool of courses (choose any to meet credits). GROUPED = subdivided pools (must satisfy ALL groups). CONDITIONAL = sequential/prerequisite requirements.',
+        description: 'Upload CSV with requirements and optional constraints. SIMPLE = pool of courses (choose any to meet credits). GROUPED = subdivided pools (must satisfy ALL groups). Prerequisites are handled at the course level.',
         columns: [
           { name: 'program_name', description: 'Name of the program (e.g., "Biology B.S.")', required: true },
           { name: 'category', description: 'Requirement category (e.g., "Biology Electives")', required: true },
-          { name: 'requirement_type', description: 'Type: simple (pool), grouped (all groups required), conditional (sequential)', required: true },
+          { name: 'requirement_type', description: 'Type: simple (pool) or grouped (all groups required)', required: true },
           { name: 'semester', description: 'Academic semester (Fall, Spring, Summer)', required: true },
           { name: 'year', description: 'Academic year (e.g., 2025)', required: true },
           { name: 'is_current', description: 'Is this the current version? (true/false)', required: true },
@@ -381,7 +385,7 @@ const CSVUpload = () => {
             <p className="text-sm text-gray-600 dark:text-gray-300">
               {uploadType === 'courses' && '📚 Upload course catalog data with codes, titles, credits, and descriptions.'}
               {uploadType === 'equivalencies' && '🔗 Upload course transfer mappings between institutions.'}
-              {uploadType === 'requirements' && '⚙️ Upload program requirements with three types: SIMPLE (pool of courses, choose any), GROUPED (multiple mandatory groups), CONDITIONAL (sequential/prerequisite).'}
+              {uploadType === 'requirements' && '⚙️ Upload program requirements with two types: SIMPLE (pool of courses, choose any), GROUPED (multiple mandatory groups). Prerequisites are now handled at the course level.'}
             </p>
           </div>
         </div>
@@ -585,7 +589,7 @@ const CSVUpload = () => {
               <>
                 <li>• <strong>SIMPLE</strong>: Pool of courses where students choose any to meet credit goal (e.g., "15 credits from biology electives")</li>
                 <li>• <strong>GROUPED</strong>: Multiple mandatory groups - students must satisfy ALL groups (e.g., "2 from Theory AND 2 from Lab")</li>
-                <li>• <strong>CONDITIONAL</strong>: Sequential/prerequisite requirements - courses in specific order (e.g., "Calc I before Calc II")</li>
+                <li>• Prerequisites are now handled at the course level via the 'prerequisites' field in courses CSV</li>
                 <li>• Programs must exist before uploading requirements</li>
                 <li>• Include multiple rows for each course option in a group</li>
                 <li>• Constraints are optional - specify on first row to apply rules</li>
@@ -639,15 +643,15 @@ const CSVUpload = () => {
               </div>
               
               <div>
-                <strong>CONDITIONAL Type (Sequential/Prerequisites):</strong>
+                <strong>Prerequisites (Course-Level):</strong>
                 <code className="block mt-1 p-2 bg-white dark:bg-gray-800 rounded text-xs overflow-x-auto">
-                  "Biology B.S.","Math Sequence",conditional,Fall,2025,true,"Calc I",MATH 151,"State U",false,courses,"Start with Calc I",,,,,1,,,,
+                  Prerequisites are now specified in the courses CSV using the 'prerequisites' field.
                   <br />
-                  "Biology B.S.","Math Sequence",conditional,Fall,2025,true,"Calc II",MATH 152,"State U",false,courses,"Then Calc II",,,,,1,,,,
+                  Example: MATH 152 has "MATH 151" in prerequisites column
                   <br />
-                  "Biology B.S.","Math Sequence",conditional,Fall,2025,true,"Calc III",MATH 251,"State U",false,courses,"Then Calc III",,,,,1,,,,
+                  MATH 251 has "MATH 152" in prerequisites column
                 </code>
-                <p className="text-xs mt-1">Sequential requirements - each course is a prerequisite for the next</p>
+                <p className="text-xs mt-1">Prerequisites are validated per-course, considering equivalencies across institutions</p>
               </div>
             </div>
           </div>
@@ -799,6 +803,7 @@ const CSVUpload = () => {
           previewData={previewData}
           onConfirm={handleConfirmUpload}
           onCancel={handleCancelUpload}
+          uploadType={uploadType}
         />
       )}
 
