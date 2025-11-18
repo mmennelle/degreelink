@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { DarkModeProvider } from './hooks/useDarkMode';
 import useAppController from './controllers/useAppController';
 import AppShell from './views/AppShell';
@@ -45,56 +46,60 @@ export default function App() {
           onToggleUserMode={() => c.setUserMode(c.userMode === 'advisor' ? 'student' : 'advisor')}
           onGoHome={c.resetToOnboarding}
         >
-          {c.activeTab === 'search' && (
-            <SearchPage
-              selectedPlanId={c.selectedPlanId}
-              programs={c.programs}
-              plans={c.plans}
-              onAddToPlan={c.handleAddToPlan}
-              setSelectedPlanId={c.setSelectedPlanId}
-            />
-          )}
+          <Routes>
+            <Route path="/" element={<Navigate to="/search" replace />} />
+            
+            <Route path="/search" element={
+              <SearchPage
+                selectedPlanId={c.selectedPlanId}
+                programs={c.programs}
+                plans={c.plans}
+                onAddToPlan={c.handleAddToPlan}
+                setSelectedPlanId={c.setSelectedPlanId}
+              />
+            } />
 
-          {c.activeTab === 'plans' && (
-            <PlansPage
-              plans={c.plans}
-              selectedPlanId={c.selectedPlanId}
-              setSelectedPlanId={c.setSelectedPlanId}   
-              onCreatePlan={() => c.setIsModalOpen(true)}
-              onClearAccess={c.clearPlanAccess}
-              onDeletePlan={async () => {
-                if (!window.confirm('Permanently delete plan? This cannot be undone.')) return;
-                await c.deleteActivePlan();
-              }}
-              setPlanLookupModal={c.setPlanLookupModal}
-              userMode={c.userMode}
-            />
-          )}
+            <Route path="/plans" element={
+              <PlansPage
+                plans={c.plans}
+                selectedPlanId={c.selectedPlanId}
+                setSelectedPlanId={c.setSelectedPlanId}   
+                onCreatePlan={() => c.setIsModalOpen(true)}
+                onClearAccess={c.clearPlanAccess}
+                onDeletePlan={async () => {
+                  if (!window.confirm('Permanently delete plan? This cannot be undone.')) return;
+                  await c.deleteActivePlan();
+                }}
+                setPlanLookupModal={c.setPlanLookupModal}
+                userMode={c.userMode}
+              />
+            } />
 
-          {c.activeTab === 'lookup' && (
-            <LookupPage
-              onSuccess={() => {
-                // keep whatever you do on success; do NOT auto-switch tabs
-              }}
-              onOpenPlan={(planId) => {
-                if (!planId) return;
-                c.setSelectedPlanId(planId);
-                c.setActiveTab('plans');
-                c.loadPlansAndPrograms?.();
-              }}
-            />
-          )}
+            <Route path="/lookup" element={
+              <LookupPage
+                onSuccess={() => {
+                  // keep whatever you do on success; do NOT auto-switch tabs
+                }}
+                onOpenPlan={(planId) => {
+                  if (!planId) return;
+                  c.setSelectedPlanId(planId);
+                  c.setActiveTab('plans');
+                  c.loadPlansAndPrograms?.();
+                }}
+              />
+            } />
 
-          {c.activeTab === 'upload' && <UploadPage />}
+            <Route path="/upload" element={<UploadPage />} />
 
-          {c.activeTab === 'management' && <ProgramManagement />}
+            <Route path="/management" element={<ProgramManagement />} />
 
-          {c.activeTab === 'audit' && (
-            <AuditPage
-              selectedPlanId={c.selectedPlanId}
-              plans={c.plans}
-            />
-          )}
+            <Route path="/audit" element={
+              <AuditPage
+                selectedPlanId={c.selectedPlanId}
+                plans={c.plans}
+              />
+            } />
+          </Routes>
 
           {/* Modals */}
           {c.isModalOpen && (

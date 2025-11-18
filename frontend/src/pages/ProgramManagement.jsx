@@ -115,6 +115,7 @@ const ProgramManagement = () => {
   // Modal states
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [deletingItem, setDeletingItem] = useState(null);
 
@@ -416,6 +417,18 @@ const ProgramManagement = () => {
                   </button>
                 </div>
               )}
+              
+              {activeTab === 'equivalencies' && (
+                <div>
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg border border-blue-500 bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                  >
+                    <Plus size={18} />
+                    Create Equivalency
+                  </button>
+                </div>
+              )}
             </div>
             
             {/* Pagination Info */}
@@ -496,6 +509,17 @@ const ProgramManagement = () => {
           onConfirm={confirmDelete}
         />
       )}
+
+      {/* Create Equivalency Modal */}
+      {showCreateModal && (
+        <CreateEquivalencyModal
+          onClose={() => setShowCreateModal(false)}
+          onSave={async () => {
+            setShowCreateModal(false);
+            await loadData();
+          }}
+        />
+      )}
     </div>
   );
 };
@@ -538,31 +562,28 @@ const CoursesTable = ({ courses, onEdit, onDelete }) => {
         </thead>
         <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
           {courses.map((course) => (
-            <tr key={course.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+            <tr key={course.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer">
+              <td onClick={() => onEdit(course)} className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                 {course.code}
               </td>
-              <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+              <td onClick={() => onEdit(course)} className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                 {course.title}
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+              <td onClick={() => onEdit(course)} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                 {course.institution}
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+              <td onClick={() => onEdit(course)} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                 {course.credits}
               </td>
-              <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+              <td onClick={() => onEdit(course)} className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
                 {course.prerequisites || '-'}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <button
-                  onClick={() => onEdit(course)}
-                  className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 mr-4"
-                >
-                  <Edit size={18} />
-                </button>
-                <button
-                  onClick={() => onDelete(course)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(course);
+                  }}
                   className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
                 >
                   <Trash2 size={18} />
@@ -611,19 +632,19 @@ const EquivalenciesTable = ({ equivalencies, onEdit, onDelete }) => {
         </thead>
         <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
           {equivalencies.map((equiv) => (
-            <tr key={equiv.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+            <tr key={equiv.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer">
+              <td onClick={() => onEdit(equiv)} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                 <div className="font-medium">{equiv.from_course?.code}</div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">{equiv.from_course?.institution}</div>
               </td>
-              <td className="px-6 py-4 text-center">
+              <td onClick={() => onEdit(equiv)} className="px-6 py-4 text-center">
                 <ChevronRight className="text-gray-400" size={20} />
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+              <td onClick={() => onEdit(equiv)} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                 <div className="font-medium">{equiv.to_course?.code}</div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">{equiv.to_course?.institution}</div>
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm">
+              <td onClick={() => onEdit(equiv)} className="px-6 py-4 whitespace-nowrap text-sm">
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                   equiv.equivalency_type === 'direct' 
                     ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
@@ -634,13 +655,10 @@ const EquivalenciesTable = ({ equivalencies, onEdit, onDelete }) => {
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <button
-                  onClick={() => onEdit(equiv)}
-                  className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 mr-4"
-                >
-                  <Edit size={18} />
-                </button>
-                <button
-                  onClick={() => onDelete(equiv)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(equiv);
+                  }}
                   className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
                 >
                   <Trash2 size={18} />
@@ -686,7 +704,7 @@ const PrerequisitesTable = ({ courses, onEdit }) => {
         </thead>
         <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
           {courses.map((course) => (
-            <tr key={course.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+            <tr key={course.id} onClick={() => onEdit(course)} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer">
               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                 <div>{course.code}</div>
                 <div className="text-xs text-gray-500 dark:text-gray-400 font-normal">{course.title}</div>
@@ -698,12 +716,9 @@ const PrerequisitesTable = ({ courses, onEdit }) => {
                 {course.prerequisites}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                <button
-                  onClick={() => onEdit(course)}
-                  className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"
-                >
+                <div className="inline-flex text-gray-400 dark:text-gray-500 pointer-events-none">
                   <Edit size={18} />
-                </button>
+                </div>
               </td>
             </tr>
           ))}
@@ -729,7 +744,8 @@ const ProgramsTable = ({ programs, onEdit }) => {
       {programs.map((program) => (
         <div
           key={program.id}
-          className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 hover:shadow-md transition-shadow"
+          onClick={() => onEdit(program)}
+          className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 hover:shadow-md transition-shadow cursor-pointer"
         >
           <div className="flex items-start justify-between">
             <div className="flex-1">
@@ -756,12 +772,9 @@ const ProgramsTable = ({ programs, onEdit }) => {
                 )}
               </div>
             </div>
-            <button
-              onClick={() => onEdit(program)}
-              className="ml-4 text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"
-            >
+            <div className="ml-4 text-gray-400 dark:text-gray-500 pointer-events-none">
               <Edit size={20} />
-            </button>
+            </div>
           </div>
         </div>
       ))}
@@ -900,28 +913,18 @@ const EditModal = ({ item, type, onClose, onSave }) => {
 
           {type === 'equivalencies' && (
             <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  From Course
-                </label>
-                <input
-                  type="text"
-                  value={formData.from_course?.code || ''}
-                  disabled
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  To Course
-                </label>
-                <input
-                  type="text"
-                  value={formData.to_course?.code || ''}
-                  disabled
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-              </div>
+              <EquivalencyCourseSelector
+                label="From Course"
+                selectedCourse={formData.from_course}
+                onSelectCourse={(course) => handleChange('from_course_id', course.id)}
+                onChange={(course) => setFormData(prev => ({ ...prev, from_course: course }))}
+              />
+              <EquivalencyCourseSelector
+                label="To Course"
+                selectedCourse={formData.to_course}
+                onSelectCourse={(course) => handleChange('to_course_id', course.id)}
+                onChange={(course) => setFormData(prev => ({ ...prev, to_course: course }))}
+              />
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Equivalency Type
@@ -1115,6 +1118,206 @@ const DeleteConfirmModal = ({ item, type, onClose, onConfirm }) => {
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+};
+
+// Course Selector Component for Equivalencies
+const EquivalencyCourseSelector = ({ label, selectedCourse, onSelectCourse, onChange }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  const handleSearch = async (term) => {
+    setSearchTerm(term);
+    if (term.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    setSearching(true);
+    try {
+      const response = await api.searchCourses({ search: term, per_page: 20 });
+      setSearchResults(response.courses || []);
+      setShowDropdown(true);
+    } catch (error) {
+      console.error('Error searching courses:', error);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleSelectCourse = (course) => {
+    onChange(course);
+    onSelectCourse(course);
+    setSearchTerm('');
+    setSearchResults([]);
+    setShowDropdown(false);
+  };
+
+  return (
+    <div className="relative">
+      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        {label}
+      </label>
+      {selectedCourse ? (
+        <div className="flex items-center gap-2">
+          <div className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800">
+            <div className="font-medium text-gray-900 dark:text-white">{selectedCourse.code}</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">{selectedCourse.title}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-500">{selectedCourse.institution}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="px-3 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+          >
+            <Trash2 size={18} />
+          </button>
+        </div>
+      ) : (
+        <div className="relative">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => handleSearch(e.target.value)}
+            onFocus={() => searchResults.length > 0 && setShowDropdown(true)}
+            placeholder="Search for a course..."
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+          />
+          {searching && (
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+            </div>
+          )}
+          {showDropdown && searchResults.length > 0 && (
+            <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+              {searchResults.map((course) => (
+                <button
+                  key={course.id}
+                  type="button"
+                  onClick={() => handleSelectCourse(course)}
+                  className="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-700 last:border-b-0"
+                >
+                  <div className="font-medium text-gray-900 dark:text-white">{course.code}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">{course.title}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-500">{course.institution}</div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Create Equivalency Modal
+const CreateEquivalencyModal = ({ onClose, onSave }) => {
+  const [formData, setFormData] = useState({
+    from_course: null,
+    from_course_id: null,
+    to_course: null,
+    to_course_id: null,
+    equivalency_type: 'direct'
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.from_course_id || !formData.to_course_id) {
+      setError('Please select both from and to courses');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      await api.createEquivalency({
+        from_course_id: formData.from_course_id,
+        to_course_id: formData.to_course_id,
+        equivalency_type: formData.equivalency_type
+      });
+      onSave();
+    } catch (err) {
+      setError(err.message || 'Failed to create equivalency');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Create New Equivalency
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          >
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-4 text-red-800 dark:text-red-200">
+              {error}
+            </div>
+          )}
+
+          <EquivalencyCourseSelector
+            label="From Course"
+            selectedCourse={formData.from_course}
+            onSelectCourse={(course) => setFormData(prev => ({ ...prev, from_course_id: course.id }))}
+            onChange={(course) => setFormData(prev => ({ ...prev, from_course: course }))}
+          />
+
+          <EquivalencyCourseSelector
+            label="To Course"
+            selectedCourse={formData.to_course}
+            onSelectCourse={(course) => setFormData(prev => ({ ...prev, to_course_id: course.id }))}
+            onChange={(course) => setFormData(prev => ({ ...prev, to_course: course }))}
+          />
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Equivalency Type
+            </label>
+            <select
+              value={formData.equivalency_type}
+              onChange={(e) => setFormData(prev => ({ ...prev, equivalency_type: e.target.value }))}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+            >
+              <option value="direct">Direct</option>
+              <option value="partial">Partial</option>
+            </select>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              disabled={saving}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={saving}
+            >
+              {saving ? 'Creating...' : 'Create Equivalency'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
