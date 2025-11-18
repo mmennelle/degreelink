@@ -95,6 +95,7 @@ const ProgramManagement = () => {
   const [activeTab, setActiveTab] = useState('courses');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterInstitution, setFilterInstitution] = useState('all');
+  const [showOnlyWithPrerequisites, setShowOnlyWithPrerequisites] = useState(false);
   const [institutions, setInstitutions] = useState([]);
   
   // Pagination states
@@ -253,6 +254,11 @@ const ProgramManagement = () => {
       filtered = filtered.filter(item => item.institution === filterInstitution);
     }
     
+    // Apply prerequisites filter (only when on prerequisites tab or when toggle is on)
+    if (activeTab === 'prerequisites' || showOnlyWithPrerequisites) {
+      filtered = filtered.filter(item => item.prerequisites && item.prerequisites.trim() !== '');
+    }
+    
     return filtered;
   };
 
@@ -280,7 +286,7 @@ const ProgramManagement = () => {
       setCurrentPage(1);
       loadEquivalencies();
     }
-  }, [searchTerm, filterInstitution]);
+  }, [searchTerm, filterInstitution, showOnlyWithPrerequisites]);
 
   const handlePageChange = (newPage) => {
     setCurrentPage(newPage);
@@ -294,8 +300,8 @@ const ProgramManagement = () => {
         data = courses;
         break;
       case 'prerequisites':
-        // For prerequisites tab, only show courses with prerequisites
-        data = courses.filter(item => item.prerequisites && item.prerequisites.trim() !== '');
+        // Prerequisites already filtered by filterCourses
+        data = courses;
         break;
       case 'equivalencies':
         data = equivalencies;
@@ -350,6 +356,7 @@ const ProgramManagement = () => {
                       setActiveTab(tab.id);
                       setSearchTerm('');
                       setFilterInstitution('all');
+                      setShowOnlyWithPrerequisites(false);
                     }}
                     className={`flex items-center px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
                       activeTab === tab.id
@@ -391,6 +398,22 @@ const ProgramManagement = () => {
                       <option key={inst} value={inst}>{inst}</option>
                     ))}
                   </select>
+                </div>
+              )}
+              
+              {activeTab === 'courses' && (
+                <div>
+                  <button
+                    onClick={() => setShowOnlyWithPrerequisites(!showOnlyWithPrerequisites)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+                      showOnlyWithPrerequisites
+                        ? 'bg-blue-500 border-blue-500 text-white'
+                        : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <Filter size={18} />
+                    {showOnlyWithPrerequisites ? 'With Prerequisites' : 'All Courses'}
+                  </button>
                 </div>
               )}
             </div>
