@@ -66,13 +66,13 @@ export function DegreeProgressCarousel({
         <div className="flex flex-col items-center gap-2">
           <div className="flex items-center gap-2">
             {!isMobile && (
-              <button onClick={() => go('prev')} aria-label="Previous view" className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">
+              <button onClick={() => go('prev')} aria-label="Previous view" className="p-2.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
                 <ChevronLeft size={18} />
               </button>
             )}
             <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">{views[viewIndex]}</div>
             {!isMobile && (
-              <button onClick={() => go('next')} aria-label="Next view" className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">
+              <button onClick={() => go('next')} aria-label="Next view" className="p-2.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
                 <ChevronRight size={18} />
               </button>
             )}

@@ -2,8 +2,18 @@ from flask import Blueprint, request, jsonify
 from auth import require_admin
 from models import db, Equivalency, Course
 from sqlalchemy.orm import aliased
+import os
+from hmac import compare_digest
 
 bp = Blueprint('equivalencies', __name__, url_prefix='/api/equivalencies')
+
+def is_admin_request():
+    """Check if the current request has a valid admin token."""
+    token = os.environ.get('ADMIN_API_TOKEN')
+    if not token:
+        return False
+    provided = request.headers.get('X-Admin-Token')
+    return provided and compare_digest(str(provided), str(token))
 
 def get_no_equivalent_course():
     
@@ -25,6 +35,11 @@ def get_no_equivalent_course():
 def get_equivalencies():
     from_institution = request.args.get('from_institution')
     to_institution = request.args.get('to_institution')
+    page = request.args.get('page', 1, type=int)
+    
+    # Allow admins to request up to 10000 equivalencies, regular users get all (no limit for now)
+    max_per_page = 10000 if is_admin_request() else 10000
+    per_page = min(request.args.get('per_page', 10000, type=int), max_per_page)
     
     query = Equivalency.query.join(Course, Equivalency.from_course_id == Course.id)
     
@@ -37,10 +52,18 @@ def get_equivalencies():
         query = query.join(ToCourse, Equivalency.to_course_id == ToCourse.id)
         query = query.filter(ToCourse.institution.ilike(f'%{to_institution}%'))
     
-    equivalencies = query.all()
+    # Apply pagination
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    equivalencies = pagination.items
     
     return jsonify({
-        'equivalencies': [equiv.to_dict() for equiv in equivalencies]
+        'equivalencies': [equiv.to_dict() for equiv in equivalencies],
+        'pagination': {
+            'page': page,
+            'per_page': per_page,
+            'total': pagination.total,
+            'pages': pagination.pages
+        }
     })
 
 @bp.route('', methods=['POST'])

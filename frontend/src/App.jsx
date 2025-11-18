@@ -14,6 +14,7 @@ import PlansPage from './pages/PlansPage';
 import LookupPage from './pages/LookupPage';
 import UploadPage from './pages/UploadPage';
 import AuditPage from './pages/AuditPage';
+import ProgramManagement from './pages/ProgramManagement';
 
 export default function App() {
   const c = useAppController();
@@ -85,6 +86,8 @@ export default function App() {
           )}
 
           {c.activeTab === 'upload' && <UploadPage />}
+
+          {c.activeTab === 'management' && <ProgramManagement />}
 
           {c.activeTab === 'audit' && (
             <AuditPage

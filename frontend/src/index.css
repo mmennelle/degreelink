@@ -29,6 +29,14 @@ body {
   background-size: cover;
 }
 
+/* Safe area insets for mobile devices (notch support) */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
+  }
+}
+
 
 
 /* Optional: Smooth transitions for theme switching */

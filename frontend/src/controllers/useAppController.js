@@ -151,8 +151,9 @@ export default function useAppController() {
     { id: 'search', label: 'Course Search', shortLabel: 'Search', icon: 'Search' },
     { id: 'plans',  label: 'Academic Plans', shortLabel: 'Plans', icon: 'FileText' },
     { id: 'lookup', label: 'Find Plan', shortLabel: 'Find', icon: 'Key' },
-    // Include upload tab only for advisors and always include audit tab
+    // Include upload and management tabs only for advisors and always include audit tab
     ...(userMode === 'advisor' ? [{ id: 'upload', label: 'CSV Upload', shortLabel: 'Upload', icon: 'Users' }] : []),
+    ...(userMode === 'advisor' ? [{ id: 'management', label: 'Program Management', shortLabel: 'Manage', icon: 'Settings' }] : []),
     ...(userMode === 'advisor' ? [{ id: 'audit', label: 'Degree Audit', shortLabel: 'Audit', icon: 'Shield' }] : [])
     //{ id: 'audit', label: 'Degree Audit', shortLabel: 'Audit', icon: 'Shield' }
   ]), [userMode]);

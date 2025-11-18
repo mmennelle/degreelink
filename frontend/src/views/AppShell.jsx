@@ -26,16 +26,18 @@ export default function AppShell({
             <div className="flex items-center gap-2 sm:gap-4">
           <button
             onClick={onGoHome}
-            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="p-2.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             title="Go to onboarding"
+            aria-label="Go to onboarding"
           >
             <Home className="w-5 h-5" />
           </button>
               {/* Dark mode */}
               <button
                 onClick={toggleDarkMode}
-                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+                className="p-2.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
               >
                 {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
@@ -59,7 +61,7 @@ export default function AppShell({
 
           {/* Tabs */}
           <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
-            <div className="flex gap-2 overflow-x-auto pb-2">
+            <div className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-hide">
               {tabs.map(t => {
                 // Map the string name from tab.icon to an imported Lucide icon.
                 // Shield is included here to support the audit tab.
@@ -70,7 +72,7 @@ export default function AppShell({
                     key={t.id}
                     onClick={() => setActiveTab(t.id)}
                     className={[
-                      "inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl whitespace-nowrap",
+                      "snap-start inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl whitespace-nowrap flex-shrink-0",
                       active ? "bg-indigo-600 text-white" :
                         "bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700"
                     ].join(' ')}

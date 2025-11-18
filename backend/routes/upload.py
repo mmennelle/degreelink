@@ -8,6 +8,90 @@ from werkzeug.utils import secure_filename
 
 bp = Blueprint('upload', __name__, url_prefix='/api/upload')
 
+@bp.route('/courses/preview', methods=['POST'])
+@require_admin
+def preview_courses():
+    """
+    Preview what will be created/updated when uploading courses CSV.
+    Returns a summary without committing any changes to the database.
+    """
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if not file.filename.lower().endswith('.csv'):
+        return jsonify({'error': 'File must be a CSV'}), 400
+    
+    try:
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_reader = csv.DictReader(stream)
+        
+        preview = {
+            'courses': {'new': [], 'updated': [], 'unchanged': []},
+            'errors': [],
+            'warnings': []
+        }
+        
+        for row_num, row in enumerate(csv_reader, start=2):
+            try:
+                code = row.get('code', '').strip()
+                title = row.get('title', '').strip()
+                institution = row.get('institution', '').strip()
+                
+                if not code or not title:
+                    preview['errors'].append(f"Row {row_num}: Missing required code or title")
+                    continue
+                
+                # Parse code to check for existing course
+                subj, num = Course._split_code(code)
+                existing_course = Course.query.filter(
+                    Course.subject_code == subj,
+                    Course.course_number == num,
+                    Course.institution.ilike(institution)
+                ).first()
+                
+                course_info = {
+                    'code': code,
+                    'title': title,
+                    'institution': institution,
+                    'credits': int(row.get('credits', 0)),
+                    'department': row.get('department', '').strip(),
+                    'prerequisites': row.get('prerequisites', '').strip(),
+                    'has_lab': row.get('has_lab', '').strip().lower() == 'true',
+                    'course_type': row.get('course_type', 'lecture').strip()
+                }
+                
+                if existing_course:
+                    # Check if there are actual changes
+                    changes = []
+                    if existing_course.title != title:
+                        changes.append(f"title: {existing_course.title} → {title}")
+                    if existing_course.credits != course_info['credits']:
+                        changes.append(f"credits: {existing_course.credits} → {course_info['credits']}")
+                    if existing_course.prerequisites != course_info['prerequisites']:
+                        changes.append(f"prerequisites updated")
+                    
+                    if changes:
+                        course_info['changes'] = changes
+                        preview['courses']['updated'].append(course_info)
+                    else:
+                        preview['courses']['unchanged'].append(course_info)
+                else:
+                    preview['courses']['new'].append(course_info)
+                    
+            except ValueError as e:
+                preview['errors'].append(f"Row {row_num}: Invalid data format - {str(e)}")
+            except Exception as e:
+                preview['errors'].append(f"Row {row_num}: {str(e)}")
+        
+        return jsonify(preview)
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to process file: {str(e)}'}), 500
+
 @bp.route('/courses', methods=['POST'])
 @require_admin
 def upload_courses():
@@ -126,6 +210,107 @@ def upload_courses():
         db.session.rollback()
         return jsonify({'error': f'Failed to process file: {str(e)}'}), 500
 
+@bp.route('/equivalencies/preview', methods=['POST'])
+@require_admin
+def preview_equivalencies():
+    """
+    Preview what will be created/updated when uploading equivalencies CSV.
+    Returns a summary without committing any changes to the database.
+    """
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if not file.filename.lower().endswith('.csv'):
+        return jsonify({'error': 'File must be a CSV'}), 400
+    
+    try:
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_reader = csv.DictReader(stream)
+        
+        preview = {
+            'equivalencies': {'new': [], 'updated': [], 'unchanged': []},
+            'errors': [],
+            'warnings': []
+        }
+        
+        for row_num, row in enumerate(csv_reader, start=2):
+            try:
+                from_code = row.get('from_course_code', '').strip()
+                from_institution = row.get('from_institution', '').strip()
+                to_code = row.get('to_course_code', '').strip()
+                to_institution = row.get('to_institution', '').strip()
+                
+                if not all([from_code, from_institution, to_code, to_institution]):
+                    preview['errors'].append(f"Row {row_num}: Missing required course information")
+                    continue
+                
+                # Parse and find courses
+                from_subj, from_num = Course._split_code(from_code)
+                to_subj, to_num = Course._split_code(to_code)
+                
+                from_course = Course.query.filter(
+                    Course.subject_code == from_subj,
+                    Course.course_number == from_num,
+                    Course.institution.ilike(from_institution)
+                ).first()
+                
+                if to_code == '1000NE':
+                    to_course = get_no_equivalent_course()
+                else:
+                    to_course = Course.query.filter(
+                        Course.subject_code == to_subj,
+                        Course.course_number == to_num,
+                        Course.institution.ilike(to_institution)
+                    ).first()
+                
+                if not from_course:
+                    preview['errors'].append(f"Row {row_num}: From course {from_code} at {from_institution} not found")
+                    continue
+                
+                if not to_course:
+                    preview['errors'].append(f"Row {row_num}: To course {to_code} at {to_institution} not found")
+                    continue
+                
+                equiv_info = {
+                    'from_course': f"{from_code} ({from_institution})",
+                    'to_course': f"{to_code} ({to_institution})",
+                    'equivalency_type': row.get('equivalency_type', 'direct').strip(),
+                    'notes': row.get('notes', '').strip()
+                }
+                
+                # Check if equivalency already exists
+                existing_equiv = Equivalency.query.filter_by(
+                    from_course_id=from_course.id,
+                    to_course_id=to_course.id
+                ).first()
+                
+                if existing_equiv:
+                    # Check for changes
+                    changes = []
+                    new_type = row.get('equivalency_type', 'direct').strip()
+                    if existing_equiv.equivalency_type != new_type:
+                        changes.append(f"type: {existing_equiv.equivalency_type} → {new_type}")
+                    
+                    if changes:
+                        equiv_info['changes'] = changes
+                        preview['equivalencies']['updated'].append(equiv_info)
+                    else:
+                        preview['equivalencies']['unchanged'].append(equiv_info)
+                else:
+                    preview['equivalencies']['new'].append(equiv_info)
+                    
+            except Exception as e:
+                preview['errors'].append(f"Row {row_num}: {str(e)}")
+        
+        return jsonify(preview)
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to process file: {str(e)}'}), 500
+
 @bp.route('/equivalencies', methods=['POST'])
 @require_admin
 def upload_equivalencies():
@@ -241,7 +426,204 @@ def upload_equivalencies():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'Failed to process file: {str(e)}'}), 500
+
+
+@bp.route('/requirements/preview', methods=['POST'])
+@require_admin
+def preview_requirements():
+    """
+    Preview what will be created/updated/deleted when uploading requirements CSV.
+    Returns a summary without committing any changes to the database.
+    """
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
     
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if not file.filename.lower().endswith('.csv'):
+        return jsonify({'error': 'File must be a CSV'}), 400
+    
+    try:
+        from models.program import Program, ProgramRequirement, RequirementGroup, GroupCourseOption
+        from models.constraint import RequirementConstraint
+
+        # Read CSV
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_reader = csv.DictReader(stream)
+
+        # Collect all rows
+        programs_data = {}
+        all_rows = []
+        
+        for row_num, row in enumerate(csv_reader, start=2):
+            all_rows.append((row_num, row))
+            program_name = (row.get('program_name') or '').strip()
+            institution = (row.get('institution') or '').strip()
+            
+            if not program_name:
+                continue
+                
+            if program_name not in programs_data:
+                programs_data[program_name] = {
+                    'institution': institution,
+                    'first_row': row,
+                    'categories': {}
+                }
+        
+        # Analyze what will be created vs updated
+        preview = {
+            'programs': {'new': [], 'existing': []},
+            'requirements': {'new': [], 'updated': [], 'unchanged': []},
+            'groups': {'new': [], 'deleted': []},
+            'constraints': {'new': []},
+            'errors': [],
+            'warnings': []
+        }
+
+        # Check programs
+        for program_name, prog_data in programs_data.items():
+            existing_prog = Program.query.filter_by(name=program_name).first()
+            if existing_prog:
+                prog_info = {
+                    'name': program_name,
+                    'institution': existing_prog.institution,
+                    'new_institution': prog_data['institution']
+                }
+                if existing_prog.institution != prog_data['institution']:
+                    prog_info['will_update_institution'] = True
+                preview['programs']['existing'].append(prog_info)
+            else:
+                preview['programs']['new'].append({
+                    'name': program_name,
+                    'institution': prog_data['institution']
+                })
+
+        # Track requirements and groups from CSV
+        csv_requirements = {}
+        csv_groups = {}
+        
+        for row_num, row in all_rows:
+            program_name = (row.get('program_name') or '').strip()
+            category = (row.get('category') or '').strip()
+            requirement_type = (row.get('requirement_type') or 'simple').strip().lower()
+            semester = (row.get('semester') or '').strip() or None
+            year_raw = (row.get('year') or '').strip()
+            year = int(year_raw) if year_raw else None
+            group_name = (row.get('group_name') or '').strip()
+            credits_str = (row.get('credits_required') or row.get('min_credits') or '').strip()
+            credits_required = int(credits_str) if credits_str else 0
+            description = (row.get('description') or '').strip()
+            
+            if not program_name or not category:
+                continue
+            
+            program = Program.query.filter_by(name=program_name).first()
+            if not program:
+                continue
+            req_key = (program.id if program else program_name, category, semester, year)
+            
+            if req_key not in csv_requirements:
+                csv_requirements[req_key] = {
+                    'program_name': program_name,
+                    'category': category,
+                    'requirement_type': requirement_type,
+                    'semester': semester,
+                    'year': year,
+                    'credits_required': credits_required,
+                    'description': description,
+                    'groups': set()
+                }
+            
+            # Track groups for all types (simple, grouped)
+            if group_name and requirement_type in ['grouped', 'simple']:
+                csv_requirements[req_key]['groups'].add(group_name)
+                csv_groups[(req_key, group_name)] = True
+
+        # Check existing requirements
+        for req_key, req_data in csv_requirements.items():
+            if isinstance(req_key[0], int):
+                existing_req = ProgramRequirement.query.filter_by(
+                    program_id=req_key[0],
+                    category=req_key[1],
+                    semester=req_key[2],
+                    year=req_key[3]
+                ).first()
+                
+                if existing_req:
+                    changes = []
+                    if existing_req.requirement_type != req_data['requirement_type']:
+                        changes.append(f"type: {existing_req.requirement_type} → {req_data['requirement_type']}")
+                    
+                    # Check credits change
+                    if existing_req.credits_required != req_data['credits_required']:
+                        changes.append(f"credits: {existing_req.credits_required} → {req_data['credits_required']}")
+                    
+                    # Check description change
+                    new_desc = req_data.get('description') or ''
+                    old_desc = existing_req.description or ''
+                    if old_desc != new_desc:
+                        changes.append(f"description updated")
+                    
+                    # Check for new groups (for all types now)
+                    if req_data['requirement_type'] in ['grouped', 'simple']:
+                        existing_group_names = set(g.group_name for g in existing_req.groups)
+                        for group_name in req_data['groups']:
+                            if group_name not in existing_group_names:
+                                preview['groups']['new'].append({
+                                    'program': req_data['program_name'],
+                                    'category': req_data['category'],
+                                    'group_name': group_name
+                                })
+                    
+                    if changes:
+                        preview['requirements']['updated'].append({
+                            'program': req_data['program_name'],
+                            'category': req_data['category'],
+                            'requirement_type': req_data['requirement_type'],
+                            'credits_required': req_data['credits_required'],
+                            'description': req_data['description'],
+                            'semester': req_data['semester'],
+                            'year': req_data['year'],
+                            'changes': changes
+                        })
+                    else:
+                        preview['requirements']['unchanged'].append({
+                            'program': req_data['program_name'],
+                            'category': req_data['category'],
+                            'semester': req_data['semester'],
+                            'year': req_data['year']
+                        })
+                else:
+                    preview['requirements']['new'].append({
+                        'program': req_data['program_name'],
+                        'category': req_data['category'],
+                        'requirement_type': req_data['requirement_type'],
+                        'credits_required': req_data['credits_required'],
+                        'description': req_data['description'],
+                        'semester': req_data['semester'],
+                        'year': req_data['year'],
+                        'groups': list(req_data['groups']) if req_data['groups'] else []
+                    })
+
+        # Count totals
+        preview['summary'] = {
+            'total_rows': len(all_rows),
+            'programs_new': len(preview['programs']['new']),
+            'programs_existing': len(preview['programs']['existing']),
+            'requirements_new': len(preview['requirements']['new']),
+            'requirements_updated': len(preview['requirements']['updated']),
+            'requirements_unchanged': len(preview['requirements']['unchanged']),
+            'groups_new': len(preview['groups']['new']),
+            'groups_deleted': len(preview['groups']['deleted'])
+        }
+
+        return jsonify(preview)
+
+    except Exception as e:
+        return jsonify({'error': f'Failed to preview file: {str(e)}'}), 500
+
 
 @bp.route('/requirements', methods=['POST'])
 @require_admin
@@ -295,8 +677,10 @@ def upload_requirements():
                           f"{programs_data[program_name]['all_institutions']}")
 
         # Track created counts
+        # Track created counts
         programs_created = 0
         requirements_created = 0
+        requirements_updated = 0
         groups_created = 0
         options_created = 0
         errors = []
@@ -351,13 +735,27 @@ def upload_requirements():
                 program_name = (row.get('program_name') or '').strip()
                 category = (row.get('category') or '').strip()
                 requirement_type = (row.get('requirement_type') or 'simple').strip().lower()
+                
+                # Validate requirement_type - conditional is no longer supported
+                if requirement_type == 'conditional':
+                    errors.append(f"Row {row_num}: 'conditional' requirement type is no longer supported. "
+                                  "Prerequisites are now handled at the course level via the 'prerequisites' "
+                                  "field in courses. Please use 'simple' or 'grouped' requirement types.")
+                    continue
+                
+                if requirement_type not in ['simple', 'grouped']:
+                    errors.append(f"Row {row_num}: Invalid requirement_type '{requirement_type}'. "
+                                  "Must be 'simple' or 'grouped'.")
+                    continue
+                
                 semester = (row.get('semester') or '').strip() or None
                 
-                # Auto-detect grouped requirements: if group_name is present, treat as grouped
-                # This handles CSVs where requirement_type says 'simple' but structure is grouped
-                group_name_check = (row.get('group_name') or '').strip()
-                if group_name_check and requirement_type == 'simple':
-                    requirement_type = 'grouped'
+                # DISABLED: Auto-detect grouped requirements
+                # This was automatically converting simple requirements with group_name to grouped type,
+                # which prevented updates from simple to grouped from working correctly
+                # group_name_check = (row.get('group_name') or '').strip()
+                # if group_name_check and requirement_type == 'simple':
+                #     requirement_type = 'grouped'
                 
                 # Parse year safely
                 year_raw = (row.get('year') or '').strip()
@@ -378,7 +776,7 @@ def upload_requirements():
 
                 # For grouped requirements: group_name and course_code are required
                 # For simple requirements: just course_code is required
-                if requirement_type in ['grouped', 'conditional']:
+                if requirement_type == 'grouped':
                     group_name = (row.get('group_name') or '').strip()
                     course_code = (row.get('course_code') or '').strip()
                     if not group_name or not course_code:
@@ -434,31 +832,55 @@ def upload_requirements():
                         year=year
                     ).first()
 
-                if not current_requirement:
-                    current_requirement = ProgramRequirement(
-                        program_id=program.id,
-                        category=category,
-                        credits_required=req_credits,
-                        requirement_type=requirement_type,
-                        description=(row.get('description') or '').strip() or None,
-                        semester=semester,
-                        year=year,
-                        is_current=is_current
-                    )
-                    db.session.add(current_requirement)
-                    requirements_created += 1
+                    if not current_requirement:
+                        current_requirement = ProgramRequirement(
+                            program_id=program.id,
+                            category=category,
+                            credits_required=req_credits,
+                            requirement_type=requirement_type,
+                            description=(row.get('description') or '').strip() or None,
+                            semester=semester,
+                            year=year,
+                            is_current=is_current
+                        )
+                        db.session.add(current_requirement)
+                        requirements_created += 1
+                    else:
+                        # Update existing requirement fields (only once per category change)
+                        # Check if any values actually changed
+                        has_changes = False
+                        old_type = current_requirement.requirement_type
+                        new_description = (row.get('description') or '').strip() or None
+                        
+                        if current_requirement.requirement_type != requirement_type:
+                            current_requirement.requirement_type = requirement_type
+                            has_changes = True
+                        
+                        if current_requirement.credits_required != req_credits:
+                            current_requirement.credits_required = req_credits
+                            has_changes = True
+                        
+                        if current_requirement.description != new_description:
+                            current_requirement.description = new_description
+                            has_changes = True
+                        
+                        if has_changes:
+                            requirements_updated += 1
+                        
+                        # Note: We no longer delete groups when changing to 'simple' type
+                        # Simple requirements can now have groups (they represent course pools)
 
                 # Track current versions for later batch update
                 if is_current:
                     current_requirement.is_current = True
                     marked_current_versions.add((program.id, semester, year))
 
-                # Process constraints - support for all requirement types (simple, grouped, conditional)
+                # Process constraints - support for all requirement types (simple, grouped)
                 # Category-level: First row of category with no group_name
-                # Group-level: First row of each group within category (grouped/conditional only)
+                # Group-level: First row of each group within category (grouped only)
                 if constraint_type:
                     # Determine constraint scope
-                    if group_name and requirement_type in ['grouped', 'conditional']:
+                    if group_name and requirement_type == 'grouped':
                         # Group-level constraint: applies to this specific group only
                         constraint_key = (program.id, category, semester, year, group_name)
                     else:
@@ -482,11 +904,18 @@ def upload_requirements():
                             'group_name': group_name  # Store group name for reference
                         }
 
-                # Handle grouped/conditional requirement groups
-                if requirement_type in ['grouped', 'conditional']:
+                # Handle requirement groups for grouped AND simple types
+                # Simple type: groups represent a pool of courses (choose any to meet credits)
+                # Grouped type: multiple mandatory groups (must satisfy all groups)
+                if requirement_type in ['grouped', 'simple']:
                     if not group_name:
-                        errors.append(f"Row {row_num}: Missing group_name for grouped requirement")
-                        continue
+                        # For simple requirements, group_name is optional but recommended
+                        # If not provided, we can create a default group
+                        if requirement_type == 'simple':
+                            group_name = f"{category} - All Options"
+                        else:
+                            errors.append(f"Row {row_num}: Missing group_name for {requirement_type} requirement")
+                            continue
                         
                     # Reset group cache if group_name changes or requirement changes
                     if (not current_group or 
@@ -568,8 +997,8 @@ def upload_requirements():
             # Add subject scoping if present
             scope_subjects = constraint_data.get('scope_subjects', '').strip()
             if scope_subjects:
-                # Parse comma-separated subject codes
-                subject_list = [s.strip() for s in scope_subjects.split(',') if s.strip()]
+                # Parse space-separated subject codes
+                subject_list = [s.strip() for s in scope_subjects.split() if s.strip()]
                 if subject_list:
                     scope_filter['subject_codes'] = subject_list
             
@@ -683,6 +1112,7 @@ def upload_requirements():
             'message': 'Requirements upload completed',
             'programs_created': programs_created,
             'requirements_created': requirements_created,
+            'requirements_updated': requirements_updated,
             'groups_created': groups_created,
             'options_created': options_created,
             'constraints_created': constraints_created,
@@ -824,8 +1254,8 @@ def upload_constraints():
                 # Add scope filter if provided
                 scope_subjects = row.get('scope_subject_codes', '').strip()
                 if scope_subjects:
-                    # Split comma-separated subject codes
-                    subject_codes = [s.strip() for s in scope_subjects.split(',') if s.strip()]
+                    # Split space-separated subject codes
+                    subject_codes = [s.strip() for s in scope_subjects.split() if s.strip()]
                     if subject_codes:
                         scope_filter['subject_codes'] = subject_codes
 

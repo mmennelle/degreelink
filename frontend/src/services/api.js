@@ -172,6 +172,19 @@ class ApiService {
       return this.request(`/programs/${id}`);
     }
     
+    async updateProgram(id, data) {
+      return this.request(`/programs/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data)
+      });
+    }
+    
+    async deleteProgram(id) {
+      return this.request(`/programs/${id}`, {
+        method: 'DELETE'
+      });
+    }
+    
     async getProgramRequirementSuggestions(programId, requirementId) {
       return this.request(`/programs/${programId}/requirements/${requirementId}/suggestions`);
     }
@@ -193,6 +206,15 @@ class ApiService {
     });
   }
 
+  async previewRequirements(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request('/upload/requirements/preview', {
+      method: 'POST',
+      body: formData
+    });
+  }
+
     // Program version management
     async getProgramVersions(programId) {
       return this.request(`/programs/${programId}/versions`);
@@ -209,6 +231,20 @@ class ApiService {
       return this.request(`/programs/${programId}/requirements/${requirementId}`, {
         method: 'PUT',
         body: JSON.stringify(data)
+      });
+    }
+
+    async getProgramRequirements(programId, semester, year) {
+      const params = new URLSearchParams();
+      if (semester) params.set('semester', semester);
+      if (year) params.set('year', year);
+      return this.request(`/programs/${programId}/requirements?${params.toString()}`);
+    }
+
+    async updateProgramRequirements(programId, semester, year, requirements) {
+      return this.request(`/programs/${programId}/requirements/bulk`, {
+        method: 'PUT',
+        body: JSON.stringify({ semester, year, requirements })
       });
     }
 
@@ -378,10 +414,28 @@ class ApiService {
     });
   }
   
+  async previewCourses(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request('/upload/courses/preview', {
+      method: 'POST',
+      body: formData
+    });
+  }
+  
   async uploadEquivalencies(file) {
     const formData = new FormData();
     formData.append('file', file);
     return this.request('/upload/equivalencies', {
+      method: 'POST',
+      body: formData
+    });
+  }
+  
+  async previewEquivalencies(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request('/upload/equivalencies/preview', {
       method: 'POST',
       body: formData
     });

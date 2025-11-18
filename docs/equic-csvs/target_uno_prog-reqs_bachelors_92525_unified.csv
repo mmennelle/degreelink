@@ -1,7 +1,7 @@
 program_name,category,requirement_type,semester,year,is_current,group_name,course_code,institution,is_preferred,constraint_type,description,min_credits,max_credits,min_level,min_courses,max_courses,tag,tag_value,scope_subject_codes
-Biology B.S,English,simple,Fall,2025,TRUE,English Group 1,ENGL 1157,University Of New Orleans,,credits,At least 6 Credits,6,,,,,,,
-Biology B.S,English,simple,Fall,2025,TRUE,English Group 1,ENGL 1158,University Of New Orleans,,,,,,,,,,,
-Biology B.S,English,simple,Fall,2025,TRUE,English Group 1,ENGL 1159,University Of New Orleans,,,,,,,,,,,
+Biology B.S,English,simple,Fall,2025,TRUE,,ENGL 1157,University Of New Orleans,,credits,At least 6 Credits,6,,,,,,,
+Biology B.S,English,simple,Fall,2025,TRUE,,ENGL 1158,University Of New Orleans,,,,,,,,,,,
+Biology B.S,English,simple,Fall,2025,TRUE,,ENGL 1159,University Of New Orleans,,,,,,,,,,,
 Biology B.S,Mathematics,simple,Fall,2025,TRUE,Math Group 1,MATH 1125,University Of New Orleans,,credits,At least 6 Credits,6,,,,,,,
 Biology B.S,Mathematics,simple,Fall,2025,TRUE,Math Group 1,MATH 1126,University Of New Orleans,,,,,,,,,,,
 Biology B.S,Science,simple,Fall,2025,TRUE,Biol Group 1,BIOS 1083,University Of New Orleans,,credits,At least 9 Credits,9,,,,,,,

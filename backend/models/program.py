@@ -83,30 +83,64 @@ class ProgramRequirement(db.Model):
             return self._evaluate_simple_requirement(student_courses)
         elif self.requirement_type == 'grouped':
             return self._evaluate_grouped_requirement(student_courses)
-        elif self.requirement_type == 'conditional':
-            return self._evaluate_conditional_requirement(student_courses)
         else:
             return {'satisfied': False, 'error': 'Unknown requirement type'}
     
     def _evaluate_simple_requirement(self, student_courses):
+        """
+        SIMPLE = Pool of courses with a credit goal.
+        Student can choose ANY courses from the pool to meet the credit requirement.
+        All courses are in a single group (or multiple groups that are all optional).
+        """
+        # If there are no groups defined, fall back to category-based matching
+        # This ensures backward compatibility with existing simple requirements
+        if not self.groups:
+            matching_courses = [
+                course for course in student_courses 
+                if course.requirement_category == self.category and course.status == 'completed'
+            ]
+            total_credits = sum(course.credits or course.course.credits for course in matching_courses)
+            return {
+                'satisfied': total_credits >= self.credits_required,
+                'credits_earned': total_credits,
+                'credits_required': self.credits_required,
+                'courses_used': [course.to_dict() for course in matching_courses],
+                'remaining_credits': max(0, self.credits_required - total_credits)
+            }
         
-        matching_courses = [
-            course for course in student_courses 
-            if course.requirement_category == self.category and course.status == 'completed'
-        ]
+        # With groups: collect all matching courses from all groups
+        # and check if total credits meet requirement
+        all_matching_courses = []
+        option_codes = set()
         
-        total_credits = sum(course.credits or course.course.credits for course in matching_courses)
+        for group in self.groups:
+            for option in group.course_options:
+                option_codes.add(option.course_code)
+        
+        for course in student_courses:
+            if (course.status == 'completed' and 
+                course.course.code in option_codes):
+                all_matching_courses.append(course)
+        
+        # Sort by credits (highest first) to maximize credit accumulation
+        all_matching_courses.sort(key=lambda c: c.credits or c.course.credits, reverse=True)
+        
+        total_credits = sum(c.credits or c.course.credits for c in all_matching_courses)
         
         return {
             'satisfied': total_credits >= self.credits_required,
             'credits_earned': total_credits,
             'credits_required': self.credits_required,
-            'courses_used': [course.to_dict() for course in matching_courses],
+            'courses_used': [course.to_dict() for course in all_matching_courses],
             'remaining_credits': max(0, self.credits_required - total_credits)
         }
     
     def _evaluate_grouped_requirement(self, student_courses):
-        
+        """
+        GROUPED = Subdivided pool with multiple mandatory groups.
+        Student must satisfy ALL groups (each group has its own requirements).
+        Use this when you need courses from multiple specific categories/groups.
+        """
         group_results = []
         total_satisfied_credits = 0
         all_groups_satisfied = True
@@ -115,26 +149,22 @@ class ProgramRequirement(db.Model):
             group_result = group.evaluate_completion(student_courses)
             group_results.append(group_result)
             
-            # Add credits earned from this group regardless of satisfaction status
-            # to support partial credit accumulation
-            total_satisfied_credits += group_result.get('credits_earned', 0)
-            
+            # For grouped requirements, each group must be satisfied
             if not group_result.get('satisfied', False):
                 all_groups_satisfied = False
+            
+            # Add credits earned from satisfied groups
+            if group_result.get('satisfied', False):
+                total_satisfied_credits += group_result.get('credits_earned', 0)
         
         return {
             'satisfied': all_groups_satisfied and total_satisfied_credits >= self.credits_required,
             'credits_earned': total_satisfied_credits,
             'credits_required': self.credits_required,
             'group_results': group_results,
-            'remaining_credits': max(0, self.credits_required - total_satisfied_credits)
+            'remaining_credits': max(0, self.credits_required - total_satisfied_credits),
+            'all_groups_must_be_satisfied': True
         }
-    
-    def _evaluate_conditional_requirement(self, student_courses):
-        
-        
-        
-        return self._evaluate_simple_requirement(student_courses)
 
 class RequirementGroup(db.Model):
     __tablename__ = 'requirement_groups'
