@@ -265,8 +265,8 @@ def get_program_requirements_by_version(program_id):
     result = []
     for req in requirements:
         req_data = req.to_dict()
-        # Include groups and options for grouped requirements
-        if req.requirement_type in ['grouped', 'conditional'] and req.groups:
+        # Include groups and options for all requirement types (simple, grouped, conditional)
+        if req.groups:
             groups_data = []
             for group in req.groups:
                 group_data = {
@@ -365,6 +365,20 @@ def bulk_update_requirements(program_id):
                         ).first()
                         
                         if group and 'options' in group_data:
+                            # Get list of option IDs from the incoming data
+                            incoming_option_ids = set()
+                            for opt_data in group_data['options']:
+                                opt_id = opt_data.get('id')
+                                if opt_id and not str(opt_id).startswith('new-option-'):
+                                    incoming_option_ids.add(int(opt_id))
+                            
+                            # Delete options that are no longer in the incoming data
+                            existing_options = GroupCourseOption.query.filter_by(group_id=group.id).all()
+                            for existing_opt in existing_options:
+                                if existing_opt.id not in incoming_option_ids:
+                                    db.session.delete(existing_opt)
+                            
+                            # Add or update options from incoming data
                             for option_data in group_data['options']:
                                 option_id = option_data.get('id')
                                 

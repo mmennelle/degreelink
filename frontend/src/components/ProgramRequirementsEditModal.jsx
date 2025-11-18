@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Edit, Save, Plus, Trash2, ChevronDown, ChevronRight, AlertCircle, Search } from 'lucide-react';
 import api from '../services/api';
 
@@ -32,6 +32,9 @@ const ProgramRequirementsEditModal = ({ program, semester, year, onClose, onSave
   const [courseSearchQuery, setCourseSearchQuery] = useState({});
   const [courseSearchResults, setCourseSearchResults] = useState({});
   const [searchingCourses, setSearchingCourses] = useState({});
+  
+  // Debounce timer for search
+  const searchTimers = useRef({});
 
   useEffect(() => {
     loadRequirements();
@@ -169,28 +172,39 @@ const ProgramRequirementsEditModal = ({ program, semester, year, onClose, onSave
     }
   };
 
-  const searchCourses = async (reqId, groupIndex, query) => {
+  const searchCourses = (reqId, groupIndex, query) => {
     const key = `${reqId}-${groupIndex}`;
     setCourseSearchQuery(prev => ({ ...prev, [key]: query }));
     
+    // Clear existing timer for this search key
+    if (searchTimers.current[key]) {
+      clearTimeout(searchTimers.current[key]);
+    }
+    
     if (!query || query.length < 2) {
       setCourseSearchResults(prev => ({ ...prev, [key]: [] }));
+      setSearchingCourses(prev => ({ ...prev, [key]: false }));
       return;
     }
 
-    try {
-      setSearchingCourses(prev => ({ ...prev, [key]: true }));
-      const response = await api.searchCourses({ q: query, limit: 10 });
-      setCourseSearchResults(prev => ({ 
-        ...prev, 
-        [key]: response.courses || [] 
-      }));
-    } catch (err) {
-      console.error('Course search failed:', err);
-      setCourseSearchResults(prev => ({ ...prev, [key]: [] }));
-    } finally {
-      setSearchingCourses(prev => ({ ...prev, [key]: false }));
-    }
+    // Set searching state immediately for user feedback
+    setSearchingCourses(prev => ({ ...prev, [key]: true }));
+    
+    // Debounce the actual API call
+    searchTimers.current[key] = setTimeout(async () => {
+      try {
+        const response = await api.searchCourses({ search: query, per_page: 10 });
+        setCourseSearchResults(prev => ({ 
+          ...prev, 
+          [key]: response.courses || [] 
+        }));
+      } catch (err) {
+        console.error('Course search failed:', err);
+        setCourseSearchResults(prev => ({ ...prev, [key]: [] }));
+      } finally {
+        setSearchingCourses(prev => ({ ...prev, [key]: false }));
+      }
+    }, 300); // 300ms debounce
   };
 
   const addCourseToGroup = (reqId, groupIndex, course) => {
