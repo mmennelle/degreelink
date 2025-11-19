@@ -24,8 +24,8 @@ class Plan(db.Model):
     plan_name = db.Column(db.String(200), nullable=False)
     plan_code = db.Column(db.String(8), unique=True, nullable=False, index=True)
     status = db.Column(db.String(50), default='draft')  
-    created_at = db.Column(db.DateTime, server_default=func.now())
-    updated_at = db.Column(db.DateTime, server_default=func.now(), onupdate=func.now())
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     courses = db.relationship('PlanCourse', backref='plan', cascade='all, delete-orphan')
     

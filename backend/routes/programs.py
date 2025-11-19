@@ -107,7 +107,7 @@ def get_program_versions(program_id):
         ProgramRequirement.semester,
         ProgramRequirement.year,
         db.func.count(ProgramRequirement.id).label('requirement_count'),
-        db.func.max(ProgramRequirement.is_current).label('is_current')
+        db.func.bool_or(ProgramRequirement.is_current).label('is_current')
     ).filter(
         ProgramRequirement.program_id == program_id
     ).group_by(

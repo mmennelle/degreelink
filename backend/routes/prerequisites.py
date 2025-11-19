@@ -1,17 +1,17 @@
 """Prerequisites API routes for checking course prerequisites with equivalency support."""
 
 from flask import Blueprint, request, jsonify
-from backend.models import db
-from backend.models.course import Course
-from backend.models.plan import Plan, PlanCourse
-from backend.services.prerequisite_service import PrerequisiteService
-from backend.auth import require_auth
+from models import db
+from models.course import Course
+from models.plan import Plan, PlanCourse
+from services.prerequisite_service import PrerequisiteService
+from auth import require_admin
 
 bp = Blueprint('prerequisites', __name__, url_prefix='/api/prerequisites')
 
 
 @bp.route('/check/<course_code>', methods=['GET'])
-@require_auth
+@require_admin
 def check_prerequisites(course_code):
     """
     Check if a student can take a course based on completed courses.
@@ -50,7 +50,7 @@ def check_prerequisites(course_code):
 
 
 @bp.route('/details/<course_code>', methods=['GET'])
-@require_auth
+@require_admin
 def get_prerequisite_details(course_code):
     """
     Get detailed prerequisite information for a course.
@@ -71,7 +71,7 @@ def get_prerequisite_details(course_code):
 
 
 @bp.route('/validate-plan/<int:plan_id>', methods=['GET'])
-@require_auth
+@require_admin
 def validate_plan_prerequisites(plan_id):
     """
     Validate all prerequisites for courses in a student's plan.
@@ -130,7 +130,7 @@ def validate_plan_prerequisites(plan_id):
 
 
 @bp.route('/suggest-next-courses/<int:plan_id>', methods=['GET'])
-@require_auth
+@require_admin
 def suggest_next_courses(plan_id):
     """
     Suggest courses the student can take next based on completed prerequisites.

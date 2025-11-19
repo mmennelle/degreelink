@@ -29,7 +29,7 @@ def create_app(config_name='default'):
     
     # Security configurations
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key')
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///course_transfer.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://localhost/course_transfer')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  
     
