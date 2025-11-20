@@ -5,9 +5,7 @@ After=network.target
 [Service]
 User=root
 WorkingDirectory=/opt/ceq/backend
-Environment=FLASK_ENV=production
-Environment=ADMIN_API_TOKEN=d33220a215102946585b96c21a04b8196da801b8b6d9e10b6497322f577a948b
-Environment=SECRET_KEY=862b31df52bf767fabff2037e971460d6ebbf5d8bbcefe5a4c4d758fb40b6bdd
+EnvironmentFile=/opt/ceq/backend/.env
 Environment=PATH=/opt/ceq/backend/.venv/bin
 ExecStart=/opt/ceq/backend/.venv/bin/gunicorn --workers 3 --bind 127.0.0.1:5000 app:app
 ExecReload=/bin/kill -s HUP $MAINPID
@@ -16,5 +14,3 @@ RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
-
-
