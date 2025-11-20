@@ -7,10 +7,10 @@ and equivalencies. It handles transitive equivalencies where:
 - Therefore, Course A satisfies the prerequisite for Course D
 """
 
-from backend.models import db
-from backend.models.course import Course
-from backend.models.equivalency import Equivalency
-from backend.models.plan import PlanCourse
+from models import db
+from models.course import Course
+from models.equivalency import Equivalency
+from models.plan import PlanCourse
 import re
 
 

@@ -419,14 +419,14 @@ const UploadConfirmationModal = ({ previewData, onConfirm, onCancel, uploadType 
                 <div className="flex items-center gap-2">
                   <Plus className="text-green-600 dark:text-green-400" size={20} />
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    New Programs ({programs.new.length})
+                    New Programs ({previewData.programs.new.length})
                   </h3>
                 </div>
                 {expandedSections.programsNew ? <ChevronDown size={20} className="text-gray-600 dark:text-gray-400" /> : <ChevronRight size={20} className="text-gray-600 dark:text-gray-400" />}
               </button>
               {expandedSections.programsNew && (
                 <div className="p-4 pt-0 space-y-2">
-                  {programs.new.map((prog, idx) => (
+                  {previewData.programs.new.map((prog, idx) => (
                     <div key={idx} className="bg-green-50 dark:bg-green-900/30 rounded p-3 text-sm">
                       <div className="font-semibold text-gray-900 dark:text-white">{prog.name}</div>
                       <div className="text-gray-600 dark:text-gray-300">Institution: {prog.institution}</div>
