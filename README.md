@@ -131,34 +131,96 @@ To revert to legacy behavior:
 
 ## Integrating Advisor Center
 
-The Advisor Center component allows advisors to view and manage all student plans linked to them. Integration requires adding a route in your frontend router.
+The Advisor Center is a main navigation section for advisors with sub-tabs for Student Plans and Degree Audit. It uses a wrapper component pattern for organized navigation.
 
-### Add Route to Router
+### Navigation Structure
 
-In your frontend router configuration (e.g., App.jsx or main router file):
+The system uses grouped navigation tabs:
+- **Program Management**: Programs, CSV Upload
+- **Advisor Center**: Student Plans, Degree Audit (advisor-only)
+- **App Settings**: Administrative functions
+
+### Route Configuration
+
+In your frontend router (App.jsx):
 
 ```javascript
-import AdvisorCenter from './components/AdvisorCenter';
+import AdvisorCenterPage from './pages/AdvisorCenterPage';
+import ProgramManagementPage from './pages/ProgramManagementPage';
 
-// Add to your Routes:
-<Route path="/advisor-center" element={<AdvisorCenter />} />
+// Advisor-only route with sub-tab wrapper
+<Route
+  path="/advisor-center"
+  element={
+    <AdvisorCenterPage
+      selectedPlanId={selectedPlanId}
+      plans={plans}
+      onOpenPlan={async (planCode) => {
+        await api.getPlanByCode(planCode);
+        navigate('/plans');
+        loadPlansAndPrograms();
+      }}
+    />
+  }
+/>
+
+// Program management with sub-tabs
+<Route
+  path="/management"
+  element={
+    <ProgramManagementPage
+      programs={programs}
+      onProgramsUpdate={loadPlansAndPrograms}
+    />
+  }
+/>
 ```
 
-### Add Navigation Link
+### Wrapper Components
 
-Add a link in your advisor portal navigation:
+Wrapper components handle sub-tab navigation:
 
 ```javascript
-<Link to="/advisor-center">Student Plans</Link>
+// AdvisorCenterPage.jsx
+import { useState } from 'react';
+import AdvisorCenter from '../components/AdvisorCenter';
+import AuditPage from './AuditPage';
+
+export default function AdvisorCenterPage({ selectedPlanId, plans, onOpenPlan }) {
+  const [activeSubTab, setActiveSubTab] = useState('plans');
+  
+  return (
+    <div>
+      <div className="sub-tab-navigation">
+        <button onClick={() => setActiveSubTab('plans')}>Student Plans</button>
+        <button onClick={() => setActiveSubTab('audit')}>Degree Audit</button>
+      </div>
+      {activeSubTab === 'plans' && (
+        <AdvisorCenter
+          selectedPlanId={selectedPlanId}
+          plans={plans}
+          onOpenPlan={onOpenPlan}
+        />
+      )}
+      {activeSubTab === 'audit' && <AuditPage />}
+    </div>
+  );
+}
 ```
 
 ### Test the Integration
 
 1. Create a plan with an advisor email (optional field in CreatePlanModal)
 2. Log in as that advisor using the advisor authentication system
-3. Navigate to /advisor-center
-4. Verify the plan appears in the advisor's dashboard
-5. Test search, filter, and sort functionality
+3. Click the Advisor Center tab in main navigation
+4. Verify Student Plans sub-tab is active by default
+5. Verify the plan appears in the advisor's dashboard
+6. Test search by student name, email, or plan code
+7. Test filter by status (draft, active, completed, archived)
+8. Test filter by program
+9. Test sort functionality (creation date, update date, student name)
+10. Click a plan to open it in the Plans view
+11. Navigate between Student Plans and Degree Audit sub-tabs
 
 ### API Usage
 

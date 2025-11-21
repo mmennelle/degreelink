@@ -148,6 +148,12 @@ The Course Equivalency and Transfer Planning System is a comprehensive web appli
 - Administrator control of advisor access
 - Add or remove advisor emails
 - View active advisor sessions
+
+**Navigation Organization**
+- Program Management section: Programs and CSV Upload tabs
+- Advisor Center section: Student Plans and Degree Audit tabs
+- App Settings for administrative functions
+- Advisor-only sections require authentication
 - Audit trail of advisor additions
 
 **Bulk Data Management**
@@ -193,8 +199,9 @@ The Course Equivalency and Transfer Planning System is a comprehensive web appli
 ## User Interface Features
 
 ### Navigation
-- Clean, intuitive interface
-- Breadcrumb navigation
+- Clean, intuitive tabbed interface with grouped sections
+- Main tabs: Search, Plans, Lookup, Program Management, Advisor Center, App Settings
+- Sub-tab navigation within grouped sections
 - Responsive design for desktop and mobile
 - Dark mode support
 
@@ -323,18 +330,22 @@ The Course Equivalency and Transfer Planning System is a comprehensive web appli
 - No requirement for advisor to be whitelisted at plan creation time
 
 **Advisor Center Dashboard**
-- Dedicated interface for advisors to view all linked student plans
+- Dedicated interface accessible from main navigation
+- Sub-tabs for Student Plans and Degree Audit
 - Search functionality by student name, email, plan name, or plan code
 - Filter plans by status (draft, active, completed, archived)
+- Filter by program for targeted plan management
 - Sort plans by creation date, update date, or student name
 - Statistics dashboard showing total plans, recent activity, and status breakdown
-- Pagination support for managing large numbers of plans
+- Pagination support for managing large numbers of plans (20 per page)
+- Direct plan access with integrated navigation
 
 **Access Control**
 - Requires advisor authentication via session token
-- Read-only access for advisors (view but not modify plans)
-- Automatic linking when student provides advisor email
+- Advisors can view and access linked student plans
+- Automatic linking when student provides advisor email during plan creation
 - Plans remain accessible even if advisor is later removed from whitelist
+- Advisor Center section only visible to authenticated advisors
 
 **API Endpoints**
 - GET /api/advisor-auth/advisor-center/plans - Retrieve advisor's student plans
@@ -343,10 +354,12 @@ The Course Equivalency and Transfer Planning System is a comprehensive web appli
 - PUT /api/plans/<id> with advisor_email field - Update plan advisor
 
 **Integration Notes**
-- Add route for /advisor-center in frontend router
-- Import AdvisorCenter component: `import AdvisorCenter from './components/AdvisorCenter'`
-- Add navigation link in advisor portal to Student Plans
+- Advisor Center accessible from main navigation tabs
+- Route structure: /advisor-center with sub-tab navigation
+- AdvisorCenterPage wrapper component handles sub-tab switching
+- Student Plans and Degree Audit accessible as sub-tabs
 - Session token automatically included in API requests
+- Navigation automatically shows/hides based on advisor authentication state
 
 ---
 

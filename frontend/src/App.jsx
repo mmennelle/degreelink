@@ -15,11 +15,9 @@ import AdvisorAuthModal from './components/AdvisorAuthModal';
 import SearchPage from './pages/SearchPage';
 import PlansPage from './pages/PlansPage';
 import LookupPage from './pages/LookupPage';
-import UploadPage from './pages/UploadPage';
-import AuditPage from './pages/AuditPage';
-import ProgramManagement from './pages/ProgramManagement';
+import ProgramManagementPage from './pages/ProgramManagementPage';
+import AdvisorCenterPage from './pages/AdvisorCenterPage';
 import AppManagementPage from './pages/AppManagementPage';
-import AdvisorCenter from './components/AdvisorCenter';
 
 export default function App() {
   const c = useAppController();
@@ -83,7 +81,7 @@ export default function App() {
       
       // Redirect to search if on an advisor-only route
       const currentPath = window.location.pathname;
-      const advisorOnlyPaths = ['/upload', '/management', '/app-management', '/advisor-center', '/audit'];
+      const advisorOnlyPaths = ['/management', '/advisor-center', '/app-settings'];
       if (advisorOnlyPaths.some(path => currentPath.startsWith(path))) {
         navigate('/search');
       }
@@ -188,34 +186,24 @@ export default function App() {
             {/* Advisor-only routes */}
             {c.userMode === 'advisor' && (
               <>
-                <Route path="/upload" element={<UploadPage />} />
-                <Route path="/management" element={<ProgramManagement />} />
-                <Route path="/app-management" element={<AppManagementPage />} />
+                {/* Program Management with nested tabs: Programs + CSV Upload */}
+                <Route path="/management" element={<ProgramManagementPage />} />
+                
+                {/* Advisor Center with nested tabs: Student Plans + Degree Audit */}
                 <Route path="/advisor-center" element={
-                  <AdvisorCenter 
+                  <AdvisorCenterPage 
                     onOpenPlan={() => {
                       c.setActiveTab('plans');
                       c.loadPlansAndPrograms?.();
                     }}
-                  />
-                } />
-                <Route path="/audit" element={
-                  <AuditPage
                     selectedPlanId={c.selectedPlanId}
                     plans={c.plans}
                   />
                 } />
+                
+                {/* App Settings (formerly App Management) */}
+                <Route path="/app-settings" element={<AppManagementPage />} />
               </>
-            )}
-
-            {/* Public audit route for students */}
-            {c.userMode === 'student' && (
-              <Route path="/audit" element={
-                <AuditPage
-                  selectedPlanId={c.selectedPlanId}
-                  plans={c.plans}
-                />
-              } />
             )}
           </Routes>
 

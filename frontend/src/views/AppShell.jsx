@@ -1,6 +1,6 @@
 // src/views/AppShell.jsx
 import React from 'react';
-import { Moon, Sun, Key, FileText, Search, Shield, Home, GraduationCap, Settings } from 'lucide-react';
+import { Moon, Sun, Key, FileText, Search, Shield, Home, GraduationCap, Settings, LogIn, UserCircle } from 'lucide-react';
 import { useDarkMode } from '../hooks/useDarkMode';
 
 export default function AppShell({
@@ -49,7 +49,7 @@ export default function AppShell({
                 title={userMode === 'advisor' ? 'Advisor Settings' : 'Switch to Advisor Portal'}
                 aria-label={userMode === 'advisor' ? 'Advisor Settings' : 'Switch to Advisor Portal'}
               >
-                <Settings className="w-5 h-5" />
+                {userMode === 'advisor' ? <UserCircle className="w-5 h-5" /> : <LogIn className="w-5 h-5" />}
               </button>
             </div>
           </div>
