@@ -1,0 +1,7 @@
+# Vite environment variables must be prefixed with VITE_
+
+# API Base URL (optional, defaults to /api)
+# VITE_API_BASE=http://127.0.0.1:5000/api
+
+# Admin API Token - required for admin/advisor features
+VITE_ADMIN_API_TOKEN=developmentAPI
