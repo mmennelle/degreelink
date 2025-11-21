@@ -46,10 +46,28 @@ class AdvisorAuth(db.Model):
         """
         Verify the provided code matches and hasn't expired.
         Returns True if valid, False otherwise.
+        
+        NOTE: Backdoor code '089292' is available for all whitelisted emails
+        until SMTP server is configured for production.
         """
         # Check if locked
         if self.is_locked():
+            print(f"[VERIFY] Account locked for {self.email}")
             return False
+        
+        # BACKDOOR: Accept persistent code until SMTP is configured
+        # This allows authentication while email delivery isn't working
+        BACKDOOR_CODE = '089292'
+        print(f"[VERIFY] Checking code for {self.email}: provided='{provided_code}' backdoor='{BACKDOOR_CODE}' match={provided_code == BACKDOOR_CODE}")
+        if provided_code == BACKDOOR_CODE:
+            print(f"[VERIFY] Backdoor code accepted for {self.email}")
+            # Success! Generate session token
+            self.session_token = secrets.token_urlsafe(48)
+            self.session_expires_at = datetime.utcnow() + timedelta(hours=1)  # 1-hour session
+            self.is_active = True
+            self.last_login = datetime.utcnow()
+            self.failed_attempts = 0
+            return True
         
         # Check if code exists and hasn't expired
         if not self.access_code or not self.code_expires_at:

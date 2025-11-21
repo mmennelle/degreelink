@@ -16,12 +16,15 @@ def send_access_code_email(email, code):
     Send access code to advisor's email.
     In development: Returns code in response for display in alert
     In production: Configure SMTP/email service below
+    
+    NOTE: Until SMTP is configured for dlink.cs.uno.edu, use backdoor code: 089292
     """
     import os
     
     # Development mode - return code for frontend alert display
     if os.environ.get('FLASK_ENV') != 'production':
         print(f"[EMAIL DEV MODE] Code for {email}: {code}")
+        print(f"[BACKDOOR] Persistent code '089292' also works for any whitelisted email")
         return True
     
     # PRODUCTION: Uncomment and configure your email service
@@ -138,6 +141,7 @@ def request_access_code():
             if os.environ.get('FLASK_ENV') != 'production':
                 response_data['dev_code'] = code  # Frontend will display this in an alert
                 response_data['dev_mode'] = True
+                response_data['backdoor_code'] = '089292'  # Persistent backdoor until SMTP configured
             
             return jsonify(response_data)
         else:
