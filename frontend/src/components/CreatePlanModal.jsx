@@ -277,13 +277,17 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
         <div className="p-4 sm:p-6 space-y-5">
           {/* Student Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              <User className="inline mr-1" size={16} />
+            <label htmlFor="student-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <User className="inline mr-1" size={16} aria-hidden="true" />
               {userMode === 'advisor' ? "Student Name *" : "Your Name *"}
             </label>
             <input
+              id="student-name"
               type="text"
               required
+              aria-required="true"
+              aria-invalid={errors.student_name ? "true" : "false"}
+              aria-describedby={errors.student_name ? "student-name-error" : "student-name-desc"}
               value={formData.student_name}
               onChange={(e) => handleInputChange('student_name', e.target.value)}
               onBlur={() => {
@@ -297,18 +301,21 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
               }`}
             />
             {errors.student_name && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.student_name}</p>
+              <p id="student-name-error" className="mt-1 text-xs text-red-600 dark:text-red-400" role="alert">{errors.student_name}</p>
             )}
           </div>
 
           {/* Student Email */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              <Mail className="inline mr-1" size={16} />
+            <label htmlFor="student-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <Mail className="inline mr-1" size={16} aria-hidden="true" />
               {userMode === 'advisor' ? "Student Email" : "Your Email"}
             </label>
             <input
+              id="student-email"
               type="email"
+              aria-invalid={errors.student_email ? "true" : "false"}
+              aria-describedby={errors.student_email ? "student-email-error" : "student-email-desc"}
               value={formData.student_email}
               onChange={(e) => handleInputChange('student_email', e.target.value)}
               placeholder={userMode === 'advisor' ? "student@example.com (optional)" : "your@example.com (optional)"}
@@ -317,21 +324,24 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
               }`}
             />
             {errors.student_email && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.student_email}</p>
+              <p id="student-email-error" className="mt-1 text-xs text-red-600 dark:text-red-400" role="alert">{errors.student_email}</p>
             )}
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p id="student-email-desc" className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Optional: Used for notifications and plan sharing
             </p>
           </div>
 
           {/* Advisor Email */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              <Mail className="inline mr-1" size={16} />
+            <label htmlFor="advisor-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <Mail className="inline mr-1" size={16} aria-hidden="true" />
               Advisor Email
             </label>
             <input
+              id="advisor-email"
               type="email"
+              aria-invalid={errors.advisor_email ? "true" : "false"}
+              aria-describedby={errors.advisor_email ? "advisor-email-error" : "advisor-email-desc"}
               value={formData.advisor_email || ''}
               onChange={(e) => handleInputChange('advisor_email', e.target.value)}
               placeholder="advisor@school.edu(optional)"
@@ -340,23 +350,27 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
               }`}
             />
             {errors.advisor_email && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.advisor_email}</p>
+              <p id="advisor-email-error" className="mt-1 text-xs text-red-600 dark:text-red-400" role="alert">{errors.advisor_email}</p>
             )}
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p id="advisor-email-desc" className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Optional: Link this plan to your advisor for guidance
             </p>
           </div>
 
           {/* Plan Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              <BookOpen className="inline mr-1" size={16} />
+            <label htmlFor="plan-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <BookOpen className="inline mr-1" size={16} aria-hidden="true" />
               Plan Name *
             </label>
             <div className="flex gap-2">
               <input
+                id="plan-name"
                 type="text"
                 required
+                aria-required="true"
+                aria-invalid={errors.plan_name ? "true" : "false"}
+                aria-describedby={errors.plan_name ? "plan-name-error" : undefined}
                 value={formData.plan_name}
                 onChange={(e) => handleInputChange('plan_name', e.target.value)}
                 placeholder="e.g., Fall 2025 Transfer Plan"
@@ -368,6 +382,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
                 type="button"
                 onClick={generatePlanName}
                 disabled={!formData.student_name}
+                aria-label="Auto-generate plan name"
                 className="px-3 py-3 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 title="Auto-generate plan name"
               >
@@ -375,16 +390,19 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
               </button>
             </div>
             {errors.plan_name && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.plan_name}</p>
+              <p id="plan-name-error" className="mt-1 text-xs text-red-600 dark:text-red-400" role="alert">{errors.plan_name}</p>
             )}
           </div>
 
           {/* Current Program Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label htmlFor="current-program" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Current Program
             </label>
             <select
+              id="current-program"
+              aria-invalid={errors.current_program_id ? "true" : "false"}
+              aria-describedby={errors.current_program_id ? "current-program-error" : "current-program-desc"}
               value={formData.current_program_id}
               onChange={(e) => handleInputChange('current_program_id', parseInt(e.target.value))}
               disabled={loadingPrograms || programs.length === 0}
@@ -408,19 +426,23 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
               )}
             </select>
             {errors.current_program_id && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.current_program_id}</p>
+              <p id="current-program-error" className="mt-1 text-xs text-red-600 dark:text-red-400" role="alert">{errors.current_program_id}</p>
             )}
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p id="current-program-desc" className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               The program you're currently enrolled in (if applicable)
             </p>
           </div>
 
           {/* Program Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label htmlFor="target-program" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Transfer Target Program *
             </label>
             <select
+              id="target-program"
+              aria-required="true"
+              aria-invalid={errors.program_id ? "true" : "false"}
+              aria-describedby={errors.program_id ? "target-program-error" : "target-program-desc"}
               value={formData.program_id}
               onChange={(e) => handleInputChange('program_id', parseInt(e.target.value))}
               disabled={loadingPrograms || programs.length === 0}
@@ -444,9 +466,9 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
               )}
             </select>
             {errors.program_id && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.program_id}</p>
+              <p id="target-program-error" className="mt-1 text-xs text-red-600 dark:text-red-400" role="alert">{errors.program_id}</p>
             )}
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p id="target-program-desc" className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               The program you want to transfer into or complete
             </p>
           </div>

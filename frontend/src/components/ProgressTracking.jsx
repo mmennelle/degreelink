@@ -250,13 +250,13 @@ export default function ProgressTracking({
 	const titleColor = (COLOR[color] || COLOR.blue).title;
 
 	return (
-		<section className="flex flex-col items-center gap-2 sm:gap-3 select-none w-full max-w-full" ref={shellRef}>
+		<section className="flex flex-col items-center gap-2 sm:gap-3 select-none w-full max-w-full" ref={shellRef} aria-labelledby={`progress-title-${title.replace(/\s+/g, '-')}`}>
 			<div className="flex items-center gap-2">
-				<h3 className={`text-sm font-semibold text-center ${titleColor}`}>{title}</h3>
+				<h3 id={`progress-title-${title.replace(/\s+/g, '-')}`} className={`text-sm font-semibold text-center ${titleColor}`}>{title}</h3>
 			</div>
-			<div className="relative h-80 w-28 sm:h-80 sm:w-28 mx-1 sm:mx-2 border-2 border-gray-300 dark:border-gray-900 rounded-md overflow-hidden" ref={barFrameRef} aria-label={`${title} progress`} role="group">
+			<div className="relative h-80 w-28 sm:h-80 sm:w-28 mx-1 sm:mx-2 border-2 border-gray-300 dark:border-gray-900 rounded-md overflow-hidden" ref={barFrameRef} role="progressbar" aria-valuenow={Math.round(displayPercent)} aria-valuemin="0" aria-valuemax="100" aria-label={`${title} progress: ${Math.round(displayPercent)} percent complete`}>
 				<div className="absolute -right-5 -top-7 translate-x-full">
-					<div className="px-2 py-1 text-xs rounded-lg bg-gray-800 text-white dark:bg-gray-900 dark:text-gray-100 shadow-lg font-medium">{Math.round(displayPercent)}%</div>
+					<div className="px-2 py-1 text-xs rounded-lg bg-gray-800 text-white dark:bg-gray-900 dark:text-gray-100 shadow-lg font-medium" aria-hidden="true">{Math.round(displayPercent)}%</div>
 				</div>
 				{buildSegments(displayRequirements).map((seg, index) => {
 					const segKey = `${seg.id}-single`;

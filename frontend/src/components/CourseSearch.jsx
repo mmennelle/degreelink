@@ -229,24 +229,28 @@ const CourseSearch = ({
           {/* Primary Search */}
           <div className="flex gap-2">
             <div className="flex-1">
+              <label htmlFor="course-search-input" className="sr-only">Search courses</label>
               <input
+                id="course-search-input"
                 type="text"
                 placeholder="Search courses..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={handleKeyPress}
+                aria-label="Search courses by name, code, or subject"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
               />
             </div>
             <button
               onClick={searchCourses}
               disabled={loading || !searchTerm.trim()}
+              aria-label={loading ? "Searching..." : "Search courses"}
               className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors"
             >
               {loading ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" role="status" aria-label="Loading"></div>
               ) : (
-                <Search size={16} />
+                <Search size={16} aria-hidden="true" />
               )}
             </button>
           </div>
@@ -255,10 +259,11 @@ const CourseSearch = ({
           <div className={`space-y-4 ${showFilters ? 'block' : 'hidden sm:block'}`}>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label htmlFor="institution-filter" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Institution
                 </label>
                 <input
+                  id="institution-filter"
                   type="text"
                   placeholder="Filter by School"
                   value={institution}
@@ -269,10 +274,11 @@ const CourseSearch = ({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label htmlFor="level-filter" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Course Level
                 </label>
                 <select
+                  id="level-filter"
                   value={levelFilter}
                   onChange={(e) => setLevelFilter(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
@@ -292,10 +298,11 @@ const CourseSearch = ({
 
               {program && program.requirements && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label htmlFor="category-filter" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Requirement
                   </label>
                   <select
+                    id="category-filter"
                     value={categoryFilter}
                     onChange={(e) => handleCategoryFilterChange(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"

@@ -36,25 +36,18 @@ const MobileOnboarding = ({ onComplete, onAdvisorSelected }) => {
           color: 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300'
         },
         {
-          value: 'advisor',
-          label: 'Academic Advisor',
-          description: 'I am an advisor helping students',
-          icon: <Target className="w-6 h-6" />,
-          color: 'bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/30 dark:border-purple-700 dark:text-purple-300'
-        },
-        {
-          value: 'parent',
-          label: 'Parent',
-          description: 'I am helping my child with their education',
+          value: 'advocate',
+          label: 'Advocate',
+          description: 'I am helping a student with their educational plans',
           icon: <Users className="w-6 h-6" />,
           color: 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300'
         },
         {
-          value: 'browsing',
-          label: 'Just Browsing',
-          description: 'Exploring options and gathering information',
-          icon: <Eye className="w-6 h-6" />,
-          color: 'bg-gray-50 border-gray-200 text-gray-700 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300'
+          value: 'advisor',
+          label: 'Academic Advisor',
+          description: 'I am a college level Advisor. Requires authentication.',
+          icon: <Target className="w-6 h-6" />,
+          color: 'bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/30 dark:border-purple-700 dark:text-purple-300'
         },
         {
           value: 'returning',
@@ -62,7 +55,15 @@ const MobileOnboarding = ({ onComplete, onAdvisorSelected }) => {
           description: 'I want to access my existing plan',
           icon: <Key className="w-6 h-6" />,
           color: 'bg-yellow-50 border-yellow-200 text-yellow-700 dark:bg-yellow-900/30 dark:border-yellow-700 dark:text-yellow-300'
-        }
+        },
+        
+        {
+          value: 'browsing',
+          label: 'Just Browsing',
+          description: 'Exploring options and gathering information',
+          icon: <Eye className="w-6 h-6" />,
+          color: 'bg-gray-50 border-gray-200 text-gray-700 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300'
+        },
       ]
     },
     {
@@ -197,9 +198,9 @@ const MobileOnboarding = ({ onComplete, onAdvisorSelected }) => {
               </button>
             )}
             <div className="flex items-center">
-              <GraduationCap className="text-blue-600 dark:text-blue-400 mr-2" size={24} />
+              <GraduationCap className="text-blue-600 dark:text-blue-400 mr-2" size={24} aria-hidden="true" />
               <div className="flex flex-col">
-                <span className="font-semibold tracking-tight">Degree Link</span>
+                <span className="font-semibold tracking-tight text-gray-900 dark:text-white">Degree Link</span>
                 <span className="text-xs text-gray-600 dark:text-gray-400">Your Path. Your Progress. Your Degree</span>
               </div>
             </div>
@@ -272,7 +273,7 @@ const MobileOnboarding = ({ onComplete, onAdvisorSelected }) => {
       <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-4">
         <div className="max-w-md mx-auto text-center">
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            Course Transfer System - Helping you navigate your academic journey
+            Degree Link - Helping you navigate your academic journey
           </p>
         </div>
       </div>
