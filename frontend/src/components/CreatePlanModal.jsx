@@ -6,6 +6,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
   const [formData, setFormData] = useState({
     student_name: '',
     student_email: '',
+    advisor_email: '',
     plan_name: '',
     current_program_id: '',
     program_id: '', 
@@ -155,6 +156,10 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
     if (formData.student_email && !isValidEmail(formData.student_email)) {
       newErrors.student_email = 'Please enter a valid email address';
     }
+    
+    if (formData.advisor_email && !isValidEmail(formData.advisor_email)) {
+      newErrors.advisor_email = 'Please enter a valid advisor email address';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -188,6 +193,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
       setFormData({
         student_name: '',
         student_email: '',
+        advisor_email: '',
         plan_name: '',
         current_program_id: programs.length > 0 ? programs[0].id : '',
         program_id: programs.length > 0 ? programs[0].id : '',
@@ -315,6 +321,29 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
             )}
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Optional: Used for notifications and plan sharing
+            </p>
+          </div>
+
+          {/* Advisor Email */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <Mail className="inline mr-1" size={16} />
+              Advisor Email
+            </label>
+            <input
+              type="email"
+              value={formData.advisor_email || ''}
+              onChange={(e) => handleInputChange('advisor_email', e.target.value)}
+              placeholder="advisor@school.edu(optional)"
+              className={`w-full px-3 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors ${
+                errors.advisor_email ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
+              }`}
+            />
+            {errors.advisor_email && (
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.advisor_email}</p>
+            )}
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Optional: Link this plan to your advisor for guidance
             </p>
           </div>
 

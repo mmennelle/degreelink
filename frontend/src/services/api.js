@@ -538,6 +538,37 @@ class ApiService {
       method: 'DELETE'
     });
   }
+
+  // Advisor Center - Get plans associated with advisor
+  async getAdvisorPlans(params = {}) {
+    const queryParams = new URLSearchParams();
+    
+    if (params.search) queryParams.append('search', params.search);
+    if (params.status) queryParams.append('status', params.status);
+    if (params.program_id) queryParams.append('program_id', params.program_id);
+    if (params.sort) queryParams.append('sort', params.sort);
+    if (params.order) queryParams.append('order', params.order);
+    if (params.limit) queryParams.append('limit', params.limit);
+    if (params.offset) queryParams.append('offset', params.offset);
+    
+    const queryString = queryParams.toString();
+    const endpoint = `/advisor-auth/advisor-center/plans${queryString ? `?${queryString}` : ''}`;
+    
+    return this.request(endpoint, {
+      headers: {
+        'X-Advisor-Session-Token': this.advisorToken
+      }
+    });
+  }
+
+  // Advisor Center - Get statistics
+  async getAdvisorStats() {
+    return this.request('/advisor-auth/advisor-center/stats', {
+      headers: {
+        'X-Advisor-Session-Token': this.advisorToken
+      }
+    });
+  }
 }
 
 const api = new ApiService();

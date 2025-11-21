@@ -17,7 +17,7 @@ export default function useAppController() {
   const [activeTab, setActiveTab] = useState(() => {
     // Get initial tab from URL path or localStorage
     const path = window.location.pathname.slice(1) || 'search';
-    const validTabs = ['search', 'plans', 'lookup', 'upload', 'management', 'app-management', 'audit'];
+    const validTabs = ['search', 'plans', 'lookup', 'upload', 'management', 'app-management', 'advisor-center', 'audit'];
     if (validTabs.includes(path)) return path;
     
     const s = localStorage.getItem('currentSession');
@@ -189,6 +189,7 @@ export default function useAppController() {
     ...(userMode === 'advisor' ? [{ id: 'upload', label: 'CSV Upload', shortLabel: 'Upload', icon: 'FileText' }] : []),
     ...(userMode === 'advisor' ? [{ id: 'management', label: 'Program Management', shortLabel: 'Manage', icon: 'Settings' }] : []),
     ...(userMode === 'advisor' ? [{ id: 'app-management', label: 'App Management', shortLabel: 'App Admin', icon: 'Settings' }] : []),
+    ...(userMode === 'advisor' ? [{ id: 'advisor-center', label: 'Student Plans', shortLabel: 'Students', icon: 'FileText' }] : []),
     ...(userMode === 'advisor' ? [{ id: 'audit', label: 'Degree Audit', shortLabel: 'Audit', icon: 'Shield' }] : [])
     //{ id: 'audit', label: 'Degree Audit', shortLabel: 'Audit', icon: 'Shield' }
   ]), [userMode]);

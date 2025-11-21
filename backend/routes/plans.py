@@ -149,10 +149,23 @@ def create_plan():
         if not current_program:
             return jsonify({'error': 'Current program not found'}), 404
     
+    # Validate advisor email (if provided)
+    advisor_email = data.get('advisor_email')
+    if advisor_email:
+        # Normalize email to lowercase
+        advisor_email = advisor_email.strip().lower()
+        # Check if advisor is whitelisted (optional - they can be added later)
+        from models.advisor_auth import AdvisorAuth
+        advisor = AdvisorAuth.query.filter_by(email=advisor_email).first()
+        if not advisor:
+            # Advisor not whitelisted yet - that's okay, just log it
+            print(f"[INFO] Plan created with non-whitelisted advisor email: {advisor_email}")
+    
     try:
         plan = Plan(
             student_name=data.get('student_name'),
             student_email=data.get('student_email'),
+            advisor_email=advisor_email,  # Link to advisor
             program_id=data.get('program_id'),  # Target program
             current_program_id=current_program_id,  # Current program (optional)
             plan_name=data.get('plan_name'),
@@ -209,7 +222,7 @@ def update_plan(plan_id):
     data = request.get_json()
     
     # Only allow updating certain fields
-    allowed_fields = ['plan_name', 'student_email', 'status', 'current_program_id']  # ADDED current_program_id
+    allowed_fields = ['plan_name', 'student_email', 'advisor_email', 'status', 'current_program_id']
     for field in allowed_fields:
         if field in data:
             if field == 'current_program_id' and data[field]:
@@ -217,6 +230,9 @@ def update_plan(plan_id):
                 program = Program.query.get(data[field])
                 if not program:
                     return jsonify({'error': 'Current program not found'}), 404
+            elif field == 'advisor_email' and data[field]:
+                # Normalize advisor email
+                data[field] = data[field].strip().lower()
             setattr(plan, field, data[field])
     
     try:

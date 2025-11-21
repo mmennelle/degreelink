@@ -385,3 +385,149 @@ def remove_from_whitelist(advisor_id):
         db.session.rollback()
         print(f"Error removing from whitelist: {e}")
         return jsonify({'error': 'Failed to remove email'}), 500
+
+
+# ADVISOR CENTER - View and manage student plans
+@bp.route('/advisor-center/plans', methods=['GET'])
+def get_advisor_plans():
+    """
+    Get all plans associated with the authenticated advisor.
+    Requires active advisor session.
+    
+    Query Parameters:
+    - search: Search by student name, student email, or plan name
+    - status: Filter by plan status (draft, active, completed, etc.)
+    - program_id: Filter by target program ID
+    - sort: Sort field (created_at, updated_at, student_name, plan_name)
+    - order: Sort order (asc, desc)
+    - limit: Number of results (default 50, max 200)
+    - offset: Offset for pagination
+    """
+    # Check if advisor is authenticated
+    session_token = request.headers.get('X-Advisor-Session-Token') or session.get('advisor_session_token')
+    
+    if not session_token:
+        return jsonify({'error': 'Advisor authentication required'}), 401
+    
+    # Verify session token
+    from models.advisor_auth import AdvisorAuth
+    from datetime import datetime
+    
+    advisor = AdvisorAuth.query.filter_by(session_token=session_token).first()
+    
+    if not advisor:
+        return jsonify({'error': 'Invalid session token'}), 401
+    
+    # Check if session is still valid
+    if not advisor.session_expires_at or advisor.session_expires_at < datetime.utcnow():
+        return jsonify({'error': 'Session expired. Please log in again.'}), 401
+    
+    # Get query parameters for filtering and search
+    search_term = request.args.get('search', '').strip()
+    status_filter = request.args.get('status', '').strip()
+    program_id = request.args.get('program_id', type=int)
+    sort_by = request.args.get('sort', 'updated_at')
+    sort_order = request.args.get('order', 'desc')
+    limit = min(int(request.args.get('limit', 50)), 200)  # Max 200 results
+    offset = int(request.args.get('offset', 0))
+    
+    # Start building the query
+    from models import Plan
+    query = Plan.query.filter_by(advisor_email=advisor.email)
+    
+    # Apply search filter
+    if search_term:
+        search_pattern = f"%{search_term}%"
+        query = query.filter(
+            db.or_(
+                Plan.student_name.ilike(search_pattern),
+                Plan.student_email.ilike(search_pattern),
+                Plan.plan_name.ilike(search_pattern),
+                Plan.plan_code.ilike(search_pattern)
+            )
+        )
+    
+    # Apply status filter
+    if status_filter:
+        query = query.filter(Plan.status == status_filter)
+    
+    # Apply program filter
+    if program_id:
+        query = query.filter(Plan.program_id == program_id)
+    
+    # Apply sorting
+    valid_sort_fields = ['created_at', 'updated_at', 'student_name', 'plan_name', 'status']
+    if sort_by not in valid_sort_fields:
+        sort_by = 'updated_at'
+    
+    sort_column = getattr(Plan, sort_by)
+    if sort_order.lower() == 'asc':
+        query = query.order_by(sort_column.asc())
+    else:
+        query = query.order_by(sort_column.desc())
+    
+    # Get total count before pagination
+    total_count = query.count()
+    
+    # Apply pagination
+    plans = query.limit(limit).offset(offset).all()
+    
+    # Return results
+    return jsonify({
+        'plans': [plan.to_dict() for plan in plans],
+        'total_count': total_count,
+        'limit': limit,
+        'offset': offset,
+        'advisor_email': advisor.email
+    })
+
+
+@bp.route('/advisor-center/stats', methods=['GET'])
+def get_advisor_stats():
+    """
+    Get statistics about plans for the authenticated advisor.
+    Requires active advisor session.
+    """
+    # Check if advisor is authenticated
+    session_token = request.headers.get('X-Advisor-Session-Token') or session.get('advisor_session_token')
+    
+    if not session_token:
+        return jsonify({'error': 'Advisor authentication required'}), 401
+    
+    # Verify session token
+    from models.advisor_auth import AdvisorAuth
+    from datetime import datetime
+    
+    advisor = AdvisorAuth.query.filter_by(session_token=session_token).first()
+    
+    if not advisor:
+        return jsonify({'error': 'Invalid session token'}), 401
+    
+    # Check if session is still valid
+    if not advisor.session_expires_at or advisor.session_expires_at < datetime.utcnow():
+        return jsonify({'error': 'Session expired. Please log in again.'}), 401
+    
+    # Get plan statistics
+    from models import Plan
+    from sqlalchemy import func
+    
+    total_plans = Plan.query.filter_by(advisor_email=advisor.email).count()
+    
+    # Plans by status
+    status_counts = db.session.query(
+        Plan.status, func.count(Plan.id)
+    ).filter_by(advisor_email=advisor.email).group_by(Plan.status).all()
+    
+    # Recent plans (last 30 days)
+    from datetime import timedelta
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    recent_plans = Plan.query.filter_by(advisor_email=advisor.email).filter(
+        Plan.created_at >= thirty_days_ago
+    ).count()
+    
+    return jsonify({
+        'total_plans': total_plans,
+        'status_breakdown': {status: count for status, count in status_counts},
+        'recent_plans_30_days': recent_plans,
+        'advisor_email': advisor.email
+    })

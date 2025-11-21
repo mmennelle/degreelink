@@ -19,6 +19,7 @@ import UploadPage from './pages/UploadPage';
 import AuditPage from './pages/AuditPage';
 import ProgramManagement from './pages/ProgramManagement';
 import AppManagementPage from './pages/AppManagementPage';
+import AdvisorCenter from './components/AdvisorCenter';
 
 export default function App() {
   const c = useAppController();
@@ -82,7 +83,7 @@ export default function App() {
       
       // Redirect to search if on an advisor-only route
       const currentPath = window.location.pathname;
-      const advisorOnlyPaths = ['/upload', '/management', '/app-management', '/audit'];
+      const advisorOnlyPaths = ['/upload', '/management', '/app-management', '/advisor-center', '/audit'];
       if (advisorOnlyPaths.some(path => currentPath.startsWith(path))) {
         navigate('/search');
       }
@@ -190,6 +191,14 @@ export default function App() {
                 <Route path="/upload" element={<UploadPage />} />
                 <Route path="/management" element={<ProgramManagement />} />
                 <Route path="/app-management" element={<AppManagementPage />} />
+                <Route path="/advisor-center" element={
+                  <AdvisorCenter 
+                    onOpenPlan={() => {
+                      c.setActiveTab('plans');
+                      c.loadPlansAndPrograms?.();
+                    }}
+                  />
+                } />
                 <Route path="/audit" element={
                   <AuditPage
                     selectedPlanId={c.selectedPlanId}

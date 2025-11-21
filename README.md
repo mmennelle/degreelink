@@ -14,6 +14,7 @@
 
 ### For Developers
 - **[Advisor Authentication](docs/ADVISOR_AUTH_IMPLEMENTATION.md)** - Email-based advisor auth system
+- **[Advisor-Student Linking](docs/ADVISOR_STUDENT_LINKING.md)** - Advisor center and plan linking
 - **[Production Backdoor](docs/PRODUCTION_BACKDOOR.md)** - Temporary auth for pre-SMTP deployment
 - **[Prerequisite System](docs/PREREQUISITE_IMPLEMENTATION.md)** - Course prerequisite validation
 - **[Constraint System](docs/CONSTRAINT_IMPLEMENTATION.md)** - Requirement constraint validation
@@ -116,7 +117,7 @@ export AUTO_ASSIGN_REQUIREMENT_GROUPS=true
 ```
 
 Effects you should see when enabled:
-- Grouped requirements honor the exact course options you list in your CSV uploads (docs/equic-csvs/*). Courses not listed won’t be counted toward grouped requirements.
+- Grouped requirements honor the exact course options you list in your CSV uploads (docs/equic-csvs/*). Courses not listed won't be counted toward grouped requirements.
 - Responses include group_results detailing which groups are satisfied and which courses were used.
 - Zero-credit groups that require a specific number of courses will be considered met when the count is satisfied.
 
@@ -126,6 +127,75 @@ Authoring tips for grouped requirements:
 
 To revert to legacy behavior:
 - Set both flags to false (or unset them) and restart the backend.
+
+
+## Integrating Advisor Center
+
+The Advisor Center component allows advisors to view and manage all student plans linked to them. Integration requires adding a route in your frontend router.
+
+### Add Route to Router
+
+In your frontend router configuration (e.g., App.jsx or main router file):
+
+```javascript
+import AdvisorCenter from './components/AdvisorCenter';
+
+// Add to your Routes:
+<Route path="/advisor-center" element={<AdvisorCenter />} />
+```
+
+### Add Navigation Link
+
+Add a link in your advisor portal navigation:
+
+```javascript
+<Link to="/advisor-center">Student Plans</Link>
+```
+
+### Test the Integration
+
+1. Create a plan with an advisor email (optional field in CreatePlanModal)
+2. Log in as that advisor using the advisor authentication system
+3. Navigate to /advisor-center
+4. Verify the plan appears in the advisor's dashboard
+5. Test search, filter, and sort functionality
+
+### API Usage
+
+Students link to advisors by providing advisor_email when creating or updating plans:
+
+```javascript
+// Create plan with advisor
+api.createPlan({
+  student_name: "John Doe",
+  student_email: "john@example.com",
+  advisor_email: "advisor@university.edu",  // Optional
+  plan_name: "Spring 2025 Transfer",
+  program_id: 1
+});
+
+// Update plan advisor
+api.updatePlan(planId, {
+  advisor_email: "newadvisor@university.edu"
+});
+```
+
+Advisors access their plans via:
+
+```javascript
+// Get all plans for logged-in advisor
+api.getAdvisorPlans({
+  search: "john",              // Optional: search term
+  status: "active",            // Optional: filter by status
+  sort: "updated_at",          // Optional: sort field
+  order: "desc",               // Optional: sort order
+  limit: 20,                   // Optional: results per page
+  offset: 0                    // Optional: pagination offset
+});
+
+// Get advisor statistics
+api.getAdvisorStats();
+```
 
 
 ## CSV Data Formats
