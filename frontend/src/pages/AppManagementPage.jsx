@@ -292,7 +292,7 @@ export default function AppManagementPage() {
           <li>• Only whitelisted emails can request access codes for the advisor portal</li>
           <li>• Advisors receive a 6-digit code via email that expires in 15 minutes</li>
           <li>• After 5 failed verification attempts, the account is locked for 30 minutes</li>
-          <li>• Sessions last 8 hours before advisors need to re-authenticate</li>
+          <li>• Sessions last 1 hour before advisors need to re-authenticate</li>
         </ul>
       </div>
     </div>
