@@ -17,7 +17,7 @@ export default function useAppController() {
   const [activeTab, setActiveTab] = useState(() => {
     // Get initial tab from URL path or localStorage
     const path = window.location.pathname.slice(1) || 'search';
-    const validTabs = ['search', 'plans', 'lookup', 'upload', 'management', 'audit'];
+    const validTabs = ['search', 'plans', 'lookup', 'upload', 'management', 'app-management', 'audit'];
     if (validTabs.includes(path)) return path;
     
     const s = localStorage.getItem('currentSession');
@@ -186,8 +186,9 @@ export default function useAppController() {
     { id: 'plans',  label: 'Academic Plans', shortLabel: 'Plans', icon: 'FileText' },
     { id: 'lookup', label: 'Find Plan', shortLabel: 'Find', icon: 'Key' },
     // Include upload and management tabs only for advisors and always include audit tab
-    ...(userMode === 'advisor' ? [{ id: 'upload', label: 'CSV Upload', shortLabel: 'Upload', icon: 'Users' }] : []),
+    ...(userMode === 'advisor' ? [{ id: 'upload', label: 'CSV Upload', shortLabel: 'Upload', icon: 'FileText' }] : []),
     ...(userMode === 'advisor' ? [{ id: 'management', label: 'Program Management', shortLabel: 'Manage', icon: 'Settings' }] : []),
+    ...(userMode === 'advisor' ? [{ id: 'app-management', label: 'App Management', shortLabel: 'App Admin', icon: 'Settings' }] : []),
     ...(userMode === 'advisor' ? [{ id: 'audit', label: 'Degree Audit', shortLabel: 'Audit', icon: 'Shield' }] : [])
     //{ id: 'audit', label: 'Degree Audit', shortLabel: 'Audit', icon: 'Shield' }
   ]), [userMode]);

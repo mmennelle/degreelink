@@ -6,9 +6,10 @@ If the token is unset, decorator becomes a no-op (fails open) so existing
 flows are not broken during transition.
 """
 from functools import wraps
-from flask import request, current_app, jsonify
+from flask import request, current_app, jsonify, session
 import os
 from hmac import compare_digest
+
 
 def require_admin(f):
     @wraps(f)
@@ -31,5 +32,49 @@ def require_admin(f):
                 prov_preview = (provided[:4] + '***') if provided and len(provided) >= 4 else '***'
                 print(f"[auth] Admin token check failed. Provided(len={prov_len}, head={prov_preview}) vs Expected(len={exp_len}, head={exp_preview}). Header present={bool(provided)}")
             return jsonify({'error': {'message': 'Admin token required', 'code': 'unauthorized'}}), 401
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def require_advisor(f):
+    """
+    Decorator to require valid advisor authentication.
+    Checks for X-Advisor-Token header or session token.
+    """
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        # Import here to avoid circular imports
+        from models.advisor_auth import AdvisorAuth
+        
+        # Get token from header or session
+        token = request.headers.get('X-Advisor-Token') or session.get('advisor_token')
+        
+        if not token:
+            return jsonify({
+                'error': {
+                    'message': 'Advisor authentication required',
+                    'code': 'unauthorized'
+                }
+            }), 401
+        
+        # Find advisor by token
+        advisor = AdvisorAuth.find_by_session_token(token)
+        
+        if not advisor or not advisor.verify_session(token):
+            # Clear invalid session
+            session.pop('advisor_id', None)
+            session.pop('advisor_email', None)
+            session.pop('advisor_token', None)
+            
+            return jsonify({
+                'error': {
+                    'message': 'Invalid or expired advisor session',
+                    'code': 'session_expired'
+                }
+            }), 401
+        
+        # Store advisor info in request context for use in the route
+        request.advisor = advisor
+        
         return f(*args, **kwargs)
     return wrapper

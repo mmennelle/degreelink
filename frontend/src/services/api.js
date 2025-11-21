@@ -3,12 +3,20 @@ class ApiService {
     // Allow override via Vite env (e.g. VITE_API_BASE="http://127.0.0.1:5000/api")
     this.baseURL = import.meta?.env?.VITE_API_BASE || '/api';
     this.adminToken = import.meta?.env?.VITE_ADMIN_API_TOKEN || null;
+    this.advisorToken = null; // Set after advisor login
+    
     // Fallbacks: localStorage keys if env not injected
     if (!this.adminToken && typeof window !== 'undefined') {
       this.adminToken = window.localStorage.getItem('VITE_ADMIN_API_TOKEN')
         || window.localStorage.getItem('ADMIN_API_TOKEN')
         || window.localStorage.getItem('adminToken');
     }
+    
+    // Load advisor token from localStorage
+    if (typeof window !== 'undefined') {
+      this.advisorToken = window.localStorage.getItem('advisorToken');
+    }
+    
     if (!this.adminToken && import.meta?.env?.MODE !== 'production') {
       console.warn('[ApiService] Admin token not found at init (may be set later).');
     }
@@ -16,6 +24,17 @@ class ApiService {
     // Expose for debugging in development
     if (import.meta?.env?.MODE !== 'production' && typeof window !== 'undefined') {
       window.__API_SERVICE__ = this;
+    }
+  }
+
+  setAdvisorToken(token) {
+    this.advisorToken = token;
+    if (typeof window !== 'undefined') {
+      if (token) {
+        window.localStorage.setItem('advisorToken', token);
+      } else {
+        window.localStorage.removeItem('advisorToken');
+      }
     }
   }
 
@@ -47,6 +66,12 @@ class ApiService {
     if (this.adminToken && !headers['X-Admin-Token']) {
       headers['X-Admin-Token'] = this.adminToken.trim();
     }
+    
+    // Inject advisor token if available
+    if (this.advisorToken && !headers['X-Advisor-Token']) {
+      headers['X-Advisor-Token'] = this.advisorToken.trim();
+    }
+    
     // Dev aid: warn if making a known protected mutation without token
     const method = (options.method || 'GET').toUpperCase();
     const protectedPatterns = [
@@ -447,6 +472,70 @@ class ApiService {
     return this.request('/upload/constraints', {
       method: 'POST',
       body: formData
+    });
+  }
+
+  // Advisor Authentication Methods
+  async requestAdvisorCode(email) {
+    return this.request('/advisor-auth/request-code', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    });
+  }
+
+  async verifyAdvisorCode(email, code) {
+    const response = await this.request('/advisor-auth/verify-code', {
+      method: 'POST',
+      body: JSON.stringify({ email, code })
+    });
+    
+    // Store the token
+    if (response.session_token) {
+      this.setAdvisorToken(response.session_token);
+    }
+    
+    return response;
+  }
+
+  async verifyAdvisorSession() {
+    return this.request('/advisor-auth/verify-session');
+  }
+
+  async logoutAdvisor() {
+    const response = await this.request('/advisor-auth/logout', {
+      method: 'POST'
+    });
+    
+    // Clear the token
+    this.setAdvisorToken(null);
+    
+    return response;
+  }
+
+  // Advisor Whitelist Management (Admin only)
+  async getAdvisorWhitelist() {
+    return this.request('/advisor-auth/whitelist');
+  }
+
+  async addAdvisorToWhitelist(email) {
+    return this.request('/advisor-auth/whitelist', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    });
+  }
+
+  async bulkAddAdvisorsToWhitelist(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request('/advisor-auth/whitelist/bulk', {
+      method: 'POST',
+      body: formData
+    });
+  }
+
+  async removeAdvisorFromWhitelist(advisorId) {
+    return this.request(`/advisor-auth/whitelist/${advisorId}`, {
+      method: 'DELETE'
     });
   }
 }

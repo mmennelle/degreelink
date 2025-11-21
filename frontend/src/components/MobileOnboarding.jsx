@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { ChevronRight, ArrowLeft, GraduationCap, Search, FileText, Eye, Users, Target, Key } from 'lucide-react';
 
-const MobileOnboarding = ({ onComplete }) => {
+const MobileOnboarding = ({ onComplete, onAdvisorSelected }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState({
     userType: null,
@@ -97,6 +97,12 @@ const MobileOnboarding = ({ onComplete }) => {
       handleComplete({ ...newAnswers, goal: 'lookup' });
       return;
     }
+    
+    // If user selected "advisor", trigger advisor authentication immediately
+    if (questionId === 'userType' && value === 'advisor') {
+      handleComplete({ ...newAnswers, goal: 'search' });
+      return;
+    }
 
     // If this is the last question or user is just browsing, complete onboarding
     if (currentStep === questions.length - 1 || (questionId === 'userType' && value === 'browsing')) {
@@ -109,18 +115,26 @@ const MobileOnboarding = ({ onComplete }) => {
 
   const handleComplete = (finalAnswers) => {
     if (completedRef.current) return;
+    
+    // If advisor is selected, trigger advisor authentication
+    if (finalAnswers.userType === 'advisor') {
+      // Don't set completed flag yet - wait for auth
+      if (onAdvisorSelected) {
+        onAdvisorSelected(finalAnswers);
+      }
+      return; // Don't complete onboarding yet, wait for auth
+    }
+    
+    // Now mark as completed for non-advisor flows
     completedRef.current = true;
+    
     // Determine the destination and user mode based on answers
     let destination = 'search'; // default
     let userMode = 'student'; // default
     let showCreatePlan = false;
 
     // Set user mode based on user type
-    if (finalAnswers.userType === 'advisor') {
-      userMode = 'advisor';
-    } else {
-      userMode = 'student'; // parent, student, and browsing all use student mode
-    }
+    userMode = 'student'; // parent, student, and browsing all use student mode
 
     // Determine destination based on user type and goal
     if (finalAnswers.userType === 'browsing') {

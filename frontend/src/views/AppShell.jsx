@@ -1,11 +1,11 @@
 // src/views/AppShell.jsx
 import React from 'react';
-import { Moon, Sun, Users, Key, FileText, Search, Shield, Home, GraduationCap } from 'lucide-react';
+import { Moon, Sun, Key, FileText, Search, Shield, Home, GraduationCap, Settings } from 'lucide-react';
 import { useDarkMode } from '../hooks/useDarkMode';
 
 export default function AppShell({
   activeTab, setActiveTab, tabs, userMode,
-  children, onFindPlan, onToggleUserMode, onGoHome
+  children, onFindPlan, onOpenAdvisorSettings, onGoHome
 }) {
   const { isDarkMode, toggleDarkMode } = useDarkMode();
 
@@ -42,19 +42,14 @@ export default function AppShell({
                 {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
 
-              {/* Mode toggle */}
-              <div className="flex items-center text-sm">
-                <Users className="mr-1" size={16} />
-                <span className="hidden sm:inline">
-                  {userMode === 'advisor' ? 'Advisor Portal' : 'Student Portal'}
-                </span>
-                <span className="sm:hidden">{userMode === 'advisor' ? 'Advisor' : 'Student'}</span>
-              </div>
+              {/* Advisor Settings / Portal Switcher */}
               <button
-                onClick={onToggleUserMode}
-                className="px-2 py-1 border rounded-lg text-xs"
+                onClick={onOpenAdvisorSettings}
+                className="p-2.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                title={userMode === 'advisor' ? 'Advisor Settings' : 'Switch to Advisor Portal'}
+                aria-label={userMode === 'advisor' ? 'Advisor Settings' : 'Switch to Advisor Portal'}
               >
-                Switch
+                <Settings className="w-5 h-5" />
               </button>
             </div>
           </div>
@@ -65,7 +60,7 @@ export default function AppShell({
               {tabs.map(t => {
                 // Map the string name from tab.icon to an imported Lucide icon.
                 // Shield is included here to support the audit tab.
-                const Icon = {Search, FileText, Key, Users, Shield}[t.icon] || Search;
+                const Icon = {Search, FileText, Key, Shield, Settings}[t.icon] || Search;
                 const active = t.id === activeTab;
                 return (
                   <button
