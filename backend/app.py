@@ -37,6 +37,7 @@ def create_app(config_name='default'):
     app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production'  # HTTPS only in production
     app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent XSS
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
+    app.config['SESSION_COOKIE_PATH'] = '/'  # Cookie available for entire domain
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=1)  # 1 hour session timeout
     
     # CORS with credentials support for sessions - UPDATED
@@ -47,7 +48,7 @@ def create_app(config_name='default'):
         'http://127.0.0.1:3000',
         'http://127.0.0.1:5173',
         # include production site by default
-        'https://course-equiv.cs.uno.edu'
+        'https://dlink.cs.uno.edu'
     ]
     override = os.environ.get('CORS_ALLOWED_ORIGINS')
     origins = [o.strip() for o in override.split(',')] if override else default_origins

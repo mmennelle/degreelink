@@ -81,7 +81,8 @@ export default function App() {
       
       // Redirect to search if on an advisor-only route
       const currentPath = window.location.pathname;
-      const advisorOnlyPaths = ['/management', '/advisor-center', '/app-settings'];
+      const advisorOnlyPaths = ['/management', '/advisor-center'];
+      const adminOnlyPaths = ['/app-settings'];
       if (advisorOnlyPaths.some(path => currentPath.startsWith(path))) {
         navigate('/search');
       }
@@ -200,8 +201,13 @@ export default function App() {
                     plans={c.plans}
                   />
                 } />
-                
-                {/* App Settings (formerly App Management) */}
+              </>
+            )}
+            
+            {/* Admin-only routes */}
+            {c.userMode === 'admin' && (
+              <>
+                {/* App Settings - Advisor whitelist management (Admin only) */}
                 <Route path="/app-settings" element={<AppManagementPage />} />
               </>
             )}

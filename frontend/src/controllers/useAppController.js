@@ -188,7 +188,7 @@ export default function useAppController() {
     // Advisor-only tabs
     ...(userMode === 'advisor' ? [{ id: 'advisor-center', label: 'Advisor Center', shortLabel: 'Advisor', icon: 'Shield' }] : []),
     ...(userMode === 'advisor' ? [{ id: 'management', label: 'Program Settings', shortLabel: 'Programs', icon: 'Settings' }] : []),
-    ...(userMode === 'advisor' ? [{ id: 'app-settings', label: 'App Settings', shortLabel: 'Settings', icon: 'Settings' }] : [])
+    ...(userMode === 'admin' ? [{ id: 'app-settings', label: 'App Settings', shortLabel: 'Settings', icon: 'Settings' }] : [])
   ]), [userMode]);
 
   // Make sure your return object in useAppController includes:

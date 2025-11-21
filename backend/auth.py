@@ -14,6 +14,17 @@ from hmac import compare_digest
 def require_admin(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
+        # Check for advisor authentication first (advisors have admin privileges)
+        advisor_token = request.headers.get('X-Advisor-Token') or session.get('advisor_token')
+        if advisor_token:
+            from models.advisor_auth import AdvisorAuth
+            advisor = AdvisorAuth.find_by_session_token(advisor_token)
+            if advisor and advisor.verify_session(advisor_token):
+                # Valid advisor session - grant access
+                request.advisor = advisor
+                return f(*args, **kwargs)
+        
+        # Fall back to admin token check
         token = os.environ.get('ADMIN_API_TOKEN')
         fail_open = os.environ.get('ADMIN_FAIL_OPEN', 'false').lower() in ('1','true','yes','on')
         if not token:
@@ -31,7 +42,7 @@ def require_admin(f):
                 exp_preview = exp[:4] + '***' if exp_len >= 4 else '***'
                 prov_preview = (provided[:4] + '***') if provided and len(provided) >= 4 else '***'
                 print(f"[auth] Admin token check failed. Provided(len={prov_len}, head={prov_preview}) vs Expected(len={exp_len}, head={exp_preview}). Header present={bool(provided)}")
-            return jsonify({'error': {'message': 'Admin token required', 'code': 'unauthorized'}}), 401
+            return jsonify({'error': {'message': 'Admin or Advisor authentication required', 'code': 'unauthorized'}}), 401
         return f(*args, **kwargs)
     return wrapper
 

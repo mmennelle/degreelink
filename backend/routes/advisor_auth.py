@@ -221,6 +221,11 @@ def verify_session():
     """Check if current session is valid."""
     token = request.headers.get('X-Advisor-Token') or session.get('advisor_token')
     
+    print(f"[DEBUG] verify-session called")
+    print(f"[DEBUG] X-Advisor-Token header: {request.headers.get('X-Advisor-Token')}")
+    print(f"[DEBUG] Session advisor_token: {session.get('advisor_token')}")
+    print(f"[DEBUG] Final token: {token}")
+    
     if not token:
         return jsonify({'valid': False, 'error': 'No session token'}), 401
     
