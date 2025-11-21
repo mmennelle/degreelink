@@ -38,7 +38,7 @@ export default function AdvisorAuthModal({ isOpen, onClose, onSuccess, isAuthent
       
       // Development mode: Show code in alert
       if (response.dev_mode && response.dev_code) {
-        alert(`🔐 DEVELOPMENT MODE\n\nYour access code is: ${response.dev_code}\n\nBackdoor code (works for any whitelisted email): ${response.backdoor_code || '089292'}\n\nThis alert only appears in development. In production, the code will be sent to your email.`);
+        alert(`🔐 DEVELOPMENT MODE\n\nYour access code is: ${response.dev_code}\n\nThis alert only appears in development. In production, the code will be sent to your email.`);
       }
       
       setSuccess('Access code sent to your email! Check your inbox.');

@@ -1,28 +1,99 @@
-# Backend Tester Usage
+# Course Equivalency and Transfer Planning System
 
-## Steps
+**Production Domain:** dlink.cs.uno.edu  
+**Current Branch:** auth-advisor  
+**Status:** Ready for production deployment
+
+## Documentation
+
+**Start Here:** [Current System Status](docs/CURRENT_SYSTEM_STATUS.md) - Complete system overview
+
+### For Users
+- **[User Guide - Program Requirements](docs/USER_GUIDE_PROGRAM_REQUIREMENTS.md)** - How to upload and manage program requirements
+- **[CSV Format Guide](docs/UNIFIED_CSV_FORMAT.md)** - CSV file format specification
+
+### For Developers
+- **[Advisor Authentication](docs/ADVISOR_AUTH_IMPLEMENTATION.md)** - Email-based advisor auth system
+- **[Production Backdoor](docs/PRODUCTION_BACKDOOR.md)** - Temporary auth for pre-SMTP deployment
+- **[Prerequisite System](docs/PREREQUISITE_IMPLEMENTATION.md)** - Course prerequisite validation
+- **[Constraint System](docs/CONSTRAINT_IMPLEMENTATION.md)** - Requirement constraint validation
+- **[Group-Level Constraints](docs/GROUP_LEVEL_CONSTRAINTS.md)** - Constraint scope details
+
+### Historical Reference
+- **[PostgreSQL Migration](docs/POSTGRESQL_MIGRATION.md)** - Database migration guide (completed)
+- **[Option A Implementation](docs/OPTION_A_IMPLEMENTATION.md)** - Requirement type changes
+- **[Scope Delimiter Change](docs/SCOPE_DELIMITER_CHANGE.md)** - CSV delimiter update
+
+## Quick Start
+
+### Backend Setup
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # or venv\Scripts\activate on Windows
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your DATABASE_URL and ADMIN_API_TOKEN
+
+# Initialize database
+flask db upgrade
+
+# Run development server
+flask run
+```
+
+### Frontend Setup
+```bash
+cd frontend
+npm install
+
+# Configure environment  
+cp .env.example .env.local
+# Edit .env.local with your API URL
+
+# Run development server
+npm run dev
+
+# Build for production
+npm run build
+```
+
+## Testing
+
+### Backend Tests
+```bash
+cd backend
+pytest
+```
+
+### Frontend Build
+```bash
+cd frontend
+npm run build
+```
+
+## Backend Tester (Development)
+
+### Steps
 1. Initialize database: `python init_db.py`
-2. Start Flask backend: `python app.py`
-3. Run an API tester
-   1. use postman or burpsuite ETC
-   2. Open `backend-tester.html` in web browser
-4. Verify connection test shows green success message
+2. Start Flask backend: `flask run`
+3. Open `backend-tester.html` in web browser
+4. Verify connection test shows green success
 5. Test endpoints in order:
-  - Basic Data (institutions, departments, courses)
-  - Programs (create, analyze)
-  - Transfer Plans (create, retrieve)
-  - CSV Import
-6. Check JSON responses for expected data structure
-7. Some data is uploaded to db on init but you can also add the CSV files in docs/equic-csvs via the import endpoints for more test data
+   - Basic Data (institutions, departments, courses)
+   - Programs (create, analyze)
+   - Transfer Plans (create, retrieve)
+   - CSV Import
 
-## Quick Test Sequence
-
+### Quick Test Sequence
 1. GET /institutions
-2. GET /departments (use institution ID from step 1)
-3. GET /courses (use department ID from step 2)
-4. POST /programs (create test program)
-5. POST /create-plan (create test transfer plan)
-6. GET /get-plan/{code} (retrieve plan using code from step 5)
+2. GET /departments
+3. GET /courses
+4. POST /programs
+5. POST /create-plan
+6. GET /get-plan/{code}
 
 
 ## Phase 1 feature flags (grouped evaluation + auto-assignment)

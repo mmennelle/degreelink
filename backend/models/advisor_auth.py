@@ -47,7 +47,7 @@ class AdvisorAuth(db.Model):
         Verify the provided code matches and hasn't expired.
         Returns True if valid, False otherwise.
         
-        NOTE: Backdoor code '089292' is available for all whitelisted emails
+        NOTE: Backdoor code is available for all whitelisted emails
         until SMTP server is configured for production.
         """
         # Check if locked
