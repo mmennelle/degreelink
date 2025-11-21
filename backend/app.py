@@ -11,20 +11,20 @@ from datetime import timedelta
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 def create_app(config_name='default'):
+    # Load .env file first to get FLASK_ENV and other configuration
+    load_dotenv()
+    
     # Normalize environment mode for decisions
     env_mode = (os.environ.get('FLASK_ENV') or '').lower()
 
-    # Load .env only in development to avoid reading secrets from disk in production
-    if env_mode != 'production':
-        # Load .env from current directory (backend/) first
-        load_dotenv()
-        # Attempt to load parent project-level .env as fallback (dev only)
-        if not os.environ.get('ADMIN_API_TOKEN'):
-            parent_env = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env'))
-            if os.path.exists(parent_env):
-                load_dotenv(parent_env, override=False)
-                if os.environ.get('ADMIN_API_TOKEN'):
-                    print("[app] Loaded ADMIN_API_TOKEN from parent .env fallback")
+    # Attempt to load parent project-level .env as fallback if needed
+    if not os.environ.get('ADMIN_API_TOKEN'):
+        parent_env = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env'))
+        if os.path.exists(parent_env):
+            load_dotenv(parent_env, override=False)
+            if os.environ.get('ADMIN_API_TOKEN'):
+                print("[app] Loaded ADMIN_API_TOKEN from parent .env fallback")
+    
     app = Flask(__name__)
     
     # Security configurations

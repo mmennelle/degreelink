@@ -17,17 +17,18 @@ def send_access_code_email(email, code):
     In development: Returns code in response for display in alert
     In production: Configure SMTP/email service below
     
-    NOTE: Until SMTP is configured for dlink.cs.uno.edu, use backdoor code: 089292
+    NOTE: Until SMTP is configured, backdoor code is available (shared separately)
     """
     import os
     
-    # Development mode - return code for frontend alert display
-    if os.environ.get('FLASK_ENV') != 'production':
-        print(f"[EMAIL DEV MODE] Code for {email}: {code}")
-        print(f"[BACKDOOR] Persistent code '089292' also works for any whitelisted email")
-        return True
+    # Log the code (visible in server logs)
+    print(f"[EMAIL] Access code generated for {email}")
     
-    # PRODUCTION: Uncomment and configure your email service
+    # Until SMTP is configured, always return True to allow backdoor code
+    # The backdoor code is checked in the AdvisorAuth.verify_code() method
+    return True
+    
+    # PRODUCTION SMTP: Uncomment and configure your email service when ready
     # 
     # Option 1: SMTP Configuration
     # import smtplib
@@ -89,10 +90,6 @@ def send_access_code_email(email, code):
     #     }
     # )
     # return True
-    
-    # If production email not configured, fail
-    print(f"[EMAIL ERROR] Production email not configured")
-    return False
 
 
 @bp.route('/request-code', methods=['POST'])
@@ -136,12 +133,12 @@ def request_access_code():
                 'email': email
             }
             
-            # In development mode, include code in response for alert display
+            # Include code info for development/pre-SMTP deployment
             import os
             if os.environ.get('FLASK_ENV') != 'production':
-                response_data['dev_code'] = code  # Frontend will display this in an alert
+                # Development: show actual code in response
+                response_data['dev_code'] = code
                 response_data['dev_mode'] = True
-                response_data['backdoor_code'] = '089292'  # Persistent backdoor until SMTP configured
             
             return jsonify(response_data)
         else:
