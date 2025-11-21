@@ -286,7 +286,11 @@ def bulk_update_requirements(program_id):
     """
     Bulk update requirements for a specific program version.
     Expects JSON with: semester, year, requirements array
+    Supports updating constraints along with groups and options.
     """
+    from models.constraint import RequirementConstraint
+    import json
+    
     data = request.get_json() or {}
     semester = data.get('semester')
     year = data.get('year')
@@ -327,6 +331,56 @@ def bulk_update_requirements(program_id):
                 requirement.credits_required = int(req_data['credits_required'])
             if 'description' in req_data:
                 requirement.description = req_data['description']
+            
+            # Update constraints
+            if 'constraints' in req_data:
+                # Get list of constraint IDs from incoming data
+                incoming_constraint_ids = set()
+                for constraint_data in req_data['constraints']:
+                    constraint_id = constraint_data.get('id')
+                    if constraint_id and not str(constraint_id).startswith('new-constraint-'):
+                        incoming_constraint_ids.add(int(constraint_id))
+                
+                # Delete constraints that are no longer in the incoming data
+                existing_constraints = RequirementConstraint.query.filter_by(requirement_id=requirement.id).all()
+                for existing_constraint in existing_constraints:
+                    if existing_constraint.id not in incoming_constraint_ids:
+                        db.session.delete(existing_constraint)
+                
+                # Add or update constraints from incoming data
+                for constraint_data in req_data['constraints']:
+                    constraint_id = constraint_data.get('id')
+                    
+                    # Handle new constraints
+                    if constraint_id and str(constraint_id).startswith('new-constraint-'):
+                        new_constraint = RequirementConstraint(
+                            requirement_id=requirement.id,
+                            constraint_type=constraint_data.get('constraint_type', 'credits'),
+                            params=json.dumps(constraint_data.get('params', {})),
+                            scope_filter=json.dumps(constraint_data.get('scope_filter', {})) if constraint_data.get('scope_filter') else None,
+                            description=constraint_data.get('description'),
+                            priority=int(constraint_data.get('priority', 0))
+                        )
+                        db.session.add(new_constraint)
+                    
+                    # Handle existing constraints
+                    elif constraint_id:
+                        constraint = RequirementConstraint.query.filter_by(
+                            id=constraint_id,
+                            requirement_id=requirement.id
+                        ).first()
+                        
+                        if constraint:
+                            if 'constraint_type' in constraint_data:
+                                constraint.constraint_type = constraint_data['constraint_type']
+                            if 'params' in constraint_data:
+                                constraint.params = json.dumps(constraint_data['params'])
+                            if 'scope_filter' in constraint_data:
+                                constraint.scope_filter = json.dumps(constraint_data['scope_filter']) if constraint_data['scope_filter'] else None
+                            if 'description' in constraint_data:
+                                constraint.description = constraint_data['description']
+                            if 'priority' in constraint_data:
+                                constraint.priority = int(constraint_data['priority'])
             
             # Update groups and options for all requirement types (simple, grouped, conditional)
             if 'groups' in req_data and requirement.requirement_type in ['grouped', 'conditional', 'simple']:
