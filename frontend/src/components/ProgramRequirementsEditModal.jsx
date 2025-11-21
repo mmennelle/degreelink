@@ -273,6 +273,107 @@ const ProgramRequirementsEditModal = ({ program, semester, year, onClose, onSave
     }));
   };
 
+  // Constraint management functions
+  const addConstraintToGroup = (reqId, groupName) => {
+    // Prompt user for constraint type
+    const constraintType = prompt(
+      'Select constraint type:\n' +
+      '1. credits - Min/max credit requirements\n' +
+      '2. courses - Min/max course count\n' +
+      '3. level - Level-based requirements (e.g., 3000+ level)\n' +
+      '4. min_tag_courses - Minimum courses with a specific tag\n' +
+      '5. max_tag_credits - Maximum credits with a specific tag\n\n' +
+      'Enter number (1-5):',
+      '1'
+    );
+    
+    let type, params;
+    switch(constraintType) {
+      case '2':
+        type = 'courses';
+        params = { courses_min: 1, courses_max: 10 };
+        break;
+      case '3':
+        type = 'min_courses_at_level';
+        params = { level: 3000, courses: 2 };
+        break;
+      case '4':
+        type = 'min_tag_courses';
+        params = { tag: 'has_lab', courses: 2 };
+        break;
+      case '5':
+        type = 'max_tag_credits';
+        params = { tag: 'research', credits: 7 };
+        break;
+      default:
+        type = 'credits';
+        params = { credits_min: 10, credits_max: 15 };
+    }
+    
+    setRequirements(prev => prev.map(req => {
+      if (req.id === reqId) {
+        const newConstraint = {
+          id: `new-constraint-${Date.now()}`,
+          requirement_id: reqId,
+          constraint_type: type,
+          params: params,
+          scope_filter: { group_name: groupName },
+          description: '',
+          priority: 0
+        };
+        const constraints = req.constraints || [];
+        return { ...req, constraints: [...constraints, newConstraint] };
+      }
+      return req;
+    }));
+  };
+
+  const updateConstraintParam = (reqId, constraintId, paramKey, paramValue) => {
+    setRequirements(prev => prev.map(req => {
+      if (req.id === reqId && req.constraints) {
+        const updatedConstraints = req.constraints.map(c => {
+          if (c.id === constraintId) {
+            return {
+              ...c,
+              params: { ...c.params, [paramKey]: paramValue }
+            };
+          }
+          return c;
+        });
+        return { ...req, constraints: updatedConstraints };
+      }
+      return req;
+    }));
+  };
+
+  const updateConstraintScope = (reqId, constraintId, scopeKey, scopeValue) => {
+    setRequirements(prev => prev.map(req => {
+      if (req.id === reqId && req.constraints) {
+        const updatedConstraints = req.constraints.map(c => {
+          if (c.id === constraintId) {
+            return {
+              ...c,
+              scope_filter: { ...c.scope_filter, [scopeKey]: scopeValue }
+            };
+          }
+          return c;
+        });
+        return { ...req, constraints: updatedConstraints };
+      }
+      return req;
+    }));
+  };
+
+  const deleteConstraint = (reqId, constraintId) => {
+    setRequirements(prev => prev.map(req => {
+      if (req.id === reqId && req.constraints) {
+        const updatedConstraints = req.constraints.filter(c => c.id !== constraintId);
+        return { ...req, constraints: updatedConstraints };
+      }
+      return req;
+    }));
+  };
+
   const handleSave = async () => {
     try {
       setSaving(true);
@@ -603,6 +704,12 @@ const ProgramRequirementsEditModal = ({ program, semester, year, onClose, onSave
                               const searchResults = courseSearchResults[searchKey] || [];
                               const showSearch = showCourseSearch[searchKey];
                               
+                              // Get constraints that apply to this specific group
+                              const groupConstraints = req.constraints?.filter(c => {
+                                const scope = c.scope_filter || {};
+                                return scope.group_name === group.group_name;
+                              }) || [];
+                              
                               return (
                                 <div key={groupIdx} className="bg-gray-50 dark:bg-gray-700 rounded p-3">
                                   <div className="flex justify-between items-center mb-2">
@@ -628,6 +735,220 @@ const ProgramRequirementsEditModal = ({ program, semester, year, onClose, onSave
                                       </button>
                                     </div>
                                   </div>
+                                  
+                                  {/* Group Constraints Section */}
+                                  {groupConstraints.length > 0 && (
+                                    <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
+                                      <div className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-2 flex items-center gap-1">
+                                        <AlertCircle size={12} />
+                                        Group Constraints
+                                      </div>
+                                      <div className="space-y-2">
+                                        {groupConstraints.map((constraint, cIdx) => (
+                                          <div key={constraint.id} className="text-xs text-blue-800 dark:text-blue-200 bg-white dark:bg-gray-800 rounded p-2">
+                                            <div className="flex justify-between items-start gap-2 mb-2">
+                                              <div className="flex-1">
+                                                <label className="text-gray-600 dark:text-gray-400 block mb-1">Constraint Type:</label>
+                                                <select
+                                                  value={constraint.constraint_type}
+                                                  onChange={(e) => {
+                                                    // Update constraint type and reset params based on new type
+                                                    const newType = e.target.value;
+                                                    let newParams = {};
+                                                    switch(newType) {
+                                                      case 'credits':
+                                                        newParams = { credits_min: 10, credits_max: 15 };
+                                                        break;
+                                                      case 'courses':
+                                                        newParams = { courses_min: 1, courses_max: 10 };
+                                                        break;
+                                                      case 'min_courses_at_level':
+                                                        newParams = { level: 3000, courses: 2 };
+                                                        break;
+                                                      case 'min_tag_courses':
+                                                        newParams = { tag: 'has_lab', courses: 2 };
+                                                        break;
+                                                      case 'max_tag_credits':
+                                                        newParams = { tag: 'research', credits: 7 };
+                                                        break;
+                                                    }
+                                                    setRequirements(prev => prev.map(r => {
+                                                      if (r.id === req.id && r.constraints) {
+                                                        return {
+                                                          ...r,
+                                                          constraints: r.constraints.map(c => 
+                                                            c.id === constraint.id 
+                                                              ? { ...c, constraint_type: newType, params: newParams }
+                                                              : c
+                                                          )
+                                                        };
+                                                      }
+                                                      return r;
+                                                    }));
+                                                  }}
+                                                  className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                >
+                                                  <option value="credits">Credits Constraint</option>
+                                                  <option value="courses">Course Count Constraint</option>
+                                                  <option value="min_courses_at_level">Level Requirement</option>
+                                                  <option value="min_tag_courses">Tag Requirement (Min Courses)</option>
+                                                  <option value="max_tag_credits">Tag Requirement (Max Credits)</option>
+                                                </select>
+                                              </div>
+                                              <button
+                                                onClick={() => deleteConstraint(req.id, constraint.id)}
+                                                className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 flex-shrink-0 mt-5"
+                                                title="Delete constraint"
+                                              >
+                                                <Trash2 size={14} />
+                                              </button>
+                                            </div>
+                                            <div className="space-y-1">
+                                                  {constraint.constraint_type === 'credits' && (
+                                                    <>
+                                                      <div className="flex items-center gap-2">
+                                                        <label className="text-gray-600 dark:text-gray-400 w-20">Min Credits:</label>
+                                                        <input
+                                                          type="number"
+                                                          value={constraint.params.credits_min || ''}
+                                                          onChange={(e) => updateConstraintParam(req.id, constraint.id, 'credits_min', parseInt(e.target.value) || 0)}
+                                                          className="px-2 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-16"
+                                                        />
+                                                      </div>
+                                                      <div className="flex items-center gap-2">
+                                                        <label className="text-gray-600 dark:text-gray-400 w-20">Max Credits:</label>
+                                                        <input
+                                                          type="number"
+                                                          value={constraint.params.credits_max || ''}
+                                                          onChange={(e) => updateConstraintParam(req.id, constraint.id, 'credits_max', parseInt(e.target.value) || 0)}
+                                                          className="px-2 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-16"
+                                                        />
+                                                      </div>
+                                                    </>
+                                                  )}
+                                                  {constraint.constraint_type === 'courses' && (
+                                                    <>
+                                                      <div className="flex items-center gap-2">
+                                                        <label className="text-gray-600 dark:text-gray-400 w-20">Min Courses:</label>
+                                                        <input
+                                                          type="number"
+                                                          value={constraint.params.courses_min || ''}
+                                                          onChange={(e) => updateConstraintParam(req.id, constraint.id, 'courses_min', parseInt(e.target.value) || 0)}
+                                                          className="px-2 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-16"
+                                                        />
+                                                      </div>
+                                                      <div className="flex items-center gap-2">
+                                                        <label className="text-gray-600 dark:text-gray-400 w-20">Max Courses:</label>
+                                                        <input
+                                                          type="number"
+                                                          value={constraint.params.courses_max || ''}
+                                                          onChange={(e) => updateConstraintParam(req.id, constraint.id, 'courses_max', parseInt(e.target.value) || 0)}
+                                                          className="px-2 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-16"
+                                                        />
+                                                      </div>
+                                                    </>
+                                                  )}
+                                                  {constraint.constraint_type === 'min_courses_at_level' && (
+                                                    <>
+                                                      <div className="flex items-center gap-2">
+                                                        <label className="text-gray-600 dark:text-gray-400 w-20">Min Level:</label>
+                                                        <input
+                                                          type="number"
+                                                          value={constraint.params.level || ''}
+                                                          onChange={(e) => updateConstraintParam(req.id, constraint.id, 'level', parseInt(e.target.value) || 0)}
+                                                          className="px-2 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-16"
+                                                        />
+                                                      </div>
+                                                      <div className="flex items-center gap-2">
+                                                        <label className="text-gray-600 dark:text-gray-400 w-20">Min Courses:</label>
+                                                        <input
+                                                          type="number"
+                                                          value={constraint.params.courses || ''}
+                                                          onChange={(e) => updateConstraintParam(req.id, constraint.id, 'courses', parseInt(e.target.value) || 0)}
+                                                          className="px-2 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-16"
+                                                        />
+                                                      </div>
+                                                    </>
+                                                  )}
+                                                  {(constraint.constraint_type === 'min_tag_courses' || constraint.constraint_type === 'max_tag_credits') && (
+                                                    <>
+                                                      <div className="flex items-center gap-2">
+                                                        <label className="text-gray-600 dark:text-gray-400 w-20">Tag:</label>
+                                                        <input
+                                                          type="text"
+                                                          value={constraint.params.tag || ''}
+                                                          onChange={(e) => updateConstraintParam(req.id, constraint.id, 'tag', e.target.value)}
+                                                          className="px-2 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white flex-1"
+                                                          placeholder="e.g., has_lab, course_type"
+                                                        />
+                                                      </div>
+                                                      {constraint.constraint_type === 'min_tag_courses' && (
+                                                        <div className="flex items-center gap-2">
+                                                          <label className="text-gray-600 dark:text-gray-400 w-20">Min Courses:</label>
+                                                          <input
+                                                            type="number"
+                                                            value={constraint.params.courses || ''}
+                                                            onChange={(e) => updateConstraintParam(req.id, constraint.id, 'courses', parseInt(e.target.value) || 0)}
+                                                            className="px-2 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-16"
+                                                          />
+                                                        </div>
+                                                      )}
+                                                      {constraint.constraint_type === 'max_tag_credits' && (
+                                                        <div className="flex items-center gap-2">
+                                                          <label className="text-gray-600 dark:text-gray-400 w-20">Max Credits:</label>
+                                                          <input
+                                                            type="number"
+                                                            value={constraint.params.credits || ''}
+                                                            onChange={(e) => updateConstraintParam(req.id, constraint.id, 'credits', parseInt(e.target.value) || 0)}
+                                                            className="px-2 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-16"
+                                                          />
+                                                        </div>
+                                                      )}
+                                                    </>
+                                                  )}
+                                                  {constraint.scope_filter?.subject_codes && (
+                                                    <div className="flex items-center gap-2">
+                                                      <label className="text-gray-600 dark:text-gray-400 w-20">Subjects:</label>
+                                                      <input
+                                                        type="text"
+                                                        value={(constraint.scope_filter.subject_codes || []).join(', ')}
+                                                        onChange={(e) => updateConstraintScope(req.id, constraint.id, 'subject_codes', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                                                        className="px-2 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white flex-1"
+                                                        placeholder="e.g., BIOS, CHEM"
+                                                      />
+                                                    </div>
+                                                  )}
+                                            </div>
+                                            {constraint.description && (
+                                              <div className="mt-1 text-gray-600 dark:text-gray-400 italic">
+                                                {constraint.description}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                      <button
+                                        onClick={() => addConstraintToGroup(req.id, group.group_name)}
+                                        className="mt-2 text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-1 w-full justify-center"
+                                      >
+                                        <Plus size={12} />
+                                        Add Constraint
+                                      </button>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Add constraint button if no constraints exist */}
+                                  {groupConstraints.length === 0 && (
+                                    <div className="mb-3">
+                                      <button
+                                        onClick={() => addConstraintToGroup(req.id, group.group_name)}
+                                        className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-1"
+                                      >
+                                        <Plus size={12} />
+                                        Add Constraint to Group
+                                      </button>
+                                    </div>
+                                  )}
                                   
                                   {/* Course Search */}
                                   {showSearch && (

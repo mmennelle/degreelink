@@ -55,7 +55,7 @@ def create_app(config_name='default'):
     CORS(app,
          supports_credentials=True,
          origins=origins,
-         allow_headers=['Content-Type', 'Authorization', 'X-Admin-Token'],
+         allow_headers=['Content-Type', 'Authorization', 'X-Admin-Token', 'X-Advisor-Token'],
          methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
     )
     

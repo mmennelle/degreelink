@@ -1,35 +1,129 @@
-import React, { useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { DarkModeProvider } from './hooks/useDarkMode';
 import useAppController from './controllers/useAppController';
 import AppShell from './views/AppShell';
+import api from './services/api';
 
 import MobileOnboarding from './components/MobileOnboarding';
 import PrivacyNotice from './components/PrivacyNotice';
 import CreatePlanModal from './components/CreatePlanModal';
 import AddCourseToPlanModal from './components/AddCourseToPlanModal';
 import PlanCreatedModal from './components/PlanCreatedModal';
+import AdvisorAuthModal from './components/AdvisorAuthModal';
 
 import SearchPage from './pages/SearchPage';
 import PlansPage from './pages/PlansPage';
 import LookupPage from './pages/LookupPage';
-import UploadPage from './pages/UploadPage';
-import AuditPage from './pages/AuditPage';
-import ProgramManagement from './pages/ProgramManagement';
+import ProgramManagementPage from './pages/ProgramManagementPage';
+import AdvisorCenterPage from './pages/AdvisorCenterPage';
+import AppManagementPage from './pages/AppManagementPage';
 
 export default function App() {
   const c = useAppController();
+  const navigate = useNavigate();
+  const [showAdvisorAuth, setShowAdvisorAuth] = useState(false);
+  const [advisorAuth, setAdvisorAuth] = useState(null);
+  const [pendingOnboardingData, setPendingOnboardingData] = useState(null);
 
   useEffect(() => {
     console.log('planCreatedModal state changed:', c.planCreatedModal);
   }, [c.planCreatedModal]);
 
+  // Check for existing advisor session on mount
+  useEffect(() => {
+    const checkAdvisorSession = async () => {
+      try {
+        const response = await api.verifyAdvisorSession();
+        if (response.valid) {
+          setAdvisorAuth({
+            email: response.email,
+            expiresAt: response.expires_at
+          });
+          c.setUserMode('advisor');
+        }
+      } catch (err) {
+        // No valid session, stay in student mode
+        setAdvisorAuth(null);
+      }
+    };
+
+    checkAdvisorSession();
+  }, []);
+
+  const handleAdvisorAuthSuccess = (authData) => {
+    if (authData) {
+      setAdvisorAuth(authData);
+      c.setUserMode('advisor');
+      
+      // If there's pending onboarding data, complete it now
+      if (pendingOnboardingData) {
+        const { destination, userMode, showCreatePlan, userProfile } = pendingOnboardingData;
+        c.handleOnboardingComplete({
+          destination,
+          userMode: 'advisor', // Override with advisor mode
+          showCreatePlan,
+          userProfile
+        });
+        setPendingOnboardingData(null);
+        setShowAdvisorAuth(false);
+      }
+    } else {
+      // Logout
+      setAdvisorAuth(null);
+      c.setUserMode('student');
+      
+      // Clear pending onboarding data on logout
+      if (pendingOnboardingData) {
+        setPendingOnboardingData(null);
+        setShowAdvisorAuth(false);
+      }
+      
+      // Redirect to search if on an advisor-only route
+      const currentPath = window.location.pathname;
+      const advisorOnlyPaths = ['/management', '/advisor-center', '/app-settings'];
+      if (advisorOnlyPaths.some(path => currentPath.startsWith(path))) {
+        navigate('/search');
+      }
+    }
+  };
+
+  const handleOpenAdvisorSettings = () => {
+    setShowAdvisorAuth(true);
+  };
+
+  const handleAdvisorSelectedFromOnboarding = (answers) => {
+    // Store the onboarding data and open advisor auth
+    setPendingOnboardingData({
+      destination: 'search',
+      userMode: 'advisor',
+      showCreatePlan: false,
+      userProfile: answers
+    });
+    setShowAdvisorAuth(true);
+  };
+
 
   if (c.showOnboarding) {
     return (
       <>
-        <MobileOnboarding onComplete={c.handleOnboardingComplete} />
+        <MobileOnboarding 
+          onComplete={c.handleOnboardingComplete}
+          onAdvisorSelected={handleAdvisorSelectedFromOnboarding}
+        />
         <PrivacyNotice />
+        {/* Show advisor auth modal over onboarding if advisor was selected */}
+        <AdvisorAuthModal
+          isOpen={showAdvisorAuth}
+          onClose={() => {
+            setShowAdvisorAuth(false);
+            setPendingOnboardingData(null);
+            // Keep onboarding open, don't reset - user can select a different option
+          }}
+          onSuccess={handleAdvisorAuthSuccess}
+          isAuthenticated={!!advisorAuth}
+          advisorEmail={advisorAuth?.email}
+        />
       </>
     );
   }
@@ -43,7 +137,7 @@ export default function App() {
           tabs={c.tabs}
           userMode={c.userMode}
           onFindPlan={() => c.setPlanLookupModal(true)}
-          onToggleUserMode={() => c.setUserMode(c.userMode === 'advisor' ? 'student' : 'advisor')}
+          onOpenAdvisorSettings={handleOpenAdvisorSettings}
           onGoHome={c.resetToOnboarding}
         >
           <Routes>
@@ -89,16 +183,28 @@ export default function App() {
               />
             } />
 
-            <Route path="/upload" element={<UploadPage />} />
-
-            <Route path="/management" element={<ProgramManagement />} />
-
-            <Route path="/audit" element={
-              <AuditPage
-                selectedPlanId={c.selectedPlanId}
-                plans={c.plans}
-              />
-            } />
+            {/* Advisor-only routes */}
+            {c.userMode === 'advisor' && (
+              <>
+                {/* Program Management with nested tabs: Programs + CSV Upload */}
+                <Route path="/management" element={<ProgramManagementPage />} />
+                
+                {/* Advisor Center with nested tabs: Student Plans + Degree Audit */}
+                <Route path="/advisor-center" element={
+                  <AdvisorCenterPage 
+                    onOpenPlan={() => {
+                      c.setActiveTab('plans');
+                      c.loadPlansAndPrograms?.();
+                    }}
+                    selectedPlanId={c.selectedPlanId}
+                    plans={c.plans}
+                  />
+                } />
+                
+                {/* App Settings (formerly App Management) */}
+                <Route path="/app-settings" element={<AppManagementPage />} />
+              </>
+            )}
           </Routes>
 
           {/* Modals */}
@@ -153,6 +259,15 @@ export default function App() {
               onClose={() => c.setPlanCreatedModal({isOpen: false, planData: null})}
             />
           )}
+
+          {/* Advisor Auth Modal */}
+          <AdvisorAuthModal
+            isOpen={showAdvisorAuth}
+            onClose={() => setShowAdvisorAuth(false)}
+            onSuccess={handleAdvisorAuthSuccess}
+            isAuthenticated={!!advisorAuth}
+            advisorEmail={advisorAuth?.email}
+          />
         </AppShell>
       </DarkModeProvider>
   </div>

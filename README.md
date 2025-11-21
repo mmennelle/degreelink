@@ -1,28 +1,100 @@
-# Backend Tester Usage
+# Course Equivalency and Transfer Planning System
 
-## Steps
+**Production Domain:** dlink.cs.uno.edu  
+**Current Branch:** auth-advisor  
+**Status:** Ready for production deployment
+
+## Documentation
+
+**Start Here:** [Current System Status](docs/CURRENT_SYSTEM_STATUS.md) - Complete system overview
+
+### For Users
+- **[User Guide - Program Requirements](docs/USER_GUIDE_PROGRAM_REQUIREMENTS.md)** - How to upload and manage program requirements
+- **[CSV Format Guide](docs/UNIFIED_CSV_FORMAT.md)** - CSV file format specification
+
+### For Developers
+- **[Advisor Authentication](docs/ADVISOR_AUTH_IMPLEMENTATION.md)** - Email-based advisor auth system
+- **[Advisor-Student Linking](docs/ADVISOR_STUDENT_LINKING.md)** - Advisor center and plan linking
+- **[Production Backdoor](docs/PRODUCTION_BACKDOOR.md)** - Temporary auth for pre-SMTP deployment
+- **[Prerequisite System](docs/PREREQUISITE_IMPLEMENTATION.md)** - Course prerequisite validation
+- **[Constraint System](docs/CONSTRAINT_IMPLEMENTATION.md)** - Requirement constraint validation
+- **[Group-Level Constraints](docs/GROUP_LEVEL_CONSTRAINTS.md)** - Constraint scope details
+
+### Historical Reference
+- **[PostgreSQL Migration](docs/POSTGRESQL_MIGRATION.md)** - Database migration guide (completed)
+- **[Option A Implementation](docs/OPTION_A_IMPLEMENTATION.md)** - Requirement type changes
+- **[Scope Delimiter Change](docs/SCOPE_DELIMITER_CHANGE.md)** - CSV delimiter update
+
+## Quick Start
+
+### Backend Setup
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # or venv\Scripts\activate on Windows
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your DATABASE_URL and ADMIN_API_TOKEN
+
+# Initialize database
+flask db upgrade
+
+# Run development server
+flask run
+```
+
+### Frontend Setup
+```bash
+cd frontend
+npm install
+
+# Configure environment  
+cp .env.example .env.local
+# Edit .env.local with your API URL
+
+# Run development server
+npm run dev
+
+# Build for production
+npm run build
+```
+
+## Testing
+
+### Backend Tests
+```bash
+cd backend
+pytest
+```
+
+### Frontend Build
+```bash
+cd frontend
+npm run build
+```
+
+## Backend Tester (Development)
+
+### Steps
 1. Initialize database: `python init_db.py`
-2. Start Flask backend: `python app.py`
-3. Run an API tester
-   1. use postman or burpsuite ETC
-   2. Open `backend-tester.html` in web browser
-4. Verify connection test shows green success message
+2. Start Flask backend: `flask run`
+3. Open `backend-tester.html` in web browser
+4. Verify connection test shows green success
 5. Test endpoints in order:
-  - Basic Data (institutions, departments, courses)
-  - Programs (create, analyze)
-  - Transfer Plans (create, retrieve)
-  - CSV Import
-6. Check JSON responses for expected data structure
-7. Some data is uploaded to db on init but you can also add the CSV files in docs/equic-csvs via the import endpoints for more test data
+   - Basic Data (institutions, departments, courses)
+   - Programs (create, analyze)
+   - Transfer Plans (create, retrieve)
+   - CSV Import
 
-## Quick Test Sequence
-
+### Quick Test Sequence
 1. GET /institutions
-2. GET /departments (use institution ID from step 1)
-3. GET /courses (use department ID from step 2)
-4. POST /programs (create test program)
-5. POST /create-plan (create test transfer plan)
-6. GET /get-plan/{code} (retrieve plan using code from step 5)
+2. GET /departments
+3. GET /courses
+4. POST /programs
+5. POST /create-plan
+6. GET /get-plan/{code}
 
 
 ## Phase 1 feature flags (grouped evaluation + auto-assignment)
@@ -45,7 +117,7 @@ export AUTO_ASSIGN_REQUIREMENT_GROUPS=true
 ```
 
 Effects you should see when enabled:
-- Grouped requirements honor the exact course options you list in your CSV uploads (docs/equic-csvs/*). Courses not listed won’t be counted toward grouped requirements.
+- Grouped requirements honor the exact course options you list in your CSV uploads (docs/equic-csvs/*). Courses not listed won't be counted toward grouped requirements.
 - Responses include group_results detailing which groups are satisfied and which courses were used.
 - Zero-credit groups that require a specific number of courses will be considered met when the count is satisfied.
 
@@ -55,6 +127,137 @@ Authoring tips for grouped requirements:
 
 To revert to legacy behavior:
 - Set both flags to false (or unset them) and restart the backend.
+
+
+## Integrating Advisor Center
+
+The Advisor Center is a main navigation section for advisors with sub-tabs for Student Plans and Degree Audit. It uses a wrapper component pattern for organized navigation.
+
+### Navigation Structure
+
+The system uses grouped navigation tabs:
+- **Program Management**: Programs, CSV Upload
+- **Advisor Center**: Student Plans, Degree Audit (advisor-only)
+- **App Settings**: Administrative functions
+
+### Route Configuration
+
+In your frontend router (App.jsx):
+
+```javascript
+import AdvisorCenterPage from './pages/AdvisorCenterPage';
+import ProgramManagementPage from './pages/ProgramManagementPage';
+
+// Advisor-only route with sub-tab wrapper
+<Route
+  path="/advisor-center"
+  element={
+    <AdvisorCenterPage
+      selectedPlanId={selectedPlanId}
+      plans={plans}
+      onOpenPlan={async (planCode) => {
+        await api.getPlanByCode(planCode);
+        navigate('/plans');
+        loadPlansAndPrograms();
+      }}
+    />
+  }
+/>
+
+// Program management with sub-tabs
+<Route
+  path="/management"
+  element={
+    <ProgramManagementPage
+      programs={programs}
+      onProgramsUpdate={loadPlansAndPrograms}
+    />
+  }
+/>
+```
+
+### Wrapper Components
+
+Wrapper components handle sub-tab navigation:
+
+```javascript
+// AdvisorCenterPage.jsx
+import { useState } from 'react';
+import AdvisorCenter from '../components/AdvisorCenter';
+import AuditPage from './AuditPage';
+
+export default function AdvisorCenterPage({ selectedPlanId, plans, onOpenPlan }) {
+  const [activeSubTab, setActiveSubTab] = useState('plans');
+  
+  return (
+    <div>
+      <div className="sub-tab-navigation">
+        <button onClick={() => setActiveSubTab('plans')}>Student Plans</button>
+        <button onClick={() => setActiveSubTab('audit')}>Degree Audit</button>
+      </div>
+      {activeSubTab === 'plans' && (
+        <AdvisorCenter
+          selectedPlanId={selectedPlanId}
+          plans={plans}
+          onOpenPlan={onOpenPlan}
+        />
+      )}
+      {activeSubTab === 'audit' && <AuditPage />}
+    </div>
+  );
+}
+```
+
+### Test the Integration
+
+1. Create a plan with an advisor email (optional field in CreatePlanModal)
+2. Log in as that advisor using the advisor authentication system
+3. Click the Advisor Center tab in main navigation
+4. Verify Student Plans sub-tab is active by default
+5. Verify the plan appears in the advisor's dashboard
+6. Test search by student name, email, or plan code
+7. Test filter by status (draft, active, completed, archived)
+8. Test filter by program
+9. Test sort functionality (creation date, update date, student name)
+10. Click a plan to open it in the Plans view
+11. Navigate between Student Plans and Degree Audit sub-tabs
+
+### API Usage
+
+Students link to advisors by providing advisor_email when creating or updating plans:
+
+```javascript
+// Create plan with advisor
+api.createPlan({
+  student_name: "John Doe",
+  student_email: "john@example.com",
+  advisor_email: "advisor@university.edu",  // Optional
+  plan_name: "Spring 2025 Transfer",
+  program_id: 1
+});
+
+// Update plan advisor
+api.updatePlan(planId, {
+  advisor_email: "newadvisor@university.edu"
+});
+```
+
+Advisors access their plans via:
+
+```javascript
+// Get all plans for logged-in advisor
+api.getAdvisorPlans({
+  search: "john",              // Optional: search term
+  status: "active",            // Optional: filter by status
+  sort: "updated_at",          // Optional: sort field
+  order: "desc",               // Optional: sort order
+  limit: 20,                   // Optional: results per page
+  offset: 0                    // Optional: pagination offset
+});
+
+// Get advisor statistics
+api.getAdvisorStats();
+```
 
 
 ## CSV Data Formats

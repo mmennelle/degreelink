@@ -35,10 +35,10 @@ export function PlanList({ plans, onSelect, onCreatePlan, onDeletePlan }) {
   return (
     <div className="space-y-3">
       {plans.map(plan => (
-        <div
+        <button
           key={plan.id}
-            className="border border-gray-200 dark:border-gray-600 rounded-md p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
           onClick={() => onSelect(plan.id)}
+          className="w-full text-left border border-gray-200 dark:border-gray-600 rounded-md p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 sm:gap-0">
             <div className="flex-1">
@@ -54,16 +54,17 @@ export function PlanList({ plans, onSelect, onCreatePlan, onDeletePlan }) {
               <button
                 onClick={(e) => { e.stopPropagation(); onDeletePlan(plan); }}
                 className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 p-1 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
+                aria-label={`Delete plan ${plan.plan_name}`}
                 title="Delete plan"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
               </button>
-              <ChevronRight className="text-gray-400 dark:text-gray-500 flex-shrink-0" size={20} />
+              <ChevronRight className="text-gray-400 dark:text-gray-500 flex-shrink-0" size={20} aria-hidden="true" />
             </div>
           </div>
-        </div>
+        </button>
       ))}
     </div>
   );

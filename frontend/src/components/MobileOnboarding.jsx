@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { ChevronRight, ArrowLeft, GraduationCap, Search, FileText, Eye, Users, Target, Key } from 'lucide-react';
 
-const MobileOnboarding = ({ onComplete }) => {
+const MobileOnboarding = ({ onComplete, onAdvisorSelected }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState({
     userType: null,
@@ -36,25 +36,18 @@ const MobileOnboarding = ({ onComplete }) => {
           color: 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300'
         },
         {
-          value: 'advisor',
-          label: 'Academic Advisor',
-          description: 'I am an advisor helping students',
-          icon: <Target className="w-6 h-6" />,
-          color: 'bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/30 dark:border-purple-700 dark:text-purple-300'
-        },
-        {
-          value: 'parent',
-          label: 'Parent',
-          description: 'I am helping my child with their education',
+          value: 'advocate',
+          label: 'Advocate',
+          description: 'I am helping a student with their educational plans',
           icon: <Users className="w-6 h-6" />,
           color: 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300'
         },
         {
-          value: 'browsing',
-          label: 'Just Browsing',
-          description: 'Exploring options and gathering information',
-          icon: <Eye className="w-6 h-6" />,
-          color: 'bg-gray-50 border-gray-200 text-gray-700 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300'
+          value: 'advisor',
+          label: 'Academic Advisor',
+          description: 'I am a college level Advisor. Requires authentication.',
+          icon: <Target className="w-6 h-6" />,
+          color: 'bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/30 dark:border-purple-700 dark:text-purple-300'
         },
         {
           value: 'returning',
@@ -62,7 +55,15 @@ const MobileOnboarding = ({ onComplete }) => {
           description: 'I want to access my existing plan',
           icon: <Key className="w-6 h-6" />,
           color: 'bg-yellow-50 border-yellow-200 text-yellow-700 dark:bg-yellow-900/30 dark:border-yellow-700 dark:text-yellow-300'
-        }
+        },
+        
+        {
+          value: 'browsing',
+          label: 'Just Browsing',
+          description: 'Exploring options and gathering information',
+          icon: <Eye className="w-6 h-6" />,
+          color: 'bg-gray-50 border-gray-200 text-gray-700 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300'
+        },
       ]
     },
     {
@@ -97,6 +98,12 @@ const MobileOnboarding = ({ onComplete }) => {
       handleComplete({ ...newAnswers, goal: 'lookup' });
       return;
     }
+    
+    // If user selected "advisor", trigger advisor authentication immediately
+    if (questionId === 'userType' && value === 'advisor') {
+      handleComplete({ ...newAnswers, goal: 'search' });
+      return;
+    }
 
     // If this is the last question or user is just browsing, complete onboarding
     if (currentStep === questions.length - 1 || (questionId === 'userType' && value === 'browsing')) {
@@ -109,18 +116,26 @@ const MobileOnboarding = ({ onComplete }) => {
 
   const handleComplete = (finalAnswers) => {
     if (completedRef.current) return;
+    
+    // If advisor is selected, trigger advisor authentication
+    if (finalAnswers.userType === 'advisor') {
+      // Don't set completed flag yet - wait for auth
+      if (onAdvisorSelected) {
+        onAdvisorSelected(finalAnswers);
+      }
+      return; // Don't complete onboarding yet, wait for auth
+    }
+    
+    // Now mark as completed for non-advisor flows
     completedRef.current = true;
+    
     // Determine the destination and user mode based on answers
     let destination = 'search'; // default
     let userMode = 'student'; // default
     let showCreatePlan = false;
 
     // Set user mode based on user type
-    if (finalAnswers.userType === 'advisor') {
-      userMode = 'advisor';
-    } else {
-      userMode = 'student'; // parent, student, and browsing all use student mode
-    }
+    userMode = 'student'; // parent, student, and browsing all use student mode
 
     // Determine destination based on user type and goal
     if (finalAnswers.userType === 'browsing') {
@@ -183,9 +198,9 @@ const MobileOnboarding = ({ onComplete }) => {
               </button>
             )}
             <div className="flex items-center">
-              <GraduationCap className="text-blue-600 dark:text-blue-400 mr-2" size={24} />
+              <GraduationCap className="text-blue-600 dark:text-blue-400 mr-2" size={24} aria-hidden="true" />
               <div className="flex flex-col">
-                <span className="font-semibold tracking-tight">Degree Link</span>
+                <span className="font-semibold tracking-tight text-gray-900 dark:text-white">Degree Link</span>
                 <span className="text-xs text-gray-600 dark:text-gray-400">Your Path. Your Progress. Your Degree</span>
               </div>
             </div>
@@ -258,7 +273,7 @@ const MobileOnboarding = ({ onComplete }) => {
       <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-4">
         <div className="max-w-md mx-auto text-center">
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            Course Transfer System - Helping you navigate your academic journey
+            Degree Link - Helping you navigate your academic journey
           </p>
         </div>
       </div>

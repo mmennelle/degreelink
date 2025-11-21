@@ -628,14 +628,16 @@ useEffect(() => {
 
                         {/* Status */}
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          <label htmlFor={`status-${index}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Status *
                           </label>
                           <select
+                            id={`status-${index}`}
                             value={data.status}
                             onChange={(e) => updateCourseField(index, 'status', e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                             disabled={applyToAll.status && index > 0}
+                            aria-required="true"
                           >
                             <option value="planned">Planned</option>
                             <option value="in_progress">In Progress</option>
@@ -645,14 +647,16 @@ useEffect(() => {
 
                         {/* Semester */}
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          <label htmlFor={`semester-${index}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Semester *
                           </label>
                           <select
+                            id={`semester-${index}`}
                             value={data.semester}
                             onChange={(e) => updateCourseField(index, 'semester', e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                             disabled={applyToAll.semester && index > 0}
+                            aria-required="true"
                           >
                             <option value="Fall">Fall</option>
                             <option value="Spring">Spring</option>
@@ -662,10 +666,11 @@ useEffect(() => {
 
                         {/* Year */}
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          <label htmlFor={`year-${index}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Year *
                           </label>
                           <input
+                            id={`year-${index}`}
                             type="number"
                             value={data.year}
                             onChange={(e) => updateCourseField(index, 'year', e.target.value)}
@@ -673,16 +678,18 @@ useEffect(() => {
                             max="2030"
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                             disabled={applyToAll.year && index > 0}
+                            aria-required="true"
                           />
                         </div>
 
                         {/* Grade (if completed) */}
                         {data.status === 'completed' && (
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label htmlFor={`grade-${index}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                               Grade
                             </label>
                             <input
+                              id={`grade-${index}`}
                               type="text"
                               value={data.grade}
                               onChange={(e) => updateCourseField(index, 'grade', e.target.value)}
@@ -695,10 +702,11 @@ useEffect(() => {
 
                       {/* Notes */}
                       <div className="mt-4">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label htmlFor={`notes-${index}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Notes (optional)
                         </label>
                         <textarea
+                          id={`notes-${index}`}
                           value={data.notes}
                           onChange={(e) => updateCourseField(index, 'notes', e.target.value)}
                           rows="2"

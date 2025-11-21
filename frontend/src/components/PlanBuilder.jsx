@@ -12,6 +12,7 @@ import { PlanActions } from './PlanActions';
 import { DegreeProgressCarousel } from './DegreeProgressCarousel';
 import EditPlanModal from './EditPlanModal';
 import EditPlanCourseModal from './EditPlanCourseModal';
+import { downloadPlanAsHTML, printPlan } from '../utils/planDownload';
 
 const PlanBuilder = ({ 
   onCreatePlan,
@@ -146,6 +147,20 @@ const PlanBuilder = ({
     setProgressTick(t => t + 1);
   };
 
+  const handleDownloadPlan = () => {
+    if (!selectedPlan) return;
+    const currentProgram = getCurrentProgram();
+    const targetProgram = getTargetProgram();
+    downloadPlanAsHTML(selectedPlan, currentProgram, targetProgram, progress);
+  };
+
+  const handlePrintPlan = () => {
+    if (!selectedPlan) return;
+    const currentProgram = getCurrentProgram();
+    const targetProgram = getTargetProgram();
+    printPlan(selectedPlan, currentProgram, targetProgram, progress);
+  };
+
   // Status formatting handled in PlanList now
 
   if (loading && plans.length === 0) {
@@ -183,13 +198,20 @@ const PlanBuilder = ({
           />
         ) : (
           <div>
-            <PlanHeader selectedPlan={selectedPlan} onBack={() => setSelectedPlanId(null)} canEdit={true} onEditPlan={() => { 
-              // Close other overlays when opening plan edit
-              setShowCourseSearch(false);
-              setAddCourseModal({ isOpen: false, courses: [], plan: null, program: null });
-              setOverlayCloseTick(t => t + 1);
-              setEditPlanOpen(true);
-            }} />
+            <PlanHeader 
+              selectedPlan={selectedPlan} 
+              onBack={() => setSelectedPlanId(null)} 
+              canEdit={true} 
+              onEditPlan={() => { 
+                // Close other overlays when opening plan edit
+                setShowCourseSearch(false);
+                setAddCourseModal({ isOpen: false, courses: [], plan: null, program: null });
+                setOverlayCloseTick(t => t + 1);
+                setEditPlanOpen(true);
+              }}
+              onDownload={handleDownloadPlan}
+              onPrint={handlePrintPlan}
+            />
             <DegreeProgressCarousel
               selectedPlanId={selectedPlanId}
               selectedPlan={selectedPlan}

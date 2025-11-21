@@ -51,3 +51,11 @@ def register_routes(app):
         print("Prerequisites blueprint registered")
     except ImportError as e:
         print(f"Failed to import prerequisites: {e}")
+    
+    # Register Advisor Auth route
+    try:
+        from . import advisor_auth
+        app.register_blueprint(advisor_auth.bp)
+        print("Advisor Auth blueprint registered")
+    except ImportError as e:
+        print(f"Failed to import advisor_auth: {e}")

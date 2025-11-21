@@ -15,7 +15,9 @@ from .program import Program, ProgramRequirement, RequirementGroup, GroupCourseO
 from .equivalency import Equivalency
 from .plan import Plan, PlanCourse
 from .constraint import RequirementConstraint
+from .advisor_auth import AdvisorAuth
 
 __all__ = ['db', 'migrate', 'init_app', 'Course', 'Program', 'ProgramRequirement', 
-           'RequirementGroup', 'GroupCourseOption', 'Equivalency', 'Plan', 'PlanCourse', 
+           'RequirementGroup', 'GroupCourseOption', 'Equivalency', 'Plan', 'PlanCourse',
+           'RequirementConstraint', 'AdvisorAuth', 
            'RequirementConstraint']

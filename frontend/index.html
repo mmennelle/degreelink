@@ -11,7 +11,23 @@
     <title>Degree Link - Course Transfer System</title>
   </head>
   <body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <style>
+      .skip-link {
+        position: absolute;
+        top: -40px;
+        left: 0;
+        background: #4F46E5;
+        color: white;
+        padding: 8px;
+        text-decoration: none;
+        z-index: 100;
+      }
+      .skip-link:focus {
+        top: 0;
+      }
+    </style>
   </body>
 </html>

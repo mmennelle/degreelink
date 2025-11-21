@@ -15,6 +15,9 @@ class Plan(db.Model):
     student_name = db.Column(db.String(200), nullable=False)
     student_email = db.Column(db.String(200))
     
+    # Advisor email (optional, links to AdvisorAuth if whitelisted)
+    advisor_email = db.Column(db.String(255), db.ForeignKey('advisor_auth.email'), nullable=True, index=True)
+    
     # Target program (where student wants to transfer to)
     program_id = db.Column(db.Integer, db.ForeignKey('programs.id'), nullable=False)
     
@@ -32,6 +35,9 @@ class Plan(db.Model):
     # Relationships for both programs
     target_program = db.relationship('Program', foreign_keys=[program_id], backref='target_plans')
     current_program = db.relationship('Program', foreign_keys=[current_program_id], backref='current_plans')
+    
+    # Relationship to advisor (if whitelisted)
+    advisor = db.relationship('AdvisorAuth', foreign_keys=[advisor_email], backref='student_plans')
     
     def __init__(self, **kwargs):
         # Generate secure code before calling parent constructor
@@ -79,6 +85,7 @@ class Plan(db.Model):
             'id': self.id,
             'student_name': self.student_name,
             'student_email': self.student_email,
+            'advisor_email': self.advisor_email,
             'program_id': self.program_id,
             'current_program_id': self.current_program_id,  
             'plan_name': self.plan_name,
