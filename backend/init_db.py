@@ -1,3 +1,12 @@
+"""
+Degree Link - Course Equivalency and Transfer Planning System
+Copyright (c) 2025 University of New Orleans - Computer Science Department
+Author: Mitchell Mennelle
+
+This file is part of Degree Link.
+Licensed under the MIT License. See LICENSE file in the project root.
+"""
+
 #icludes some test data for db init.
 import os
 import sys

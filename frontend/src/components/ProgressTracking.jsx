@@ -1,3 +1,12 @@
+/**
+ * Degree Link - Course Equivalency and Transfer Planning System
+ * Copyright (c) 2025 University of New Orleans - Computer Science Department
+ * Author: Mitchell Mennelle
+ * 
+ * This file is part of Degree Link.
+ * Licensed under the MIT License. See LICENSE file in the project root.
+ */
+
 // ProgressTracking.jsx - Pure presentation component (formerly VerticalProgressWithBubbles)
 import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import api from '../services/api';

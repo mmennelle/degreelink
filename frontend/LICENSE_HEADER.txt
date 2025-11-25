@@ -6,11 +6,3 @@
  * This file is part of Degree Link.
  * Licensed under the MIT License. See LICENSE file in the project root.
  */
-
-// src/pages/UploadPage.jsx
-import React from 'react';
-import CSVUpload from '../components/CSVUpload';
-
-export default function UploadPage() {
-  return <CSVUpload />;
-}

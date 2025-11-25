@@ -1,3 +1,12 @@
+/**
+ * Degree Link - Course Equivalency and Transfer Planning System
+ * Copyright (c) 2025 University of New Orleans - Computer Science Department
+ * Author: Mitchell Mennelle
+ * 
+ * This file is part of Degree Link.
+ * Licensed under the MIT License. See LICENSE file in the project root.
+ */
+
 import React, { useState } from 'react';
 import { Key, Search, AlertCircle, CheckCircle, Copy, Share2, X, Eye, User, Calendar, GraduationCap } from 'lucide-react';
 import api from '../services/api';
