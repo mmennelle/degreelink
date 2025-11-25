@@ -19,6 +19,58 @@ The Course Equivalency and Transfer Planning System is a web application designe
 
 ---
 
+## Developer Setup
+
+### Backend Setup
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # or venv\Scripts\activate on Windows
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your DATABASE_URL and other settings
+
+# Initialize database
+flask db upgrade
+
+# Run development server
+flask run
+```
+
+### Frontend Setup
+```bash
+cd frontend
+npm install
+
+# Configure environment
+cp .env.example .env.local
+# Edit .env.local with your API URL
+
+# Run development server
+npm run dev
+
+# Build for production
+npm run build
+```
+
+### Technology Stack
+
+**Backend:**
+- Flask (Python web framework)
+- PostgreSQL (database)
+- SQLAlchemy (ORM)
+- Flask-Migrate (database migrations)
+- pyotp (TOTP authentication)
+
+**Frontend:**
+- React (UI framework)
+- Vite (build tool)
+- TailwindCSS (styling)
+- React Router (navigation)
+
+
 ## Current Features
 
 ### 1. Authentication System
