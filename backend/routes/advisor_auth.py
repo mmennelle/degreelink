@@ -1,11 +1,21 @@
+"""
+Degree Link - Course Equivalency and Transfer Planning System
+Copyright (c) 2025 University of New Orleans - Computer Science Department
+Author: Mitchell Mennelle
+
+This file is part of Degree Link.
+Licensed under the MIT License. See LICENSE file in the project root.
+"""
+
 """Routes for advisor authentication system."""
 from flask import Blueprint, request, jsonify, session
 from models import db
 from models.advisor_auth import AdvisorAuth
 from auth import require_admin
-from datetime import datetime
+from datetime import datetime, timedelta
 import csv
 import io
+import secrets
 
 bp = Blueprint('advisor_auth', __name__, url_prefix='/api/advisor-auth')
 
@@ -120,7 +130,9 @@ def request_access_code():
             'locked_until': advisor.locked_until.isoformat() if advisor.locked_until else None
         }), 403
     
-    # Generate and save code
+    # Ensure TOTP secret exists and generate access code
+    had_otp_secret = bool(advisor.otp_secret)  # Check if already had secret
+    otp_secret = advisor.ensure_otp_secret()
     code = advisor.generate_access_code()
     
     try:
@@ -128,10 +140,18 @@ def request_access_code():
         
         # Send email with code
         if send_access_code_email(email, code):
+            import pyotp
+            totp = pyotp.TOTP(otp_secret)
             response_data = {
                 'message': 'Access code sent to your email. It will expire in 15 minutes.',
-                'email': email
+                'email': email,
+                'has_totp': had_otp_secret,  # Tell frontend if TOTP was already set up
             }
+            
+            # Only include QR/secret if this is first time setup
+            if not had_otp_secret:
+                response_data['totp_qr'] = totp.provisioning_uri(name=email, issuer_name="UNO Course Equivalency")
+                response_data['totp_secret'] = otp_secret
             
             # Include code info for development/pre-SMTP deployment
             import os
@@ -153,15 +173,16 @@ def request_access_code():
 @bp.route('/verify-code', methods=['POST'])
 def verify_access_code():
     """
-    Verify the access code and create a session if valid.
+    Verify the access code or TOTP and create a session if valid.
     Returns session token for subsequent requests.
     """
     data = request.get_json()
     email = data.get('email', '').lower().strip()
     code = data.get('code', '').strip()
+    totp = data.get('totp', '').strip()
     
-    if not email or not code:
-        return jsonify({'error': 'Email and code are required'}), 400
+    if not email or (not code and not totp):
+        return jsonify({'error': 'Email and code or TOTP are required'}), 400
     
     # Find advisor
     advisor = AdvisorAuth.find_by_email(email)
@@ -176,8 +197,35 @@ def verify_access_code():
             'locked_until': advisor.locked_until.isoformat() if advisor.locked_until else None
         }), 403
     
-    # Verify code
-    if advisor.verify_code(code):
+    # Try TOTP first
+    if totp and advisor.verify_totp(totp):
+        advisor.session_token = secrets.token_urlsafe(48)
+        advisor.session_expires_at = datetime.utcnow() + timedelta(hours=1)
+        advisor.is_active = True
+        advisor.last_login = datetime.utcnow()
+        advisor.failed_attempts = 0
+        try:
+            db.session.commit()
+            
+            # Store session info
+            session['advisor_id'] = advisor.id
+            session['advisor_email'] = advisor.email
+            session['advisor_token'] = advisor.session_token
+            session.permanent = True
+            
+            return jsonify({
+                'message': 'Authentication successful (TOTP)',
+                'session_token': advisor.session_token,
+                'email': advisor.email,
+                'expires_at': advisor.session_expires_at.isoformat()
+            })
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error during TOTP verification: {e}")
+            return jsonify({'error': 'Authentication failed'}), 500
+    
+    # Fallback to code/backdoor
+    if code and advisor.verify_code(code):
         try:
             db.session.commit()
             
@@ -195,25 +243,26 @@ def verify_access_code():
             })
         except Exception as e:
             db.session.rollback()
-            print(f"Error during verification: {e}")
+            print(f"Error during code verification: {e}")
             return jsonify({'error': 'Authentication failed'}), 500
-    else:
-        try:
-            db.session.commit()  # Save failed attempt count
-        except:
-            db.session.rollback()
-        
-        # Check if now locked
-        if advisor.is_locked():
-            return jsonify({
-                'error': 'Too many failed attempts. Account locked temporarily.',
-                'locked_until': advisor.locked_until.isoformat()
-            }), 403
-        
+    
+    # If both fail
+    try:
+        db.session.commit()  # Save failed attempt count
+    except:
+        db.session.rollback()
+    
+    # Check if now locked
+    if advisor.is_locked():
         return jsonify({
-            'error': 'Invalid or expired code',
-            'attempts_remaining': max(0, 5 - advisor.failed_attempts)
-        }), 401
+            'error': 'Too many failed attempts. Account locked temporarily.',
+            'locked_until': advisor.locked_until.isoformat()
+        }), 403
+    
+    return jsonify({
+        'error': 'Invalid or expired code/TOTP',
+        'attempts_remaining': max(0, 5 - advisor.failed_attempts)
+    }), 401
 
 
 @bp.route('/verify-session', methods=['GET'])
@@ -258,6 +307,49 @@ def logout():
     
     session.clear()
     return jsonify({'message': 'Logged out successfully'})
+
+
+@bp.route('/regenerate-totp', methods=['POST'])
+def regenerate_totp():
+    """Regenerate TOTP secret for an advisor (requires email + valid code/totp)."""
+    data = request.get_json()
+    email = data.get('email', '').lower().strip()
+    code = data.get('code', '').strip()
+    totp_current = data.get('totp', '').strip()
+    
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+    
+    advisor = AdvisorAuth.find_by_email(email)
+    if not advisor:
+        return jsonify({'error': 'Invalid email'}), 401
+    
+    # Verify identity with current code or TOTP
+    verified = False
+    if totp_current and advisor.verify_totp(totp_current):
+        verified = True
+    elif code and advisor.access_code == code and advisor.code_expires_at and datetime.utcnow() < advisor.code_expires_at:
+        verified = True
+    
+    if not verified:
+        return jsonify({'error': 'Invalid code or TOTP'}), 401
+    
+    # Generate new secret
+    import pyotp
+    advisor.otp_secret = pyotp.random_base32()
+    
+    try:
+        db.session.commit()
+        totp = pyotp.TOTP(advisor.otp_secret)
+        return jsonify({
+            'message': 'TOTP secret regenerated',
+            'totp_qr': totp.provisioning_uri(name=email, issuer_name="UNO Course Equivalency"),
+            'totp_secret': advisor.otp_secret
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error regenerating TOTP: {e}")
+        return jsonify({'error': 'Failed to regenerate TOTP'}), 500
 
 
 # Admin routes for managing whitelisted advisors

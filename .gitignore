@@ -1,14 +1,12 @@
 # Top-level ignores
 __pycache__/
 *.pyc
-#*.db
+*.db
 .env
 .env.*
 .env.example
 .venv
-*/.devenv
-*/.env
-*/.env.example
+.devenv
 #backend/instance/*
 
 # Node modules
@@ -24,3 +22,5 @@ frontend/dist/
 # OS junk
 .DS_Store
 Thumbs.db
+docs/archive/
+docs/equic-csvs/

@@ -1,3 +1,12 @@
+/**
+ * Degree Link - Course Equivalency and Transfer Planning System
+ * Copyright (c) 2025 University of New Orleans - Computer Science Department
+ * Author: Mitchell Mennelle
+ * 
+ * This file is part of Degree Link.
+ * Licensed under the MIT License. See LICENSE file in the project root.
+ */
+
 class ApiService {
   constructor() {
     // Allow override via Vite env (e.g. VITE_API_BASE="http://127.0.0.1:5000/api")
@@ -483,10 +492,10 @@ class ApiService {
     });
   }
 
-  async verifyAdvisorCode(email, code) {
+  async verifyAdvisorCode(email, code, totp = '') {
     const response = await this.request('/advisor-auth/verify-code', {
       method: 'POST',
-      body: JSON.stringify({ email, code })
+      body: JSON.stringify({ email, code, totp })
     });
     
     // Store the token
@@ -510,6 +519,13 @@ class ApiService {
     this.setAdvisorToken(null);
     
     return response;
+  }
+
+  async regenerateAdvisorTotp(email, code, totp) {
+    return this.request('/advisor-auth/regenerate-totp', {
+      method: 'POST',
+      body: JSON.stringify({ email, code, totp })
+    });
   }
 
   // Advisor Whitelist Management (Admin only)

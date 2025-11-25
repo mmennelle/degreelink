@@ -1,4 +1,13 @@
 """
+Degree Link - Course Equivalency and Transfer Planning System
+Copyright (c) 2025 University of New Orleans - Computer Science Department
+Author: Mitchell Mennelle
+
+This file is part of Degree Link.
+Licensed under the MIT License. See LICENSE file in the project root.
+"""
+
+"""
 Phase 2: Constraint evaluation tests
 Tests for min_level_credits, min_tag_courses, max_tag_credits, and min_courses_at_level constraints.
 """

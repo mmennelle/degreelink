@@ -1,3 +1,12 @@
+/**
+ * Degree Link - Course Equivalency and Transfer Planning System
+ * Copyright (c) 2025 University of New Orleans - Computer Science Department
+ * Author: Mitchell Mennelle
+ * 
+ * This file is part of Degree Link.
+ * Licensed under the MIT License. See LICENSE file in the project root.
+ */
+
 import React, { useEffect, useState } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { DarkModeProvider } from './hooks/useDarkMode';
@@ -204,10 +213,10 @@ export default function App() {
               </>
             )}
             
-            {/* Admin-only routes */}
-            {c.userMode === 'admin' && (
+            {/* Advisor routes (advisors are also admins) */}
+            {c.userMode === 'advisor' && (
               <>
-                {/* App Settings - Advisor whitelist management (Admin only) */}
+                {/* App Settings - Advisor whitelist management (Advisor/Admin) */}
                 <Route path="/app-settings" element={<AppManagementPage />} />
               </>
             )}
