@@ -1,32 +1,5 @@
 # Course Equivalency and Transfer Planning System
 
-**Production Domain:** dlink.cs.uno.edu  
-**Current Branch:** auth-advisor  
-**Status:** Ready for production deployment
-
-## Documentation
-
-**Start Here:** [Current System Status](docs/CURRENT_SYSTEM_STATUS.md) - Complete system overview
-
-### For Users
-- **[User Guide - Program Requirements](docs/USER_GUIDE_PROGRAM_REQUIREMENTS.md)** - How to upload and manage program requirements
-- **[CSV Format Guide](docs/UNIFIED_CSV_FORMAT.md)** - CSV file format specification
-
-### For Developers
-- **[Advisor Authentication](docs/ADVISOR_AUTH_IMPLEMENTATION.md)** - Email-based advisor auth system
-- **[Advisor-Student Linking](docs/ADVISOR_STUDENT_LINKING.md)** - Advisor center and plan linking
-- **[Production Backdoor](docs/PRODUCTION_BACKDOOR.md)** - Temporary auth for pre-SMTP deployment
-- **[Prerequisite System](docs/PREREQUISITE_IMPLEMENTATION.md)** - Course prerequisite validation
-- **[Constraint System](docs/CONSTRAINT_IMPLEMENTATION.md)** - Requirement constraint validation
-- **[Group-Level Constraints](docs/GROUP_LEVEL_CONSTRAINTS.md)** - Constraint scope details
-
-### Historical Reference
-- **[PostgreSQL Migration](docs/POSTGRESQL_MIGRATION.md)** - Database migration guide (completed)
-- **[Option A Implementation](docs/OPTION_A_IMPLEMENTATION.md)** - Requirement type changes
-- **[Scope Delimiter Change](docs/SCOPE_DELIMITER_CHANGE.md)** - CSV delimiter update
-
-## Quick Start
-
 ### Backend Setup
 ```bash
 cd backend
