@@ -102,7 +102,7 @@ Students can create personalized degree plans, see real-time progress toward gra
 - **[CSV Format Specification](docs/CSV_FORMAT.md)** - CSV file format details
 
 ### Technical Documentation
-- **[Technical Overview](docs/CURRENT_SYSTEM_STATUS.md)** - System architecture and features
+- **[Technical Overview and Deployment Guide](docs/CURRENT_SYSTEM_STATUS.md)** - System architecture and features
 - **[TOTP Authentication System](docs/ADVISOR_AUTH_IMPLEMENTATION.md)** - Authentication implementation
 - **[Course Prerequisite System](docs/PREREQUISITE_IMPLEMENTATION.md)** - Prerequisite validation
 - **[Requirement Constraint System](docs/CONSTRAINT_IMPLEMENTATION.md)** - Constraint validation
