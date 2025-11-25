@@ -185,10 +185,10 @@ export default function useAppController() {
     { id: 'search', label: 'Course Search', shortLabel: 'Search', icon: 'Search' },
     { id: 'plans',  label: 'Academic Plans', shortLabel: 'Plans', icon: 'FileText' },
     { id: 'lookup', label: 'Find Plan', shortLabel: 'Find', icon: 'Key' },
-    // Advisor-only tabs
+    // Advisor-only tabs (advisors are also admins)
     ...(userMode === 'advisor' ? [{ id: 'advisor-center', label: 'Advisor Center', shortLabel: 'Advisor', icon: 'Shield' }] : []),
     ...(userMode === 'advisor' ? [{ id: 'management', label: 'Program Settings', shortLabel: 'Programs', icon: 'Settings' }] : []),
-    ...(userMode === 'admin' ? [{ id: 'app-settings', label: 'App Settings', shortLabel: 'Settings', icon: 'Settings' }] : [])
+    ...(userMode === 'advisor' ? [{ id: 'app-settings', label: 'App Settings', shortLabel: 'Settings', icon: 'Settings' }] : [])
   ]), [userMode]);
 
   // Make sure your return object in useAppController includes:

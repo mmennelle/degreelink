@@ -204,10 +204,10 @@ export default function App() {
               </>
             )}
             
-            {/* Admin-only routes */}
-            {c.userMode === 'admin' && (
+            {/* Advisor routes (advisors are also admins) */}
+            {c.userMode === 'advisor' && (
               <>
-                {/* App Settings - Advisor whitelist management (Admin only) */}
+                {/* App Settings - Advisor whitelist management (Advisor/Admin) */}
                 <Route path="/app-settings" element={<AppManagementPage />} />
               </>
             )}

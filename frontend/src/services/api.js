@@ -483,10 +483,10 @@ class ApiService {
     });
   }
 
-  async verifyAdvisorCode(email, code) {
+  async verifyAdvisorCode(email, code, totp = '') {
     const response = await this.request('/advisor-auth/verify-code', {
       method: 'POST',
-      body: JSON.stringify({ email, code })
+      body: JSON.stringify({ email, code, totp })
     });
     
     // Store the token
@@ -510,6 +510,13 @@ class ApiService {
     this.setAdvisorToken(null);
     
     return response;
+  }
+
+  async regenerateAdvisorTotp(email, code, totp) {
+    return this.request('/advisor-auth/regenerate-totp', {
+      method: 'POST',
+      body: JSON.stringify({ email, code, totp })
+    });
   }
 
   // Advisor Whitelist Management (Admin only)

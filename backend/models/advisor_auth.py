@@ -30,6 +30,9 @@ class AdvisorAuth(db.Model):
     # Metadata
     added_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     added_by = db.Column(db.String(255), nullable=True)  # Admin who added this email
+
+    # pyotp secret for TOTP
+    otp_secret = db.Column(db.String(32), nullable=True)
     
     def generate_access_code(self):
         """Generate a 6-digit numeric access code that expires in 15 minutes."""
@@ -41,6 +44,21 @@ class AdvisorAuth(db.Model):
         self.failed_attempts = 0  # Reset failed attempts when new code is generated
         
         return code
+
+    def ensure_otp_secret(self):
+        """Ensure the advisor has a pyotp secret, generate if missing."""
+        import pyotp
+        if not self.otp_secret:
+            self.otp_secret = pyotp.random_base32()
+        return self.otp_secret
+
+    def verify_totp(self, code):
+        """Verify a TOTP code using pyotp."""
+        import pyotp
+        if not self.otp_secret:
+            return False
+        totp = pyotp.TOTP(self.otp_secret)
+        return totp.verify(code, valid_window=1)
     
     def verify_code(self, provided_code):
         """
