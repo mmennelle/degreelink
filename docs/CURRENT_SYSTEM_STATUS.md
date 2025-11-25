@@ -1,4 +1,4 @@
-# Course Equivalency System - Current Status
+# Course Equivalency System - Technical Documentation
 
 **Last Updated:** November 25, 2025  
 **Production Domain:** dlink.cs.uno.edu  
@@ -8,11 +8,14 @@
 
 ## System Overview
 
-The Course Equivalency and Transfer Planning System is a web application designed for academic advisors and students to:
-- Manage course equivalencies between institutions
-- Create and track degree plans
-- Validate prerequisites and program requirements
-- Monitor student progress toward degree completion
+The Course Equivalency and Transfer Planning System is a web application designed for academic advisors and students to manage course equivalencies, create degree plans, and track progress toward degree completion.
+
+**Core Capabilities:**
+- Course equivalency management between institutions
+- Degree plan creation and tracking
+- Prerequisite validation with transitive equivalency support
+- Program requirement validation with constraints
+- Progress monitoring and course suggestions
 
 ---
 
@@ -20,37 +23,33 @@ The Course Equivalency and Transfer Planning System is a web application designe
 
 ### 1. Authentication System
 
-#### Advisor Authentication (Primary)
-- **TOTP-based:** Time-based One-Time Password authentication using pyotp
+#### Advisor Authentication
+- **TOTP-based:** Time-based One-Time Password using pyotp
 - **Session Duration:** 1 hour
-- **Authenticator Apps:** Google Authenticator, Authy, Microsoft Authenticator, etc.
-- **Model:** `AdvisorAuth` (in `backend/models/advisor_auth.py`)
-- **Decorator:** `@require_advisor` (in `backend/auth.py`)
-- **Admin Privileges:** Advisors have full administrative privileges (equivalent to admins)
+- **Authenticator Apps:** Google Authenticator, Authy, Microsoft Authenticator
+- **Admin Privileges:** Advisors have full administrative access
 - **Features:**
-  - Email whitelist requirement (must be whitelisted to set up TOTP)
-  - QR code generation for first-time setup
+  - Email whitelist requirement
+  - QR code generation for setup
   - Regenerate TOTP secret capability
   - 30-second code validity window
-  - Session management with tokens
-  - Fallback email code system (for troubleshooting)
+  - Fallback email code system
 
-**Endpoints:**
+**API Endpoints:**
 - `POST /api/advisor-auth/request-code` - Request TOTP setup or email code
-- `POST /api/advisor-auth/verify-code` - Verify TOTP/email code and create session
+- `POST /api/advisor-auth/verify-code` - Verify code and create session
 - `POST /api/advisor-auth/regenerate-totp` - Generate new TOTP secret
-- `GET /api/advisor-auth/verify-session` - Check current session validity
+- `GET /api/advisor-auth/verify-session` - Check session validity
 - `POST /api/advisor-auth/logout` - Logout and clear session
-- `GET /api/advisor-auth/whitelist` - List all whitelisted advisors (admin only)
-- `POST /api/advisor-auth/whitelist` - Add single advisor (admin only)
+- `GET /api/advisor-auth/whitelist` - List whitelisted advisors (admin only)
+- `POST /api/advisor-auth/whitelist` - Add advisor (admin only)
 - `POST /api/advisor-auth/whitelist/bulk` - Bulk add advisors via CSV (admin only)
 - `DELETE /api/advisor-auth/whitelist/:id` - Remove advisor (admin only)
 
-#### Admin API Token (Legacy/Backend)
+#### Admin API Token
 - **Token-based:** `X-Admin-Token` header
 - **Configuration:** `ADMIN_API_TOKEN` environment variable
 - **Usage:** Backend operations, scripts, API testing
-- **Note:** Advisors authenticated via TOTP also have admin privileges via `@require_admin` decorator
 
 #### Plan Access Sessions
 - **Code-based:** 8-character alphanumeric plan codes
@@ -61,7 +60,6 @@ The Course Equivalency and Transfer Planning System is a web application designe
 ### 2. Database
 
 **Type:** PostgreSQL  
-**Connection:** `postgresql://ct_user:***@localhost:5432/course_transfer`  
 **Migration Tool:** Flask-Migrate (Alembic)
 
 **Core Tables:**
@@ -82,10 +80,8 @@ The Course Equivalency and Transfer Planning System is a web application designe
 - **`simple`:** Pool of courses, choose any to meet credit goal
 - **`grouped`:** Multiple mandatory subdivisions, must satisfy ALL groups
 
-**Note:** `conditional` requirement type has been REMOVED. Prerequisites are now handled at the course level.
-
 #### Constraint Types
-Constraints can apply at category-level OR group-level:
+Constraints can apply at category-level or group-level:
 
 1. **Credits Constraint**
    - Min/max credit requirements
@@ -105,19 +101,25 @@ Constraints can apply at category-level OR group-level:
    - Example: "At least 2 courses must have labs"
 
 5. **Subject Code Scope**
-   - Limit constraints to specific subject codes
+   - Limit constraints to specific subject codes (space-delimited)
    - Example: "15 credits required, but only from BIOS or CHEM courses"
+
+**Constraint Features:**
+- Automatic validation during plan evaluation
+- Credit exclusion for violating courses
+- Visual indicators in UI
+- Filtered course suggestions based on constraints
 
 ### 4. Prerequisite System
 
-**Location:** Course-level (not requirement-level)  
+**Location:** Course-level validation  
 **Storage:** `courses.prerequisites` field (comma-separated)  
 **Service:** `backend/services/prerequisite_service.py`
 
 **Features:**
 - Transitive equivalency support (if A=B and B→C, then A→C)
 - BFS-based equivalency chain resolution
-- Validation endpoints for checking if student can take a course
+- Validation endpoints for checking course eligibility
 - Suggestion engine for next courses based on completed prerequisites
 
 **API Endpoints:**
@@ -128,8 +130,6 @@ Constraints can apply at category-level OR group-level:
 
 ### 5. CSV Upload System
 
-**Unified Format:** Single CSV for requirements + constraints (no separate files needed)
-
 **Upload Types:**
 1. **Courses** - Course catalog entries
 2. **Equivalencies** - Course equivalency mappings
@@ -139,11 +139,8 @@ Constraints can apply at category-level OR group-level:
 - Preview/confirm workflow for all upload types
 - Edit capabilities in confirmation modal
 - Constraint columns optional (first row only)
-- Space-delimited subject codes (not comma-delimited)
+- Space-delimited subject codes
 - Backward compatible with legacy formats
-
-**Scope Delimiter:** Space-separated subject codes (e.g., `BIOS CHEM PHYS`)  
-**Previous Format:** Comma-separated (deprecated)
 
 ### 6. Progress Tracking
 
@@ -161,7 +158,7 @@ Constraints can apply at category-level OR group-level:
 **Styling:** TailwindCSS  
 **Key Components:**
 - `AppShell.jsx` - Main navigation and layout
-- `ProgressTracking.jsx` - Requirement progress display
+- `ProgressTracking.jsx` - Requirement progress display with constraint validation
 - `AdvisorAuthModal.jsx` - Advisor authentication
 - `AppManagementPage.jsx` - Admin whitelist management
 - `CSVUpload.jsx` - File upload interface
@@ -191,7 +188,7 @@ backend/
 │   ├── upload.py            # CSV upload endpoints
 │   ├── qr.py                # QR code generation
 │   ├── prerequisites.py     # Prerequisite validation
-│   └── advisor_auth.py      # Advisor auth endpoints ✨ NEW
+│   └── advisor_auth.py      # Advisor auth endpoints
 └── services/
     ├── prerequisite_service.py   # Prerequisite logic
     └── progress_service.py       # Progress calculation
@@ -242,34 +239,19 @@ VITE_ADMIN_API_TOKEN=your_admin_token
 - All migrations applied
 
 ### Production (dlink.cs.uno.edu)
-- **SMTP not configured** - Using backdoor code `089292`
-- Ready for deployment after SMTP setup
+- Backend and frontend deployed
+- PostgreSQL database configured
+- All migrations applied
+- SMTP not configured - using backdoor code `089292` for advisor access
 - See `PRODUCTION_BACKDOOR.md` for SMTP configuration steps
-
----
-
-## Recent Major Changes
-
-### Recent Major Changes
-
-### November 2025
-- **TOTP Authentication:** Migrated from email codes to TOTP (pyotp) as primary authentication method
-- **Advisor = Admin:** Advisors now have full administrative privileges
-- **QR Code Setup:** First-time TOTP setup with QR code scanning
-- **Regenerate TOTP:** Ability to regenerate TOTP secrets for existing advisors
-- **Email Fallback:** Kept email code system as fallback for troubleshooting
-- **Removed `conditional` requirement type:** Prerequisites moved to course-level
-- **Transitive Equivalencies:** Added support for prerequisite chains
-- **Group-Level Constraints:** Constraints can apply at category or group level
-- **Scope Delimiter Change:** Changed from comma to space-separated subject codes
 
 ---
 
 ## Known Limitations
 
 1. **TOTP Setup Required:** All advisors need to set up authenticator app on first login
-   - **Workaround:** Email code fallback available for troubleshooting
-   - **Device Loss:** Use "Regenerate TOTP Secret" to set up on new device
+   - Email code fallback available for troubleshooting
+   - Use "Regenerate TOTP Secret" for device loss/transfer
 
 2. **Session Storage:** Uses Flask server-side sessions
    - Not distributed across multiple backend instances
@@ -303,53 +285,24 @@ npm run build
 
 ---
 
-## Documentation Index
-
-### Current & Relevant
-- **CURRENT_SYSTEM_STATUS.md** (this file) - System overview
-- **PRODUCTION_BACKDOOR.md** - Backdoor code for pre-SMTP deployment
-- **ADVISOR_AUTH_IMPLEMENTATION.md** - Advisor authentication details
-- **UNIFIED_CSV_FORMAT.md** - CSV format specification
-- **USER_GUIDE_PROGRAM_REQUIREMENTS.md** - User guide for advisors
-- **PREREQUISITE_IMPLEMENTATION.md** - Prerequisite system details
-- **CONSTRAINT_IMPLEMENTATION.md** - Constraint system details
-- **GROUP_LEVEL_CONSTRAINTS.md** - Group vs category constraints
-
-### Historical Reference
-- **POSTGRESQL_MIGRATION.md** - PostgreSQL migration (completed)
-- **MIGRATION_COMPLETE.md** - Migration completion status
-- **OPTION_A_IMPLEMENTATION.md** - Requirement type restructuring
-- **SCOPE_DELIMITER_CHANGE.md** - Delimiter change rationale
-- **UNIFIED_CSV_IMPLEMENTATION.md** - CSV unification details
-- **UPLOAD_MODAL_EXTENSION.md** - Upload UI improvements
-- **admin-auth-and-sessions.md** - Admin & plan session auth
-- **csv-authoring-grouped-requirements.md** - Legacy CSV guide
-- **MIGRATIONS_README.md** - Flask-Migrate setup
-
-### Archived
-- **docs/archive/** - Old documentation and screenshots
-
----
-
 ## Next Steps
 
-### Immediate (Production Ready)
-1. System fully functional with TOTP authentication
-2. All advisors need to be whitelisted and complete TOTP setup
-3. Deploy to dlink.cs.uno.edu
-4. Monitor TOTP authentication usage
+### Immediate
+1. Deploy to production (dlink.cs.uno.edu)
+2. Whitelist all advisors and complete TOTP setup
+3. Monitor authentication and system usage
 
-### Short Term (Post-Deployment)
-1. Gather feedback on TOTP user experience
-2. Set up monitoring/logging for authentication attempts
-3. Create backup/recovery procedures for lost authenticator devices
+### Short Term
+1. Configure SMTP to remove backdoor code
+2. Set up monitoring/logging for authentication
+3. Create backup/recovery procedures for lost devices
 4. Document common troubleshooting scenarios
 
 ### Long Term
-1. Add more robust error tracking
-2. Implement audit logging for advisor actions
-3. Add plan sharing/collaboration features
-4. Mobile-responsive improvements
+1. Implement audit logging for advisor actions
+2. Add plan sharing/collaboration features
+3. Mobile-responsive improvements
+4. Enhanced error tracking
 
 ---
 

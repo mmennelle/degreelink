@@ -21,15 +21,35 @@
 ## Overview
 The CSV format combines program requirements, grouping rules, and constraints into a single file. This simplifies the upload process by eliminating the need for separate requirements and constraints CSV files.
 
+# Program Requirements CSV Format
+
+## Quick Start
+
+**To add constraints to a requirement category:**
+
+1. Fill in the relevant constraint columns in the first row of your category:
+   - **Credits**: `min_credits`, `max_credits`
+   - **Courses**: `min_courses`, `max_courses`
+   - **Level**: `min_level`, `min_courses_at_level`
+   - **Tag**: `tag`, `tag_value`, `min_courses`
+
+2. Optionally add `scope_subject_codes` (space-delimited) to limit which courses the constraints apply to
+
+3. List your course options in subsequent rows with empty constraint columns
+
+4. You can mix multiple constraint types in a single row
+
+The system automatically creates constraints based on which columns have values. The `constraint_type` column is optional but recommended for clarity.
+
+## Overview
+This CSV format allows you to define program requirements, course groupings, and constraints in a single file.
+
 ## Key Concepts
 
-### Structure
 - Each row represents either a requirement category or a course option within a grouped requirement
-- Constraint columns are **optional** and only need values on the **first row** of each category
+- Constraint columns are optional and only need values on the first row of each category
 - Course listings follow with empty constraint columns
-
-### Backward Compatibility
-The system still supports the legacy format with `course_option`, `courses_required`, `credits_required`, `credits_required_group`, `description`, `group_description`, and `option_notes` columns for existing data files.
+- Subject codes in scope filters are space-delimited (e.g., `BIOS CHEM PHYS`)
 
 ## Column Definitions
 
@@ -39,7 +59,7 @@ The system still supports the legacy format with `course_option`, `courses_requi
 |--------|-------------|---------|
 | `program_name` | Name of the academic program | "Biology B.S." |
 | `category` | Requirement category name | "BIOS Electives" |
-| `requirement_type` | Type of requirement: `simple`, `grouped`, or `conditional` | grouped |
+| `requirement_type` | Type of requirement: `simple` or `grouped` | grouped |
 | `semester` | Academic semester | Fall |
 | `year` | Academic year | 2025 |
 | `is_current` | Whether this is the current version (true/false) | true |
