@@ -1,29 +1,32 @@
 # Course Equivalency and Transfer Planning System
 
 **Production Domain:** dlink.cs.uno.edu  
-**Current Branch:** auth-advisor  
-**Status:** Ready for production deployment
+**Current Branch:** dev-main  
+**Status:** Production ready with TOTP authentication
 
 ## Documentation
 
 **Start Here:** [Current System Status](docs/CURRENT_SYSTEM_STATUS.md) - Complete system overview
 
-### For Users
+### For Advisors & Users
+- **[Advisor Guide](docs/ADVISOR_GUIDE.md)** - Complete guide for academic advisors
 - **[User Guide - Program Requirements](docs/USER_GUIDE_PROGRAM_REQUIREMENTS.md)** - How to upload and manage program requirements
 - **[CSV Format Guide](docs/UNIFIED_CSV_FORMAT.md)** - CSV file format specification
 
 ### For Developers
-- **[Advisor Authentication](docs/ADVISOR_AUTH_IMPLEMENTATION.md)** - Email-based advisor auth system
-- **[Advisor-Student Linking](docs/ADVISOR_STUDENT_LINKING.md)** - Advisor center and plan linking
-- **[Production Backdoor](docs/PRODUCTION_BACKDOOR.md)** - Temporary auth for pre-SMTP deployment
+- **[System Architecture & Features](docs/CURRENT_SYSTEM_STATUS.md)** - Technical overview
+- **[GitHub Wiki Structure](docs/GITHUB_WIKI_STRUCTURE.md)** - Recommended developer documentation organization
+- **[Advisor Authentication](docs/ADVISOR_AUTH_IMPLEMENTATION.md)** - TOTP authentication system
 - **[Prerequisite System](docs/PREREQUISITE_IMPLEMENTATION.md)** - Course prerequisite validation
 - **[Constraint System](docs/CONSTRAINT_IMPLEMENTATION.md)** - Requirement constraint validation
-- **[Group-Level Constraints](docs/GROUP_LEVEL_CONSTRAINTS.md)** - Constraint scope details
+- **[Database Migrations](docs/MIGRATIONS_README.md)** - Flask-Migrate guide
 
-### Historical Reference
-- **[PostgreSQL Migration](docs/POSTGRESQL_MIGRATION.md)** - Database migration guide (completed)
-- **[Option A Implementation](docs/OPTION_A_IMPLEMENTATION.md)** - Requirement type changes
-- **[Scope Delimiter Change](docs/SCOPE_DELIMITER_CHANGE.md)** - CSV delimiter update
+### Recent Updates (November 2025)
+- ✨ **TOTP Authentication** - Migrated to Time-based One-Time Passwords (Google Authenticator, Authy, etc.)
+- 🔐 **Advisor Privileges** - Advisors have full administrative privileges
+- 📱 **QR Code Setup** - First-time authenticator setup with QR code scanning
+- 🔄 **TOTP Regeneration** - Reset authenticator on lost/new devices
+- 📧 **Email Fallback** - Backup authentication method for troubleshooting
 
 ## Quick Start
 

@@ -1,8 +1,8 @@
 # Course Equivalency System - Current Status
 
-**Last Updated:** November 21, 2025  
+**Last Updated:** November 25, 2025  
 **Production Domain:** dlink.cs.uno.edu  
-**Branch:** auth-advisor
+**Branch:** dev-main
 
 ---
 
@@ -20,25 +20,37 @@ The Course Equivalency and Transfer Planning System is a web application designe
 
 ### 1. Authentication System
 
-#### Admin Authentication
-- **Token-based:** `X-Admin-Token` header
-- **Configuration:** `ADMIN_API_TOKEN` environment variable
-- **Controls:** Upload operations, program management, advisor whitelist management
-- **Decorator:** `@require_admin` (in `backend/auth.py`)
-
-#### Advisor Authentication
-- **Email-based:** Whitelisted email with 6-digit verification codes
+#### Advisor Authentication (Primary)
+- **TOTP-based:** Time-based One-Time Password authentication using pyotp
 - **Session Duration:** 1 hour
-- **Backdoor Code:** `089292` (temporary, until SMTP configured)
+- **Authenticator Apps:** Google Authenticator, Authy, Microsoft Authenticator, etc.
 - **Model:** `AdvisorAuth` (in `backend/models/advisor_auth.py`)
 - **Decorator:** `@require_advisor` (in `backend/auth.py`)
+- **Admin Privileges:** Advisors have full administrative privileges (equivalent to admins)
 - **Features:**
-  - Email verification with time-limited codes (15 minutes)
-  - Rate limiting (5 failed attempts → 30-minute lockout)
+  - Email whitelist requirement (must be whitelisted to set up TOTP)
+  - QR code generation for first-time setup
+  - Regenerate TOTP secret capability
+  - 30-second code validity window
   - Session management with tokens
-  - Admin interface for whitelist management
+  - Fallback email code system (for troubleshooting)
 
-**Production Note:** Email sending is configured but SMTP server not yet set up for `dlink.cs.uno.edu`. Use backdoor code `089292` for any whitelisted email until SMTP is configured.
+**Endpoints:**
+- `POST /api/advisor-auth/request-code` - Request TOTP setup or email code
+- `POST /api/advisor-auth/verify-code` - Verify TOTP/email code and create session
+- `POST /api/advisor-auth/regenerate-totp` - Generate new TOTP secret
+- `GET /api/advisor-auth/verify-session` - Check current session validity
+- `POST /api/advisor-auth/logout` - Logout and clear session
+- `GET /api/advisor-auth/whitelist` - List all whitelisted advisors (admin only)
+- `POST /api/advisor-auth/whitelist` - Add single advisor (admin only)
+- `POST /api/advisor-auth/whitelist/bulk` - Bulk add advisors via CSV (admin only)
+- `DELETE /api/advisor-auth/whitelist/:id` - Remove advisor (admin only)
+
+#### Admin API Token (Legacy/Backend)
+- **Token-based:** `X-Admin-Token` header
+- **Configuration:** `ADMIN_API_TOKEN` environment variable
+- **Usage:** Backend operations, scripts, API testing
+- **Note:** Advisors authenticated via TOTP also have admin privileges via `@require_admin` decorator
 
 #### Plan Access Sessions
 - **Code-based:** 8-character alphanumeric plan codes
@@ -238,22 +250,26 @@ VITE_ADMIN_API_TOKEN=your_admin_token
 
 ## Recent Major Changes
 
+### Recent Major Changes
+
 ### November 2025
-- Added advisor authentication system with email verification
-- Implemented backdoor code for pre-SMTP deployment
-- Removed `conditional` requirement type
-- Moved prerequisites to course-level
-- Added transitive equivalency support for prerequisites
-- Implemented group-level and category-level constraints
-- Changed scope delimiter from comma to space
+- **TOTP Authentication:** Migrated from email codes to TOTP (pyotp) as primary authentication method
+- **Advisor = Admin:** Advisors now have full administrative privileges
+- **QR Code Setup:** First-time TOTP setup with QR code scanning
+- **Regenerate TOTP:** Ability to regenerate TOTP secrets for existing advisors
+- **Email Fallback:** Kept email code system as fallback for troubleshooting
+- **Removed `conditional` requirement type:** Prerequisites moved to course-level
+- **Transitive Equivalencies:** Added support for prerequisite chains
+- **Group-Level Constraints:** Constraints can apply at category or group level
+- **Scope Delimiter Change:** Changed from comma to space-separated subject codes
 
 ---
 
 ## Known Limitations
 
-1. **Email Delivery:** SMTP server not configured for dlink.cs.uno.edu domain
-   - **Workaround:** Use backdoor code `089292`
-   - **Resolution:** Configure SMTP with UNO IT
+1. **TOTP Setup Required:** All advisors need to set up authenticator app on first login
+   - **Workaround:** Email code fallback available for troubleshooting
+   - **Device Loss:** Use "Regenerate TOTP Secret" to set up on new device
 
 2. **Session Storage:** Uses Flask server-side sessions
    - Not distributed across multiple backend instances
@@ -317,17 +333,17 @@ npm run build
 
 ## Next Steps
 
-### Immediate (Pre-Production)
-1. Debug logging active in advisor auth (intentional for deployment testing)
-2. Test production build (successful)
+### Immediate (Production Ready)
+1. System fully functional with TOTP authentication
+2. All advisors need to be whitelisted and complete TOTP setup
 3. Deploy to dlink.cs.uno.edu
-4. Add initial advisor emails to whitelist
+4. Monitor TOTP authentication usage
 
 ### Short Term (Post-Deployment)
-1. Configure SMTP with UNO IT
-2. Remove backdoor code after SMTP works
-3. Set up monitoring/logging
-4. Create admin documentation
+1. Gather feedback on TOTP user experience
+2. Set up monitoring/logging for authentication attempts
+3. Create backup/recovery procedures for lost authenticator devices
+4. Document common troubleshooting scenarios
 
 ### Long Term
 1. Add more robust error tracking
@@ -341,5 +357,5 @@ npm run build
 
 **Development Team:** UNO CS Department  
 **Repository:** mmennelle/course-equivalency  
-**Branch:** auth-advisor  
+**Branch:** dev-main  
 **Production URL:** dlink.cs.uno.edu

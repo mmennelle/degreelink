@@ -1,7 +1,7 @@
 # Program Requirements Upload Guide
 **For Academic Advisors and Program Administrators**
 
-*Last Updated: November 18, 2025*
+*Last Updated: November 25, 2025*
 
 ---
 
@@ -21,23 +21,42 @@
 
 ### What You'll Need
 - A CSV (spreadsheet) file with your program requirements
-- Admin access to the Degree Link system
+- Advisor access to the Degree Link system (advisors have administrative privileges)
+- An authenticator app (Google Authenticator, Authy, etc.) for secure login
 - Basic knowledge of your program's course requirements
 
 ### Basic Steps
-1. **Prepare** your CSV file with program requirements
-2. **Upload** the file through the Admin interface
-3. **Review** the preview showing what will be created or updated
-4. **Edit** requirements directly in the confirmation screen (optional)
-5. **Confirm** to save changes to the database
-6. **Manage** existing requirements using the edit tools
+1. **Log in** using your authenticator app for secure access
+2. **Prepare** your CSV file with program requirements
+3. **Upload** the file through the admin interface
+4. **Review** the preview showing what will be created or updated
+5. **Edit** requirements directly in the confirmation screen (optional)
+6. **Confirm** to save changes to the database
+7. **Manage** existing requirements using the edit tools
 
 ---
 
 ## Upload Process Overview
 
+### Step 0: Sign In as Advisor
+
+Before you can upload program requirements, you need to authenticate:
+
+1. **Click the Settings icon** (⚙️) in the top-right corner of the page
+2. **Enter your whitelisted email address**
+3. **Click "Request Code"**
+4. **First-time setup:**
+   - A QR code will appear - scan it with your authenticator app (Google Authenticator, Authy, Microsoft Authenticator, etc.)
+   - The app will start generating 6-digit codes that change every 30 seconds
+5. **Enter the 6-digit code** from your authenticator app
+6. **Click "Sign In"**
+
+Your session will remain active for 1 hour. After that, you'll need to sign in again using a new code from your authenticator app.
+
+**Note:** If you need to regenerate your authenticator secret (e.g., new phone), click the "Regenerate TOTP Secret" button and scan the new QR code.
+
 ### Step 1: Select Upload Type
-In the Admin interface, navigate to the **Upload** tab and select **"Program Requirements"** from the upload type dropdown.
+In the admin interface, navigate to the **Upload** tab and select **"Program Requirements"** from the upload type dropdown.
 
 ### Step 2: Choose Your File
 Click **"Choose File"** or drag and drop your CSV file into the upload area.
