@@ -1,6 +1,7 @@
 # Degree Link - Course Equivalency and Transfer Planning System
 
-**Production:** https://dlink.cs.uno.edu
+**Production:** https://dlink.cs.uno.edu  
+**Documentation:** https://mmennelle.github.io/course-equivalency
 
 ## What is Degree Link?
 
@@ -14,104 +15,101 @@ Students can create personalized degree plans, see real-time progress toward gra
 
 ---
 
-## How It Works
+## For Students
 
-### For Students
-- **Browse Courses** - Search course catalogs from multiple institutions
-- **Find Equivalencies** - See which courses transfer between schools
-- **Create Plans** - Build semester-by-semester degree plans
-- **Track Progress** - Real-time validation of degree requirements and constraints
-- **Check Prerequisites** - Ensure courses are taken in the right order
+### Getting Started
 
-### For Advisors
-- **Secure Authentication** - TOTP-based login (Google Authenticator, Authy, etc.)
-- **Upload Requirements** - CSV-based program requirement management
-- **Manage Catalogs** - Add courses and equivalency mappings
-- **View Student Plans** - Access student plans via shared plan codes
-- **Validate Progress** - Real-time constraint checking (credits, course counts, levels, attributes)
+1. **Create Your Degree Plan**
+   - Visit the system URL
+   - Click "Create New Plan"
+   - Enter your information and select your degree program
+   - Save your unique 8-character plan code
 
-### Key Features
-- **Prerequisite Validation** - Automatic checking of course prerequisites with transitive equivalency support
-- **Constraint Engine** - Validates credit requirements, course counts, upper-level minimums, and course attributes (labs, etc.)
-- **Flexible Requirements** - Supports simple (required courses) and grouped (choose X from Y) requirements
-- **Real-time Progress** - Instant feedback as students add/remove courses from plans
+2. **Add Courses**
+   - Browse or search for courses
+   - Add courses to your plan
+   - System automatically checks prerequisites and constraints
 
----
+3. **Track Your Progress**
+   - View color-coded progress bars for each requirement
+   - See which courses you still need
+   - Check constraint satisfaction (credits, course counts, levels)
 
-## Quick Start
+4. **Share with Your Advisor**
+   - Give your plan code to your advisor
+   - Your advisor can view and edit your plan
+   - Download as PDF for advising appointments
 
-### Backend Setup
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate on Windows
-pip install -r requirements.txt
+### Key Features for Students
 
-# Configure environment
-cp .env.example .env
-# Edit .env with your DATABASE_URL and other settings
+- **Real-time Progress Tracking** - See completion status for all degree requirements
+- **Prerequisite Checking** - System warns if you're missing prerequisites
+- **Course Equivalencies** - Transfer credits automatically recognized
+- **Constraint Validation** - Ensures you meet credit minimums, course counts, level requirements
+- **Course Suggestions** - Get recommendations based on completed prerequisites
+- **Plan Sharing** - Share with advisors using your plan code
+- **Download & Print** - Export your plan as PDF or CSV
 
-# Initialize database
-flask db upgrade
-
-# Run development server
-flask run
-```
-
-### Frontend Setup
-```bash
-cd frontend
-npm install
-
-# Configure environment
-cp .env.example .env.local
-# Edit .env.local with your API URL
-
-# Run development server
-npm run dev
-
-# Build for production
-npm run build
-```
+**[Read the Complete Student Guide](docs/STUDENT_GUIDE.md)**
 
 ---
 
-## Technology Stack
+## For Advisors
 
-**Backend:**
-- Flask (Python web framework)
-- PostgreSQL (database)
-- SQLAlchemy (ORM)
-- Flask-Migrate (database migrations)
-- pyotp (TOTP authentication)
+### Getting Started
 
-**Frontend:**
-- React (UI framework)
-- Vite (build tool)
-- TailwindCSS (styling)
-- React Router (navigation)
+1. **Authenticate**
+   - Click the Settings icon
+   - Enter your whitelisted email
+   - Scan QR code with authenticator app (first time)
+   - Enter 6-digit code to sign in
+
+2. **Upload Program Requirements**
+   - Navigate to Upload tab
+   - Select "Program Requirements"
+   - Upload CSV file with requirements and constraints
+   - Review preview and confirm
+
+3. **Manage Student Plans**
+   - Students share their plan codes with you
+   - Enter plan code to view/edit student plans
+   - Add or remove courses
+   - Verify degree requirement satisfaction
+
+### Key Features for Advisors
+
+- **TOTP Authentication** - Secure login with authenticator apps (Google Authenticator, Authy, etc.)
+- **CSV Upload System** - Bulk upload courses, equivalencies, and program requirements
+- **Constraint Management** - Define credit minimums/maximums, course counts, level requirements, attribute requirements
+- **Preview & Edit** - Review changes before confirming uploads
+- **Student Plan Access** - View and edit student plans via plan codes
+- **Real-time Validation** - Automatic checking of all requirements and constraints
+
+**[Read the Complete Advisor Guide](docs/ADVISOR_GUIDE.md)**
+
+**[View Program Requirements Upload Guide](docs/USER_GUIDE_PROGRAM_REQUIREMENTS.md)**
+
+**[View CSV Format Specification](docs/CSV_FORMAT.md)**
 
 ---
 
 ## Documentation
 
-📚 **[View Full Documentation on GitHub Wiki](../../wiki)**
+### User Documentation
+- **[Student Guide](docs/STUDENT_GUIDE.md)** - Complete guide for students
+- **[Advisor Guide](docs/ADVISOR_GUIDE.md)** - Complete guide for advisors
+- **[Program Requirements Upload Guide](docs/USER_GUIDE_PROGRAM_REQUIREMENTS.md)** - How to upload requirements
+- **[CSV Format Specification](docs/CSV_FORMAT.md)** - CSV file format details
 
-- **[Advisor Guide](docs/ADVISOR_GUIDE.md)** - Complete guide for academic advisors
-- **[User Guide - Program Requirements](docs/USER_GUIDE_PROGRAM_REQUIREMENTS.md)** - How to upload and manage program requirements
-- **[CSV Format Guide](docs/UNIFIED_CSV_FORMAT.md)** - CSV file format specification
-- **[System Status](docs/CURRENT_SYSTEM_STATUS.md)** - Current features and architecture
+### Technical Documentation
+- **[Technical Overview](docs/CURRENT_SYSTEM_STATUS.md)** - System architecture and features
+- **[TOTP Authentication System](docs/ADVISOR_AUTH_IMPLEMENTATION.md)** - Authentication implementation
+- **[Course Prerequisite System](docs/PREREQUISITE_IMPLEMENTATION.md)** - Prerequisite validation
+- **[Requirement Constraint System](docs/CONSTRAINT_IMPLEMENTATION.md)** - Constraint validation
+- **[Constraint Scoping](docs/GROUP_LEVEL_CONSTRAINTS.md)** - Category vs group-level constraints
+- **[Admin Tokens and Plan Sessions](docs/admin-auth-and-sessions.md)** - API authentication
 
-### Developer Documentation
-- System Architecture
-- API Reference
-- Database Schema
-- Authentication Implementation
-- Constraint System
-- Prerequisite System
-- Contributing Guidelines
-
-*Full developer documentation available on the [GitHub Wiki](../../wiki)*
+**[View Complete Documentation Index](docs/README.md)**
 
 ---
 
@@ -127,6 +125,6 @@ npm run build
 ## Support
 
 For questions or issues:
-- Check the [GitHub Wiki](../../wiki) for documentation
-- Review the [User Guides](docs/) for end-user documentation
+- Review the [Student Guide](docs/STUDENT_GUIDE.md) or [Advisor Guide](docs/ADVISOR_GUIDE.md)
+- Check the [Documentation](docs/) for detailed information
 - Contact the UNO CS Department for technical support
