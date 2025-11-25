@@ -1,7 +1,7 @@
 # Degree Link - Course Equivalency and Transfer Planning System
 
 **Production:** https://dlink.cs.uno.edu  
-**Documentation:** https://mmennelle.github.io/course-equivalency
+**Documentation:** https://mmennelle.github.io/degreelink
 
 ## What is Degree Link?
 
