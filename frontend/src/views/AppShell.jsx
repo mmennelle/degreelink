@@ -108,6 +108,7 @@ export default function AppShell({
               Developed by Mitchell Mennelle under a joint grant between Delgado Community College and The University of New Orleans
             </p>
             <p className="mt-1">© 2025 All rights reserved</p>
+            <p className="mt-1">For Instructions visit <a href="https://mmennelle.github.io/degreelink/" className="text-blue-600 hover:underline">https://mmennelle.github.io/degreelink/</a></p>
           </div>
         </footer>
       </div>
