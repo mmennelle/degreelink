@@ -22,11 +22,11 @@
 - **[Database Migrations](docs/MIGRATIONS_README.md)** - Flask-Migrate guide
 
 ### Recent Updates (November 2025)
-- ✨ **TOTP Authentication** - Migrated to Time-based One-Time Passwords (Google Authenticator, Authy, etc.)
-- 🔐 **Advisor Privileges** - Advisors have full administrative privileges
-- 📱 **QR Code Setup** - First-time authenticator setup with QR code scanning
-- 🔄 **TOTP Regeneration** - Reset authenticator on lost/new devices
-- 📧 **Email Fallback** - Backup authentication method for troubleshooting
+- **TOTP Authentication** - Migrated to Time-based One-Time Passwords (Google Authenticator, Authy, etc.)
+- **Advisor Privileges** - Advisors have full administrative privileges
+- **QR Code Setup** - First-time authenticator setup with QR code scanning
+- **TOTP Regeneration** - Reset authenticator on lost/new devices
+- **Email Fallback** - Backup authentication method for troubleshooting
 
 ## Quick Start
 
