@@ -40,7 +40,7 @@ Academic advisors with whitelisted university email addresses have full administ
 ### First-Time Setup
 
 1. **Open Degree Link** at dlink.cs.uno.edu
-2. **Click the Settings icon** (⚙️) in the top-right corner
+2. **Click the Settings icon** in the top-right corner
 3. **Enter your university email** (must be whitelisted by another advisor)
 4. **Click "Request Code"**
 5. **Download an authenticator app** if you don't have one:
@@ -56,7 +56,7 @@ Your authenticator app will now generate a new 6-digit code every 30 seconds for
 
 ### Signing In (After Setup)
 
-1. **Click the Settings icon** (⚙️)
+1. **Click the Settings icon**
 2. **Enter your university email**
 3. **Click "Request Code"**
 4. **Open your authenticator app** and find the Degree Link entry
@@ -70,7 +70,7 @@ Your session will remain active for **1 hour**. After that, you'll need to sign 
 If you lose access to your authenticator app:
 
 1. **Sign in on a device where you still have access**
-2. **Click the Settings icon** (⚙️)
+2. **Click the Settings icon**
 3. **Enter your email and request a code**
 4. **Click "Regenerate TOTP Secret"** (appears below the sign-in button)
 5. **Scan the new QR code** with your authenticator app on the new device
@@ -157,13 +157,13 @@ You can help students by:
 
 ### Protecting Your Account
 
-✅ **DO:**
+**DO:**
 - Keep your authenticator app on a secure device
 - Sign out when using shared computers
 - Use a secure authenticator app (Google Authenticator, Authy, etc.)
 - Regenerate your TOTP secret if you suspect compromise
 
-❌ **DON'T:**
+**DON'T:**
 - Share your 6-digit codes with anyone
 - Screenshot your QR code during setup
 - Use authenticator apps on rooted/jailbroken devices

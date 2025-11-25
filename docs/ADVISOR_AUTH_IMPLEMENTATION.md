@@ -24,7 +24,7 @@ The system uses **email verification with time-limited codes** instead of simple
 
 ### For Advisors
 
-1. **Click the Settings Icon** (⚙️) in the top-right corner (or select Advisor during onboarding)
+1. **Click the Settings Icon** in the top-right corner (or select Advisor during onboarding)
 2. **Enter Email**: Enter your university email address
 3. **Request Code**: Click "Send Access Code" - a 6-digit code will be sent to your email
 4. **Verify Code**: Enter the 6-digit code from your email (code expires in 15 minutes)
@@ -122,7 +122,7 @@ Token management:
 #### 4. UI Changes
 
 **AppShell:**
-- Replaced "Switch" button with Settings cog icon (⚙️)
+- Replaced "Switch" button with Settings cog icon
 - Clicking cog opens `AdvisorAuthModal`
 
 **App.jsx:**
@@ -291,21 +291,21 @@ curl -X POST http://localhost:5000/api/advisor-auth/verify-code \
 ## Files Changed/Created
 
 ### Backend
-- ✅ `models/advisor_auth.py` - New model
-- ✅ `routes/advisor_auth.py` - New routes
-- ✅ `auth.py` - Added `@require_advisor` decorator
-- ✅ `routes/__init__.py` - Registered advisor_auth blueprint
-- ✅ `app.py` - Added `X-Advisor-Token` to CORS headers
-- ✅ `models/__init__.py` - Exported AdvisorAuth model
-- ✅ `migrations/versions/a1b2c3d4e5f6_add_advisor_authentication_table.py` - Migration
+- `models/advisor_auth.py` - New model
+- `routes/advisor_auth.py` - New routes
+- `auth.py` - Added `@require_advisor` decorator
+- `routes/__init__.py` - Registered advisor_auth blueprint
+- `app.py` - Added `X-Advisor-Token` to CORS headers
+- `models/__init__.py` - Exported AdvisorAuth model
+- `migrations/versions/a1b2c3d4e5f6_add_advisor_authentication_table.py` - Migration
 
 ### Frontend
-- ✅ `components/AdvisorAuthModal.jsx` - New modal
-- ✅ `pages/AppManagementPage.jsx` - New page
-- ✅ `services/api.js` - Added advisor auth methods
-- ✅ `views/AppShell.jsx` - Replaced Switch button with Settings cog
-- ✅ `App.jsx` - Integrated advisor auth
-- ✅ `controllers/useAppController.js` - Added App Management tab
+- `components/AdvisorAuthModal.jsx` - New modal
+- `pages/AppManagementPage.jsx` - New page
+- `services/api.js` - Added advisor auth methods
+- `views/AppShell.jsx` - Replaced Switch button with Settings cog
+- `App.jsx` - Integrated advisor auth
+- `controllers/useAppController.js` - Added App Management tab
 
 ## Admin Badge Removal
 
@@ -315,4 +315,4 @@ The admin mode badge can be removed from `AdminBadge.jsx` or wherever it was dis
 
 **Implementation Date**: November 20, 2025
 **Author**: GitHub Copilot
-**Status**: ✅ Complete - Ready for Testing
+**Status**: Complete - Ready for Testing

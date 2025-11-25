@@ -1,37 +1,36 @@
-# Constraint Logic Implementation
+# Requirement Constraint System
 
 ## Overview
-This document describes the comprehensive constraint implementation added to the course equivalency application. The system now fully supports constraint validation, filtering, warnings, and credit exclusions.
+The constraint system provides comprehensive validation, filtering, warnings, and credit exclusions for program requirements. Constraints ensure students meet specific academic requirements beyond simple credit or course counts.
 
-## What Was Implemented
+## System Components
 
-### 1. Database Schema Updates ✅
+### 1. Database Schema
 **File:** `backend/models/plan.py` - PlanCourse model
 
-**Changes:**
-- Added `constraint_violation` (Boolean) field to track courses that violate constraints
-- Added `constraint_violation_reason` (Text) field to store human-readable violation reasons
-- Updated `to_dict()` method to include constraint violation information
-- Created and applied database migration
+**Fields:**
+- `constraint_violation` (Boolean): Tracks courses that violate constraints
+- `constraint_violation_reason` (Text): Stores human-readable violation reasons
+- `to_dict()` method: Includes constraint violation information in API responses
 
 **Purpose:** Track which courses violate constraints so they can be excluded from credit calculations and displayed differently in the UI.
 
 ---
 
-### 2. Constraint Evaluation & Credit Exclusion ✅
+### 2. Constraint Evaluation & Credit Exclusion
 **File:** `backend/models/plan.py` - Plan model
 
-**Changes:**
-- Updated `_evaluate_grouped_requirement()` to filter out constraint-violating courses before evaluating constraints
-- Modified credit calculation to exclude courses marked as constraint violations
-- Enhanced constraint results to include constraint type, ID, and description
+**Features:**
+- Filters out constraint-violating courses before evaluating constraints
+- Excludes constraint-violating courses from credit calculations
+- Includes constraint type, ID, and description in results
 - Recalculates valid credits after filtering violating courses
 
 **Purpose:** Ensures that courses violating constraints don't count toward requirement totals while still allowing them to exist in the plan.
 
 ---
 
-### 3. Constraint Validation API ✅
+### 3. Constraint Validation API
 **File:** `backend/routes/plans.py`
 
 **New Endpoints:**
@@ -50,7 +49,7 @@ This document describes the comprehensive constraint implementation added to the
 
 ---
 
-### 4. Course Addition with Constraint Support ✅
+### 4. Course Addition with Constraint Support
 **File:** `backend/routes/plans.py`
 
 **Changes:**
@@ -62,14 +61,14 @@ This document describes the comprehensive constraint implementation added to the
 
 ---
 
-### 5. Constraint Display in UI ✅
+### 5. Constraint Display in UI
 **File:** `frontend/src/components/ProgressTracking.jsx` - RequirementDetails component
 
 **Changes:**
 - Added collapsible "Constraints" section showing all constraints for a requirement
-- Visual indicators for satisfied (✓ green) vs unsatisfied (⚠️ red) constraints
+- Visual indicators for satisfied (checkmark green) vs unsatisfied (warning red) constraints
 - Displays constraint descriptions, reasons for failure, and tallies
-- Course cards now show ⚠️ icon for constraint-violating courses
+- Course cards now show warning icon for constraint-violating courses
 - Orange highlighting for courses that violate constraints
 - Shows constraint violation reason on course cards
 
@@ -77,7 +76,7 @@ This document describes the comprehensive constraint implementation added to the
 
 ---
 
-### 6. Filtered Course Suggestions ✅
+### 6. Filtered Course Suggestions
 **File:** `frontend/src/components/ProgressTracking.jsx` - generateSuggestions()
 
 **Changes:**
@@ -91,7 +90,7 @@ This document describes the comprehensive constraint implementation added to the
 
 ---
 
-### 7. Constraint Violation Warnings ✅
+### 7. Constraint Violation Warnings
 **File:** `frontend/src/components/AddCourseToPlanModal.jsx`
 
 **Changes:**
@@ -130,7 +129,7 @@ This document describes the comprehensive constraint implementation added to the
    - **Add Anyway**: Course added with violation flag
 5. Course appears in plan with:
    - Orange background
-   - ⚠️ warning icon
+   - Warning icon
    - Violation reason displayed
    - **Credits do NOT count toward requirement**
 
@@ -262,7 +261,7 @@ POST /api/plans/by-code/ABC12345/validate-course-constraints
    
 5. **UI Display:**
    - Check constraint section shows all constraints with correct status
-   - Verify violating courses have orange background and ⚠️ icon
+   - Verify violating courses have orange background and warning icon
    
 6. **Filtered Suggestions:**
    - Verify suggestions respect minimum level requirements
@@ -286,10 +285,10 @@ POST /api/plans/by-code/ABC12345/validate-course-constraints
 ## Conclusion
 
 The constraint system is now fully functional with:
-- ✅ Constraint evaluation and credit exclusion
-- ✅ User warnings before violations
-- ✅ Visual indicators for constraint status
-- ✅ Filtered course suggestions
-- ✅ Override capability with proper tracking
+- Constraint evaluation and credit exclusion
+- User warnings before violations
+- Visual indicators for constraint status
+- Filtered course suggestions
+- Override capability with proper tracking
 
 Users can now make informed decisions about course selection while the system ensures academic requirements are accurately tracked.

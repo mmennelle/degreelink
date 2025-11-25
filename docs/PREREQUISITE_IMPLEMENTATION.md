@@ -1,25 +1,20 @@
-# Prerequisite Implementation Documentation
+# Course Prerequisite System
 
 ## Overview
 
-Prerequisites are now handled at the **course level** rather than as a requirement type. This allows for more flexible and accurate prerequisite validation that respects equivalencies across institutions.
+Prerequisites are handled at the **course level**, allowing for flexible and accurate prerequisite validation that respects equivalencies across institutions.
 
-## Key Changes
+## System Design
 
-### 1. Removed `conditional` Requirement Type
+### Requirement Types
 
-**Previous System:**
-- Requirements could be typed as `simple`, `grouped`, or `conditional`
-- `conditional` was intended for sequential/prerequisite requirements
-- Implementation was incomplete (placeholder only)
-
-**Current System:**
-- Requirements are now only `simple` or `grouped`
+**Available types:**
 - `simple` = pool of courses (choose any to meet credit goal)
 - `grouped` = multiple mandatory subdivisions (must satisfy ALL groups)
-- Prerequisites are specified per-course in the Course model
 
-### 2. Course-Level Prerequisites
+Prerequisites are specified per-course in the Course model, not as a requirement type.
+
+### Course-Level Prerequisites
 
 **Course Model** (`backend/models/course.py`):
 ```python
@@ -68,7 +63,7 @@ Uses BFS (Breadth-First Search) to find all transitively equivalent courses:
 - If A = B and B = C, then A, B, and C are all equivalent
 - Prerequisites can be satisfied by any course in the equivalency chain
 
-### 4. API Endpoints
+### API Endpoints
 
 **Location:** `backend/routes/prerequisites.py`
 
@@ -122,21 +117,9 @@ GET /api/prerequisites/suggest-next-courses/<plan_id>?limit=20
 
 Returns courses the student can take based on completed prerequisites.
 
-## Migration Guide
+## CSV Format
 
-### For CSV Authors
-
-**Before (conditional requirement type):**
-```csv
-program_name,category,requirement_type,group_name,course_code
-"Biology B.S.","Math Sequence",conditional,"Calc I",MATH 151
-"Biology B.S.","Math Sequence",conditional,"Calc II",MATH 152
-"Biology B.S.","Math Sequence",conditional,"Calc III",MATH 251
-```
-
-**After (simple requirement + course prerequisites):**
-
-**Requirements CSV:**
+### Requirements CSV
 ```csv
 program_name,category,requirement_type,group_name,course_code
 "Biology B.S.","Math Sequence",simple,"Math Options",MATH 151
@@ -144,7 +127,7 @@ program_name,category,requirement_type,group_name,course_code
 "Biology B.S.","Math Sequence",simple,"Math Options",MATH 251
 ```
 
-**Courses CSV:**
+### Courses CSV with Prerequisites
 ```csv
 code,title,prerequisites
 MATH 151,Calculus I,
@@ -152,30 +135,52 @@ MATH 152,Calculus II,MATH 151
 MATH 251,Calculus III,MATH 152
 ```
 
-### For Application Developers
+## Usage
 
-**Backend:**
-1. Import `PrerequisiteService` from `backend.services.prerequisite_service`
-2. Use `validate_prerequisites(course_code, completed_courses, institution)` to check if a student can take a course
-3. Use `get_prerequisite_details(course_code)` to display prerequisite information
+### Backend Integration
 
-**Frontend:**
-1. Use `/api/prerequisites/check/<course_code>` endpoint when displaying course registration options
-2. Display warning indicators for courses with unmet prerequisites
-3. Use `/api/prerequisites/suggest-next-courses/` to recommend courses to students
+**Import the service:**
+```python
+from backend.services.prerequisite_service import PrerequisiteService
+```
+
+**Validate prerequisites:**
+```python
+# Check if a student can take a course
+PrerequisiteService.validate_prerequisites(course_code, completed_courses, institution)
+
+# Get prerequisite details for display
+PrerequisiteService.get_prerequisite_details(course_code)
+```
+
+### Frontend Integration
+
+**Check prerequisites:**
+```javascript
+GET /api/prerequisites/check/<course_code>?plan_id=123
+```
+
+**Display prerequisite information:**
+- Show warning indicators for courses with unmet prerequisites
+- Use prerequisite details endpoint for informational displays
+
+**Get course suggestions:**
+```javascript
+GET /api/prerequisites/suggest-next-courses/<plan_id>
+```
 
 ## Testing
 
 **Test File:** `backend/tests/test_prerequisites.py`
 
 **Coverage:**
-- ✅ Direct prerequisites (Course A requires Course B)
-- ✅ Transitive equivalencies (A=B, B required for D → A satisfies prerequisite)
-- ✅ Cross-institution chains
-- ✅ Multiple prerequisites (AND logic)
-- ✅ Missing prerequisites detection
-- ✅ Courses with no prerequisites
-- ✅ Non-existent course handling
+- Direct prerequisites (Course A requires Course B)
+- Transitive equivalencies (A=B, B required for D → A satisfies prerequisite)
+- Cross-institution chains
+- Multiple prerequisites (AND logic)
+- Missing prerequisites detection
+- Courses with no prerequisites
+- Non-existent course handling
 
 **Run Tests:**
 ```bash

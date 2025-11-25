@@ -364,14 +364,14 @@ This example requires:
 
 ### File Preparation
 
-✅ **DO:**
+**DO:**
 - Use a spreadsheet program (Excel, Google Sheets) to create your CSV
 - Keep institution names consistent across all rows
 - Use the exact course codes from your course database
 - Test with a small file first (one program, a few requirements)
 - Save a backup before uploading
 
-❌ **DON'T:**
+**DON'T:**
 - Use special characters in program or category names
 - Mix tabs and commas in your file
 - Leave required columns empty
