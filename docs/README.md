@@ -6,7 +6,7 @@ This directory contains all technical documentation for the Course Equivalency a
 
 ---
 
-## 📋 Start Here
+## Start Here
 
 ### **[CURRENT_SYSTEM_STATUS.md](CURRENT_SYSTEM_STATUS.md)**
 Complete system overview including:
@@ -18,7 +18,7 @@ Complete system overview including:
 
 ---
 
-## 👥 User Documentation
+## User Documentation
 
 ### **[USER_GUIDE_PROGRAM_REQUIREMENTS.md](USER_GUIDE_PROGRAM_REQUIREMENTS.md)**
 Guide for academic advisors and program administrators:
@@ -38,7 +38,7 @@ CSV file format specification:
 
 ---
 
-## 🔐 Authentication & Security
+## Authentication & Security
 
 ### **[ADVISOR_AUTH_IMPLEMENTATION.md](ADVISOR_AUTH_IMPLEMENTATION.md)**
 Advisor authentication system details:
@@ -64,7 +64,7 @@ Admin token and plan session authentication:
 
 ---
 
-## 🎓 Core Features
+## Core Features
 
 ### **[PREREQUISITE_IMPLEMENTATION.md](PREREQUISITE_IMPLEMENTATION.md)**
 Course prerequisite validation system:
@@ -92,7 +92,7 @@ Category vs group-level constraint scoping:
 
 ---
 
-## 📝 Implementation Details
+## Implementation Details
 
 ### **[OPTION_A_IMPLEMENTATION.md](OPTION_A_IMPLEMENTATION.md)**
 Requirement type restructuring:
@@ -128,7 +128,7 @@ Upload preview/confirm workflow:
 
 ---
 
-## 🗄️ Database
+## Database
 
 ### **[POSTGRESQL_MIGRATION.md](POSTGRESQL_MIGRATION.md)**
 PostgreSQL migration from SQLite:
@@ -155,7 +155,7 @@ Flask-Migrate (Alembic) usage:
 
 ---
 
-## 🗂️ Sample Data
+## Sample Data
 
 ### **[equic-csvs/](equic-csvs/)**
 Sample CSV files and templates:
@@ -166,7 +166,7 @@ Sample CSV files and templates:
 
 ---
 
-## 🗃️ Archive
+## Archive
 
 Historical documentation and outdated guides (see `archive/` directory):
 - Old course transfer instructions
@@ -179,9 +179,9 @@ Historical documentation and outdated guides (see `archive/` directory):
 
 ## Documentation Status Legend
 
-- ✅ **Current & Active** - Reflects current implementation
-- 📚 **Historical Reference** - Completed migrations or past changes
-- 🗄️ **Archived** - Superseded by newer documentation
+- **Current & Active** - Reflects current implementation
+- **Historical Reference** - Completed migrations or past changes
+- **Archived** - Superseded by newer documentation
 
 ---
 
