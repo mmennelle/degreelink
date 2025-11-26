@@ -220,7 +220,7 @@ export default function ProgressTracking({
 		const transform = seg.side === 'left' ? 'translate(-100%, -50%)' : 'translate(0, -50%)';
 		return createPortal(
 			<>
-				<button aria-label="Close popover" onClick={() => setOpenBubbleKey(null)} className="fixed inset-0 z-[998] bg-transparent" />
+				<button aria-label="Close popover" onClick={(e) => { e.stopPropagation(); setOpenBubbleKey(null); }} onTouchStart={(e) => { e.stopPropagation(); setOpenBubbleKey(null); }} className="fixed inset-0 z-[998] bg-transparent" style={{ touchAction: 'manipulation' }} />
 				<div role="dialog" aria-modal="false" className="fixed z-[999] w-80 max-w-[85vw] rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl" style={{ top, left: leftBase, transform, maxHeight: 'min(70vh, 560px)', overflow: 'hidden' }}>
 					<div style={{ maxHeight: 'inherit', overflowY: 'auto' }}>{children}</div>
 				</div>
@@ -246,7 +246,7 @@ export default function ProgressTracking({
 		const sheetMaxPx = Math.round(vh * 0.88);
 		return createPortal(
 			<>
-				<button aria-label="Close panel" onClick={() => setOpenBubbleKey(null)} className="fixed inset-0 z-[1098] bg-black/50 backdrop-blur-[1px]" />
+				<button aria-label="Close panel" onClick={(e) => { e.stopPropagation(); setOpenBubbleKey(null); }} onTouchStart={(e) => { e.stopPropagation(); setOpenBubbleKey(null); }} className="fixed inset-0 z-[1098] bg-black/50 backdrop-blur-[1px]" style={{ touchAction: 'manipulation' }} />
 				<div role="dialog" aria-modal="true" className="fixed inset-x-0 bottom-0 z-[1099] rounded-t-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl pt-3 pb-4 px-4" style={{ maxHeight: `${sheetMaxPx}px`, height: 'auto', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)', overflow: 'hidden', overscrollBehavior: 'contain' }}>
 					<div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-gray-300 dark:bg-gray-600" />
 					<div style={{ maxHeight: 'inherit', overflowY: 'auto' }}>{children}</div>
@@ -272,14 +272,41 @@ export default function ProgressTracking({
 					const isOpen = openBubbleKey === segKey;
 					const segments = buildSegments(displayRequirements);
 					return (
-						<div key={segKey} className="relative w-full" style={{ height: `${seg.height}%` }}>
-							<div className={`absolute inset-0 ${seg.trackClass} ${index === 0 ? 'rounded-t-sm' : ''} ${index === segments.length - 1 ? 'rounded-b-sm' : ''}`} />
-							<div className={`absolute bottom-0 left-0 w-full ${index === 0 ? 'rounded-t-sm' : ''} ${index === segments.length - 1 ? 'rounded-b-sm' : ''}`} style={{ height: `${seg.fillPercent}%`, transition: 'height .25s ease', ...seg.fillStyle }} />
-							{index < segments.length - 1 && (<div className="absolute bottom-0 left-0 w-full h-0.5 bg-gray-400 dark:bg-black z-10" />)}
-							<div className="absolute inset-0 flex items-center justify-center z-20">
-								<span className="uppercase font-bold text-xs text-white drop-shadow-sm" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>{seg.initials}</span>
+						<React.Fragment key={segKey}>
+							<div 
+								className="relative w-full cursor-pointer" 
+								style={{ height: `${seg.height}%` }}
+								onClick={(e) => {
+									e.preventDefault();
+									e.stopPropagation();
+									setOpenBubbleKey(isOpen ? null : segKey);
+								}}
+								onTouchStart={(e) => {
+									e.stopPropagation();
+								}}
+								onTouchEnd={(e) => {
+									e.preventDefault();
+									e.stopPropagation();
+									setOpenBubbleKey(isOpen ? null : segKey);
+								}}
+								role="button"
+								tabIndex={0}
+								onKeyDown={(e) => {
+									if (e.key === 'Enter' || e.key === ' ') {
+										e.preventDefault();
+										setOpenBubbleKey(isOpen ? null : segKey);
+									}
+								}}
+								aria-expanded={isOpen ? 'true' : 'false'}
+								aria-label={`${seg.requirement.name} requirement (${seg.requirement.status})`}
+							>
+								<div className={`absolute inset-0 ${seg.trackClass} ${index === 0 ? 'rounded-t-sm' : ''} ${index === segments.length - 1 ? 'rounded-b-sm' : ''}`} />
+								<div className={`absolute bottom-0 left-0 w-full ${index === 0 ? 'rounded-t-sm' : ''} ${index === segments.length - 1 ? 'rounded-b-sm' : ''}`} style={{ height: `${seg.fillPercent}%`, transition: 'height .25s ease', ...seg.fillStyle }} />
+								{index < segments.length - 1 && (<div className="absolute bottom-0 left-0 w-full h-0.5 bg-gray-400 dark:bg-black z-10" />)}
+								<div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+									<span className="uppercase font-bold text-xs text-white drop-shadow-sm" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>{seg.initials}</span>
+								</div>
 							</div>
-							<button type="button" onClick={() => setOpenBubbleKey(isOpen ? null : segKey)} aria-expanded={isOpen ? 'true' : 'false'} aria-label={`${seg.requirement.name} requirement (${seg.requirement.status})`} className="absolute inset-0 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 z-30" />
 							{isOpen && (isMobile ? (
 								<MobileSheetPortal>
 									<RequirementDetails requirement={seg.requirement} onClose={() => setOpenBubbleKey(null)} onAddCourse={onAddCourse} onEditPlanCourse={onEditPlanCourse} plan={plan} program={program} compact />
@@ -289,7 +316,7 @@ export default function ProgressTracking({
 									<RequirementDetails requirement={seg.requirement} onClose={() => setOpenBubbleKey(null)} onAddCourse={onAddCourse} onEditPlanCourse={onEditPlanCourse} plan={plan} program={program} />
 								</DesktopPopoverPortal>
 							))}
-						</div>
+						</React.Fragment>
 					);
 				})}
 			</div>
