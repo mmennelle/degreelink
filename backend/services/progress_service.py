@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Degree Link - Course Equivalency and Transfer Planning System
 Copyright (c) 2025 University of New Orleans - Computer Science Department
@@ -13,7 +15,6 @@ This module begins decoupling heavy progress & suggestion logic from the Plan mo
 Currently it delegates to existing Plan methods to avoid breaking behavior while
 providing an abstraction seam for future refactors.
 """
-from __future__ import annotations
 from typing import Optional, Dict, Any
 
 from models.plan import Plan
