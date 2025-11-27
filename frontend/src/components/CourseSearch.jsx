@@ -146,17 +146,26 @@ const CourseSearch = ({
     
     // Build search params
     const params = {};
+    
+    // Handle level filter
     if (levelFilter) {
       params.level = parseInt(levelFilter, 10);
     } else {
+      // Legacy: treat 4-digit numbers divisible by 1000 as level filters
       const numericLevel = /^[0-9]{4}$/.test(trimmedSearch) ? parseInt(trimmedSearch, 10) : null;
       if (numericLevel && numericLevel % 1000 === 0) {
         params.level = numericLevel;
       }
-      if (trimmedSearch && (!numericLevel || numericLevel % 1000 !== 0)) {
+    }
+    
+    // Always include search term if provided (unless it's being used as a level)
+    if (trimmedSearch) {
+      const isLevelOnlySearch = !levelFilter && /^[0-9]{4}$/.test(trimmedSearch) && parseInt(trimmedSearch, 10) % 1000 === 0;
+      if (!isLevelOnlySearch) {
         params.search = trimmedSearch;
       }
     }
+    
     if (institution.trim()) {
       params.institution = institution.trim();
     }
