@@ -275,7 +275,7 @@ export default function ProgressTracking({
 						<React.Fragment key={segKey}>
 							<div 
 								className="relative w-full cursor-pointer" 
-								style={{ height: `${seg.height}%` }}
+								style={{ height: `${seg.height}%`, touchAction: 'manipulation' }}
 								onClick={(e) => {
 									e.preventDefault();
 									e.stopPropagation();
