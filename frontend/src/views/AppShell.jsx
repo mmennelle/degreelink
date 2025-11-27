@@ -104,6 +104,7 @@ export default function AppShell({
         {/* Footer */}
         <footer className="border-t border-gray-200 dark:border-gray-800 py-6">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-gray-600 dark:text-gray-300 text-xs">
+	   <p className="mt-1">For Instructions visit <a href="https://mmennelle.github.io/degreelink/" className="text-blue-600 hover:underline">https://mmennelle.github.io/degreelink/</a></p>
             <p>
               Developed by Mitchell Mennelle under a joint grant between Delgado Community College and The University of New Orleans
             </p>

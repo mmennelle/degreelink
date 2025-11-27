@@ -190,9 +190,28 @@ export default function ProgressTracking({
 
 	useEffect(() => {
 		if (!isMobile || !openBubbleKey) return;
-		const prev = document.body.style.overflow;
+		// Save previous styles
+		const prevOverflow = document.body.style.overflow;
+		const prevPosition = document.body.style.position;
+		const prevTop = document.body.style.top;
+		const prevWidth = document.body.style.width;
+		const scrollY = window.scrollY;
+		
+		// Lock scroll by fixing body position
 		document.body.style.overflow = 'hidden';
-		return () => { document.body.style.overflow = prev; };
+		document.body.style.position = 'fixed';
+		document.body.style.top = `-${scrollY}px`;
+		document.body.style.width = '100%';
+		
+		return () => {
+			// Restore previous styles
+			document.body.style.overflow = prevOverflow;
+			document.body.style.position = prevPosition;
+			document.body.style.top = prevTop;
+			document.body.style.width = prevWidth;
+			// Restore scroll position
+			window.scrollTo(0, scrollY);
+		};
 	}, [isMobile, openBubbleKey]);
 
 	useEffect(() => {
@@ -220,9 +239,9 @@ export default function ProgressTracking({
 		const transform = seg.side === 'left' ? 'translate(-100%, -50%)' : 'translate(0, -50%)';
 		return createPortal(
 			<>
-				<button aria-label="Close popover" onClick={() => setOpenBubbleKey(null)} className="fixed inset-0 z-[998] bg-transparent" />
+				<button aria-label="Close popover" onClick={(e) => { e.stopPropagation(); setOpenBubbleKey(null); }} onTouchStart={(e) => { e.stopPropagation(); setOpenBubbleKey(null); }} className="fixed inset-0 z-[998] bg-transparent" style={{ touchAction: 'none' }} />
 				<div role="dialog" aria-modal="false" className="fixed z-[999] w-80 max-w-[85vw] rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl" style={{ top, left: leftBase, transform, maxHeight: 'min(70vh, 560px)', overflow: 'hidden' }}>
-					<div style={{ maxHeight: 'inherit', overflowY: 'auto' }}>{children}</div>
+					<div style={{ maxHeight: 'inherit', overflowY: 'auto', overscrollBehavior: 'contain' }}>{children}</div>
 				</div>
 			</>,
 			document.body
@@ -246,10 +265,10 @@ export default function ProgressTracking({
 		const sheetMaxPx = Math.round(vh * 0.88);
 		return createPortal(
 			<>
-				<button aria-label="Close panel" onClick={() => setOpenBubbleKey(null)} className="fixed inset-0 z-[1098] bg-black/50 backdrop-blur-[1px]" />
-				<div role="dialog" aria-modal="true" className="fixed inset-x-0 bottom-0 z-[1099] rounded-t-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl pt-3 pb-4 px-4" style={{ maxHeight: `${sheetMaxPx}px`, height: 'auto', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)', overflow: 'hidden', overscrollBehavior: 'contain' }}>
+				<button aria-label="Close panel" onClick={(e) => { e.stopPropagation(); setOpenBubbleKey(null); }} onTouchStart={(e) => { e.stopPropagation(); setOpenBubbleKey(null); }} className="fixed inset-0 z-[1098] bg-black/50 backdrop-blur-[1px]" style={{ touchAction: 'none' }} />
+				<div role="dialog" aria-modal="true" className="fixed inset-x-0 bottom-0 z-[1099] rounded-t-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl pt-3 pb-4 px-4" style={{ maxHeight: `${sheetMaxPx}px`, height: 'auto', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)', overflow: 'hidden', overscrollBehavior: 'contain', touchAction: 'pan-y' }}>
 					<div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-gray-300 dark:bg-gray-600" />
-					<div style={{ maxHeight: 'inherit', overflowY: 'auto' }}>{children}</div>
+					<div style={{ maxHeight: 'inherit', overflowY: 'auto', overscrollBehavior: 'contain' }}>{children}</div>
 				</div>
 			</>,
 			document.body
@@ -272,14 +291,41 @@ export default function ProgressTracking({
 					const isOpen = openBubbleKey === segKey;
 					const segments = buildSegments(displayRequirements);
 					return (
-						<div key={segKey} className="relative w-full" style={{ height: `${seg.height}%` }}>
-							<div className={`absolute inset-0 ${seg.trackClass} ${index === 0 ? 'rounded-t-sm' : ''} ${index === segments.length - 1 ? 'rounded-b-sm' : ''}`} />
-							<div className={`absolute bottom-0 left-0 w-full ${index === 0 ? 'rounded-t-sm' : ''} ${index === segments.length - 1 ? 'rounded-b-sm' : ''}`} style={{ height: `${seg.fillPercent}%`, transition: 'height .25s ease', ...seg.fillStyle }} />
-							{index < segments.length - 1 && (<div className="absolute bottom-0 left-0 w-full h-0.5 bg-gray-400 dark:bg-black z-10" />)}
-							<div className="absolute inset-0 flex items-center justify-center z-20">
-								<span className="uppercase font-bold text-xs text-white drop-shadow-sm" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>{seg.initials}</span>
+						<React.Fragment key={segKey}>
+							<div 
+								className="relative w-full cursor-pointer" 
+								style={{ height: `${seg.height}%`, touchAction: 'manipulation' }}
+								onClick={(e) => {
+									e.preventDefault();
+									e.stopPropagation();
+									setOpenBubbleKey(isOpen ? null : segKey);
+								}}
+								onTouchStart={(e) => {
+									e.stopPropagation();
+								}}
+								onTouchEnd={(e) => {
+									e.preventDefault();
+									e.stopPropagation();
+									setOpenBubbleKey(isOpen ? null : segKey);
+								}}
+								role="button"
+								tabIndex={0}
+								onKeyDown={(e) => {
+									if (e.key === 'Enter' || e.key === ' ') {
+										e.preventDefault();
+										setOpenBubbleKey(isOpen ? null : segKey);
+									}
+								}}
+								aria-expanded={isOpen ? 'true' : 'false'}
+								aria-label={`${seg.requirement.name} requirement (${seg.requirement.status})`}
+							>
+								<div className={`absolute inset-0 ${seg.trackClass} ${index === 0 ? 'rounded-t-sm' : ''} ${index === segments.length - 1 ? 'rounded-b-sm' : ''}`} />
+								<div className={`absolute bottom-0 left-0 w-full ${index === 0 ? 'rounded-t-sm' : ''} ${index === segments.length - 1 ? 'rounded-b-sm' : ''}`} style={{ height: `${seg.fillPercent}%`, transition: 'height .25s ease', ...seg.fillStyle }} />
+								{index < segments.length - 1 && (<div className="absolute bottom-0 left-0 w-full h-0.5 bg-gray-400 dark:bg-black z-10" />)}
+								<div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+									<span className="uppercase font-bold text-xs text-white drop-shadow-sm" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>{seg.initials}</span>
+								</div>
 							</div>
-							<button type="button" onClick={() => setOpenBubbleKey(isOpen ? null : segKey)} aria-expanded={isOpen ? 'true' : 'false'} aria-label={`${seg.requirement.name} requirement (${seg.requirement.status})`} className="absolute inset-0 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 z-30" />
 							{isOpen && (isMobile ? (
 								<MobileSheetPortal>
 									<RequirementDetails requirement={seg.requirement} onClose={() => setOpenBubbleKey(null)} onAddCourse={onAddCourse} onEditPlanCourse={onEditPlanCourse} plan={plan} program={program} compact />
@@ -289,7 +335,7 @@ export default function ProgressTracking({
 									<RequirementDetails requirement={seg.requirement} onClose={() => setOpenBubbleKey(null)} onAddCourse={onAddCourse} onEditPlanCourse={onEditPlanCourse} plan={plan} program={program} />
 								</DesktopPopoverPortal>
 							))}
-						</div>
+						</React.Fragment>
 					);
 				})}
 			</div>
@@ -307,6 +353,27 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 	const [showConstraints, setShowConstraints] = useState(false);
 	const { name, status, completedCredits, totalCredits, description, programRequirement} = requirement;
 	
+	// Helper to generate human-readable constraint descriptions
+	const getConstraintDescription = (constraint) => {
+		if (constraint.description) return constraint.description;
+		
+		const params = constraint.params || {};
+		const type = constraint.constraint_type;
+		
+		switch (type) {
+			case 'min_level_credits':
+				return `At least ${params.credits || 0} credits at ${params.level_min || 0}+ level`;
+			case 'max_tag_credits':
+				return `Maximum ${params.credits || 0} credits of ${params.tag || 'tagged'} courses`;
+			case 'min_tag_courses':
+				return `At least ${params.courses || 0} ${params.tag || 'tagged'} courses`;
+			case 'min_courses_at_level':
+				return `At least ${params.courses || 0} courses at ${params.level || 0} level`;
+			default:
+				return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+		}
+	};
+	
 	// Log suggestions state whenever it changes
 	React.useEffect(() => {
 		console.log(`[${name}] suggestions state updated:`, suggestions.length, 'items');
@@ -315,10 +382,6 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 		}
 	}, [suggestions, name]);
 	
-	// Extract constraint information from requirement
-	const constraints = requirement.constraint_results || [];
-	const constraintsSatisfied = requirement.constraints_satisfied !== false;
-	const hasConstraints = constraints.length > 0;
 	const requirementCourses = React.useMemo(() => {
 		if (!plan?.courses) return [];
 		const normalizeCategory = (category) => (category || '').toLowerCase().replace(/[\/\-\s]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -337,6 +400,13 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 		};
 		return plan.courses.filter(pc => categoriesMatch(name, pc.requirement_category || 'Uncategorized'));
 	}, [plan?.courses, name]);
+	
+	// Extract constraint information from requirement
+	const constraints = requirement.constraint_results || [];
+	const constraintsSatisfied = requirement.constraints_satisfied !== false;
+	// Only show constraints if there are courses in this requirement OR if constraints are not satisfied
+	// This prevents showing "Complete" badge on empty segments with no context
+	const hasConstraints = constraints.length > 0 && (requirementCourses.length > 0 || !constraintsSatisfied);
 
 	const generateSuggestions = useCallback(async () => {
 		if (loadingSuggestions || !plan) return;
@@ -825,7 +895,7 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 										</div>
 										<div className="flex-1 min-w-0">
 											<p className={`text-xs font-medium break-words ${constraint.satisfied ? 'text-green-800 dark:text-green-300' : 'text-red-800 dark:text-red-300'}`}>
-												{constraint.description || constraint.constraint_type}
+												{getConstraintDescription(constraint)}
 											</p>
 											{!constraint.satisfied && constraint.reason && (
 												<p className="text-xs text-red-600 dark:text-red-400 mt-1 break-words">{constraint.reason}</p>

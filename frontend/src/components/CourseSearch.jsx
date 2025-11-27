@@ -7,7 +7,7 @@
  * Licensed under the MIT License. See LICENSE file in the project root.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Search, BookOpen, Plus, ChevronRight, ChevronLeft, Target, GraduationCap, AlertCircle, CheckCircle, User, Mail, X, Eye, EyeOff, Filter, Grid, List } from 'lucide-react';
 import api from '../services/api';
 
@@ -31,131 +31,235 @@ const CourseSearch = ({
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [detectedCategories, setDetectedCategories] = useState(new Map());
   const [showFilters, setShowFilters] = useState(false);
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'grid'
+  const [viewMode, setViewMode] = useState('list');
+  const [hasSearched, setHasSearched] = useState(false);
+  const [isDebouncing, setIsDebouncing] = useState(false);
 
-  // Mobile search state
-  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  // Refs for optimization
+  const searchTimeoutRef = useRef(null);
+  const abortControllerRef = useRef(null);
+  const lastSearchParamsRef = useRef(null);
+  const searchCacheRef = useRef(new Map());
 
-  // Removed the useEffect that fetched plans for security reasons
-  // Plans are now managed at the app level via session access
+  const toggleCourseSelection = useCallback((course) => {
+    setSelectedCourses(prev => {
+      const isSelected = prev.some((c) => c.id === course.id);
+      if (isSelected) {
+        return prev.filter((c) => c.id !== course.id);
+      } else {
+        const courseWithCategory = {
+          ...course,
+          detectedCategory: detectedCategories.get(course.id) || 'Elective'
+        };
+        return [...prev, courseWithCategory];
+      }
+    });
+  }, [detectedCategories]);
 
-  const toggleCourseSelection = (course) => {
-    const isSelected = selectedCourses.some((c) => c.id === course.id);
-    if (isSelected) {
-      setSelectedCourses(selectedCourses.filter((c) => c.id !== course.id));
-    } else {
-      const courseWithCategory = {
-        ...course,
-        detectedCategory: detectedCategories.get(course.id) || 'Elective'
-      };
-      setSelectedCourses([...selectedCourses, courseWithCategory]);
-    }
-  };
-
-  const handleAddSelected = () => {
+  const handleAddSelected = useCallback(() => {
     if (onMultiSelect && selectedCourses.length > 0) {
       onMultiSelect(selectedCourses);
       setSelectedCourses([]);
     }
-  };
+  }, [onMultiSelect, selectedCourses]);
 
-  const searchCourses = async () => {
-    if (!searchTerm.trim()) {
-      setError('Please enter a search term');
+  // Optimized category detection with memoization
+  const categoryLookup = useMemo(() => {
+    if (!program || !program.requirements) return { codeMap: new Map(), subjectMap: {} };
+    
+    const codeMap = new Map();
+    const subjectMap = {
+      'BIOL': ['bio', 'biology', 'life science'],
+      'CHEM': ['chem', 'chemistry'],
+      'MATH': ['math', 'mathematics', 'analytical'],
+      'STAT': ['stat', 'statistics', 'analytical'],
+      'PHYS': ['phys', 'physics'],
+      'ENG': ['english', 'composition', 'writing'],
+      'ENGL': ['english', 'composition', 'writing', 'literature'],
+      'HIST': ['history', 'humanities'],
+      'PHIL': ['philosophy', 'humanities', 'reasoning'],
+      'SOC': ['social', 'sociology'],
+      'PSYC': ['psych', 'social'],
+      'PSY': ['psych', 'social'],
+      'CS': ['computer', 'comp sci'],
+      'CSCI': ['computer', 'comp sci'],
+      'POLI': ['political', 'government'],
+      'ECON': ['economics', 'social']
+    };
+    
+    // Build lookup map for exact course code matches
+    program.requirements.forEach(req => {
+      if (req.groups) {
+        req.groups.forEach(g => {
+          if (g.course_options) {
+            g.course_options.forEach(opt => {
+              if (opt.course_code) {
+                codeMap.set(opt.course_code, req.category);
+              }
+            });
+          }
+        });
+      }
+    });
+    
+    return { codeMap, subjectMap, requirements: program.requirements };
+  }, [program]);
+
+  const detectCategory = useCallback((course) => {
+    // Check exact code match first
+    if (categoryLookup.codeMap.has(course.code)) {
+      return categoryLookup.codeMap.get(course.code);
+    }
+    
+    // Fallback to subject-based heuristic
+    const courseSubject = (course.subject_code || course.code.match(/^[A-Z]+/)?.[0] || '').toUpperCase();
+    
+    if (courseSubject && categoryLookup.subjectMap[courseSubject]) {
+      const keywords = categoryLookup.subjectMap[courseSubject];
+      const match = categoryLookup.requirements?.find(req => {
+        const reqName = req.category.toLowerCase();
+        return keywords.some(kw => reqName.includes(kw));
+      });
+      if (match) return match.category;
+    }
+    
+    return 'Elective';
+  }, [categoryLookup]);
+
+  const searchCourses = useCallback(async (immediate = false) => {
+    const trimmedSearch = searchTerm.trim();
+    if (!trimmedSearch && !institution.trim() && !levelFilter) {
+      setError('Please enter a search term, institution, or select a level');
       return;
     }
     
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const params = {};
-      const trimmedSearch = searchTerm.trim();
-      // If a level has been selected via the filter dropdown, use it.  Otherwise
-      // fall back to the legacy behaviour of interpreting a four‑digit search
-      // term divisible by 1000 as a level search.  When no level is detected
-      // the search term is treated as free‑text.
-      if (levelFilter) {
-        params.level = parseInt(levelFilter, 10);
-      } else {
-        const numericLevel = /^[0-9]{4}$/.test(trimmedSearch) ? parseInt(trimmedSearch, 10) : null;
-        if (numericLevel && numericLevel % 1000 === 0) {
-          params.level = numericLevel;
-        }
-        if (trimmedSearch && (!numericLevel || numericLevel % 1000 !== 0)) {
-          params.search = trimmedSearch;
-        }
-      }
-      if (institution.trim()) {
-        params.institution = institution;
-      }
-
-      const response = await api.searchCourses(params);
-      const searchResults = response.courses || [];
-      setCourses(searchResults);
-      
-      // Detect categories logic
-      if (program && program.requirements && searchResults.length > 0) {
-        const categoryMap = new Map();
-        
-        searchResults.forEach(course => {
-          let detectedCategory = 'Elective';
-          
-          const match = program.requirements.find(req => {
-            if (req.groups) {
-              return req.groups.some(g => 
-                g.course_options && 
-                g.course_options.some(opt => opt.course_code === course.code)
-              );
-            }
-            return false;
-          });
-          
-          if (match) {
-            detectedCategory = match.category;
-          } else {
-            const courseSubject = course.code.match(/^[A-Z]+/)?.[0];
-            if (courseSubject) {
-              const deptMatch = program.requirements.find(req => {
-                const reqName = req.category.toLowerCase();
-                return (
-                  (courseSubject === 'BIOL' && reqName.includes('bio')) ||
-                  (courseSubject === 'CHEM' && reqName.includes('chem')) ||
-                  (courseSubject === 'MATH' && reqName.includes('math')) ||
-                  (courseSubject === 'PHYS' && reqName.includes('phys')) ||
-                  (courseSubject === 'ENG' && (reqName.includes('english') || reqName.includes('composition'))) ||
-                  (courseSubject === 'HIST' && (reqName.includes('history') || reqName.includes('humanities'))) ||
-                  (courseSubject === 'PHIL' && (reqName.includes('philosophy') || reqName.includes('humanities'))) ||
-                  (courseSubject === 'SOC' && reqName.includes('social')) ||
-                  (courseSubject === 'PSY' && reqName.includes('social'))
-                );
-              });
-              if (deptMatch) detectedCategory = deptMatch.category;
-            }
-          }
-          
-          categoryMap.set(course.id, detectedCategory);
-        });
-        
-        setDetectedCategories(categoryMap);
-      }
-      
-      applyFilter(searchResults, categoryFilter);
-      
-      if (searchResults.length === 0) {
-        setError('No courses found matching your search criteria');
-      }
-    } catch (error) {
-      console.error('Search failed:', error);
-      setError(error.message || 'Search failed. Please try again.');
-      setCourses([]);
-      setFilteredCourses([]);
-    } finally {
-      setLoading(false);
+    // Abort any pending request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
-  };
+    
+    // Clear any pending debounce timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+      setIsDebouncing(false);
+    }
+    
+    // Build search params
+    const params = {};
+    
+    // Handle level filter
+    if (levelFilter) {
+      params.level = parseInt(levelFilter, 10);
+    } else {
+      // Legacy: treat 4-digit numbers divisible by 1000 as level filters
+      const numericLevel = /^[0-9]{4}$/.test(trimmedSearch) ? parseInt(trimmedSearch, 10) : null;
+      if (numericLevel && numericLevel % 1000 === 0) {
+        params.level = numericLevel;
+      }
+    }
+    
+    // Always include search term if provided (unless it's being used as a level)
+    if (trimmedSearch) {
+      const isLevelOnlySearch = !levelFilter && /^[0-9]{4}$/.test(trimmedSearch) && parseInt(trimmedSearch, 10) % 1000 === 0;
+      if (!isLevelOnlySearch) {
+        params.search = trimmedSearch;
+      }
+    }
+    
+    if (institution.trim()) {
+      params.institution = institution.trim();
+    }
+    
+    // Check cache first
+    const cacheKey = JSON.stringify(params);
+    if (searchCacheRef.current.has(cacheKey)) {
+      const cached = searchCacheRef.current.get(cacheKey);
+      setCourses(cached.courses);
+      setDetectedCategories(cached.categories);
+      applyFilter(cached.courses, categoryFilter);
+      setHasSearched(true);
+      return;
+    }
+    
+    // Check if params changed to avoid redundant searches
+    if (lastSearchParamsRef.current === cacheKey && courses.length > 0) {
+      return;
+    }
+    lastSearchParamsRef.current = cacheKey;
+    
+    const executeSearch = async () => {
+      setLoading(true);
+      setError(null);
+      setHasSearched(true);
+      setIsDebouncing(false);
+      
+      // Create new abort controller
+      abortControllerRef.current = new AbortController();
+      
+      try {
+        const response = await api.searchCourses(params);
+        const searchResults = response.courses || [];
+          setCourses(searchResults);
+        
+        // Optimized category detection
+        const categoryMap = new Map();
+        if (searchResults.length > 0) {
+          searchResults.forEach(course => {
+            categoryMap.set(course.id, detectCategory(course));
+          });
+        }
+        setDetectedCategories(categoryMap);
+        
+        // Cache results (limit cache size to 20 entries)
+        searchCacheRef.current.set(cacheKey, {
+          courses: searchResults,
+          categories: categoryMap
+        });
+        if (searchCacheRef.current.size > 20) {
+          const firstKey = searchCacheRef.current.keys().next().value;
+          searchCacheRef.current.delete(firstKey);
+        }
+        
+        applyFilter(searchResults, categoryFilter);
+        
+        if (searchResults.length === 0) {
+          setError('No courses found matching your search criteria');
+        }
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          console.error('Search failed:', error);
+          setError(error.message || 'Search failed. Please try again.');
+          setCourses([]);
+          setFilteredCourses([]);
+        }
+      } finally {
+        setLoading(false);
+        abortControllerRef.current = null;
+      }
+    };
+    
+    // Debounce unless immediate
+    if (immediate) {
+      executeSearch();
+    } else {
+      setIsDebouncing(true);
+      searchTimeoutRef.current = setTimeout(executeSearch, 300);
+    }
+  }, [searchTerm, institution, levelFilter, categoryFilter, detectCategory, courses.length]);
 
-  const applyFilter = (coursesToFilter, category) => {
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  const applyFilter = useCallback((coursesToFilter, category) => {
     if (category === 'all') {
       setFilteredCourses(coursesToFilter);
     } else {
@@ -164,12 +268,23 @@ const CourseSearch = ({
       );
       setFilteredCourses(filtered);
     }
-  };
+  }, [detectedCategories]);
 
-  const handleCategoryFilterChange = (newCategory) => {
+  const handleCategoryFilterChange = useCallback((newCategory) => {
     setCategoryFilter(newCategory);
     applyFilter(courses, newCategory);
-  };
+  }, [courses, applyFilter]);
+
+  const clearAllFilters = useCallback(() => {
+    setSearchTerm('');
+    setInstitution('');
+    setLevelFilter('');
+    setCategoryFilter('all');
+    setCourses([]);
+    setFilteredCourses([]);
+    setError(null);
+    setHasSearched(false);
+  }, []);
 
   const viewCourseDetails = async (courseId) => {
     try {
@@ -186,7 +301,7 @@ const CourseSearch = ({
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
-      searchCourses();
+      searchCourses(true);
     }
   };
 
@@ -237,7 +352,7 @@ const CourseSearch = ({
         <div className="space-y-4">
           {/* Primary Search */}
           <div className="flex gap-2">
-            <div className="flex-1">
+            <div className="flex-1 relative">
               <label htmlFor="course-search-input" className="sr-only">Search courses</label>
               <input
                 id="course-search-input"
@@ -247,12 +362,17 @@ const CourseSearch = ({
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={handleKeyPress}
                 aria-label="Search courses by name, code, or subject"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
+                className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
               />
+              {isDebouncing && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent" />
+                </div>
+              )}
             </div>
             <button
-              onClick={searchCourses}
-              disabled={loading || !searchTerm.trim()}
+              onClick={() => searchCourses(true)}
+              disabled={loading}
               aria-label={loading ? "Searching..." : "Search courses"}
               className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors"
             >
@@ -303,8 +423,6 @@ const CourseSearch = ({
                 </select>
               </div>
 
-            
-
               {program && program.requirements && (
                 <div>
                   <label htmlFor="category-filter" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -329,16 +447,61 @@ const CourseSearch = ({
                 </div>
               )}
             </div>
+            
+            {/* Clear Filters Button */}
+            {(searchTerm || institution || levelFilter || categoryFilter !== 'all') && (
+              <div className="flex justify-end">
+                <button
+                  onClick={clearAllFilters}
+                  className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 flex items-center gap-1 transition-colors"
+                >
+                  <X size={14} /> Clear all filters
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Results Section */}
       <div className="p-4 sm:p-6">
+        {/* Empty State */}
+        {!hasSearched && !loading && courses.length === 0 && (
+          <div className="text-center py-12">
+            <Search className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No search performed</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Enter a course name, code, or subject to search
+            </p>
+          </div>
+        )}
+        
+        {/* Loading Skeleton */}
+        {loading && courses.length === 0 && (
+          <div className="space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="animate-pulse border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-3"></div>
+                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full mb-1"></div>
+                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
+              </div>
+            ))}
+          </div>
+        )}
+        
         {/* Error Message */}
         {error && (
           <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-600 rounded-md">
-            <p className="text-red-700 dark:text-red-400 text-sm">{error}</p>
+            <div className="flex justify-between items-start">
+              <p className="text-red-700 dark:text-red-400 text-sm">{error}</p>
+              <button
+                onClick={() => searchCourses(true)}
+                className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 underline ml-2 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
           </div>
         )}
 

@@ -10,7 +10,7 @@ Licensed under the MIT License. See LICENSE file in the project root.
 from flask import Blueprint, request, jsonify
 from auth import require_admin
 from models import db, Course, Equivalency
-from sqlalchemy import or_
+from sqlalchemy import or_, case, func
 import os
 from hmac import compare_digest
 
@@ -43,8 +43,10 @@ def get_courses():
     # Full‑text search across multiple fields.  Includes legacy `code`
     # field as well as subject_code and course_number to allow users to
     # search for partial codes like "BIOL" or "1583".
+    search_term_for_ordering = None
     if search:
         term = f"%{search}%"
+        search_term_for_ordering = search.strip().upper()
         query = query.filter(
             or_(
                 Course.code.ilike(term),
@@ -71,9 +73,24 @@ def get_courses():
             return jsonify({'error': 'Level must be non‑negative'}), 400
         query = query.filter(Course.course_level == level)
 
-    # Order the base query before applying the institution filter so that
-    # manual pagination maintains a consistent ordering.
-    ordered_query = query.order_by(Course.subject_code, Course.course_number)
+    # Order by relevance when search term is provided, otherwise by subject/number
+    if search_term_for_ordering:
+        # Prioritize matches in this order:
+        # 1. Exact subject_code match (MATH = MATH)
+        # 2. Subject_code starts with search term (MATH in MATHEMATICS)  
+        # 3. Code contains search term (MATH in code field)
+        # 4. Title contains search term
+        # 5. Description contains search term
+        relevance_score = case(
+            (func.upper(Course.subject_code) == search_term_for_ordering, 1),
+            (func.upper(Course.subject_code).startswith(search_term_for_ordering), 2),
+            (func.upper(Course.code).contains(search_term_for_ordering), 3),
+            (func.upper(Course.title).contains(search_term_for_ordering), 4),
+            else_=5
+        )
+        ordered_query = query.order_by(relevance_score, Course.subject_code, Course.course_number)
+    else:
+        ordered_query = query.order_by(Course.subject_code, Course.course_number)
 
     # Custom institution filtering to support abbreviation search.  If the
     # client supplies an institution string, we will include any course
