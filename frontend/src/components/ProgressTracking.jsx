@@ -407,14 +407,6 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 	// Only show constraints if there are courses in this requirement OR if constraints are not satisfied
 	// This prevents showing "Complete" badge on empty segments with no context
 	const hasConstraints = constraints.length > 0 && (requirementCourses.length > 0 || !constraintsSatisfied);
-			const scienceKeywords = ['biology', 'chemistry', 'physics', 'science'];
-			const socialKeywords = ['social', 'psychology', 'sociology', 'history'];
-			const check = (kw) => kw.some(k => reqNorm.includes(k)) && kw.some(k => courseNorm.includes(k));
-			if (check(mathKeywords) || check(englishKeywords) || check(scienceKeywords) || check(socialKeywords)) return true;
-			return false;
-		};
-		return plan.courses.filter(pc => categoriesMatch(name, pc.requirement_category || 'Uncategorized'));
-	}, [plan?.courses, name]);
 
 	const generateSuggestions = useCallback(async () => {
 		if (loadingSuggestions || !plan) return;
