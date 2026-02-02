@@ -25,8 +25,15 @@ def require_plan_access(f):
         plan_id = kwargs.get('plan_id')
         plan_code = kwargs.get('plan_code')
         
-        # Rate limiting for code attempts
-        client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.environ.get('REMOTE_ADDR', 'unknown'))
+        # Get real client IP from proxy headers (Caddy sets X-Forwarded-For)
+        x_forwarded_for = request.environ.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            # X-Forwarded-For can be: "client, proxy1, proxy2"
+            # Take the FIRST IP (the original client)
+            client_ip = x_forwarded_for.split(',')[0].strip()
+        else:
+            client_ip = request.environ.get('REMOTE_ADDR', 'unknown')
+        
         rate_limit_key = f"plan_access:{client_ip}"
         
         # Simple in-memory rate limiting (in production, use Redis)
@@ -34,23 +41,46 @@ def require_plan_access(f):
             require_plan_access.attempts = {}
         
         current_time = time.time()
+        
+        # Clean up old attempts (older than 5 minutes)
         if rate_limit_key in require_plan_access.attempts:
-            attempts = require_plan_access.attempts[rate_limit_key]
-            # Remove old attempts (older than 1 hour)
-            attempts = [t for t in attempts if current_time - t < 3600]
-            
-            # Check if too many attempts
-            if len(attempts) >= 10:  # Max 10 attempts per hour
-                return jsonify({'error': 'Too many access attempts. Please try again later.'}), 429
-            
+            attempts = [t for t in require_plan_access.attempts[rate_limit_key] if current_time - t < 300]
             require_plan_access.attempts[rate_limit_key] = attempts
         else:
             require_plan_access.attempts[rate_limit_key] = []
         
-        # Log the attempt
+        # Check if too many attempts in the last 5 minutes
+        if len(require_plan_access.attempts[rate_limit_key]) >= 50:  # 50 requests per 5 minutes
+            response = jsonify({
+                'error': 'Too many access attempts. Please try again later.',
+                'code': 'rate_limited'
+            })
+            response.headers['Retry-After'] = '300'  # Tell client to wait 5 minutes
+            response.headers['X-RateLimit-Limit'] = '50'
+            response.headers['X-RateLimit-Remaining'] = '0'
+            response.headers['X-RateLimit-Reset'] = str(int(current_time + 300))
+            return response, 429
+        
+        # Log this attempt
         require_plan_access.attempts[rate_limit_key].append(current_time)
         
-        return f(*args, **kwargs)
+        # Execute the wrapped function
+        result = f(*args, **kwargs)
+        
+        # Add rate limit headers to successful responses
+        if isinstance(result, tuple):
+            response, status = result[0], result[1] if len(result) > 1 else 200
+        else:
+            response, status = result, 200
+        
+        # Only add headers if it's a Flask Response object
+        if hasattr(response, 'headers'):
+            remaining = 50 - len(require_plan_access.attempts[rate_limit_key])
+            response.headers['X-RateLimit-Limit'] = '50'
+            response.headers['X-RateLimit-Remaining'] = str(max(0, remaining))
+            response.headers['X-RateLimit-Reset'] = str(int(current_time + 300))
+        
+        return result
     return decorated_function
 
 @bp.route('', methods=['GET'])
@@ -81,10 +111,7 @@ def get_plan_by_code(plan_code):
     if not plan:
         return jsonify({'error': 'Plan not found or access denied'}), 404
     
-    # Create temporary session for this plan access
-    session['accessed_plan_id'] = plan.id
-    session['access_time'] = time.time()
-    
+    # No session needed - plan code is the security mechanism
     # Return full plan data
     plan_data = plan.to_dict()
     svc = ProgressService(plan)
@@ -128,17 +155,15 @@ def verify_plan_code(plan_code):
 
 def check_plan_access(plan_id):
     """Check if current session has access to the specified plan"""
-    accessed_plan_id = session.get('accessed_plan_id')
-    access_time = session.get('access_time', 0)
-    current_time = time.time()
+    # For advisor authenticated requests, check session
+    # Otherwise rely on plan code based access control
+    if 'advisor_id' in session:
+        # Advisor is authenticated - they have access to manage plans
+        return True
     
-    # Session expires after 1 hour
-    if current_time - access_time > 3600:
-        session.pop('accessed_plan_id', None)
-        session.pop('access_time', None)
-        return False
-    
-    return accessed_plan_id == plan_id
+    # For non-advisors, access is controlled by plan code at endpoint level
+    # This function is mainly for update/delete operations
+    return False
 
 @bp.route('', methods=['POST'])
 @require_admin
@@ -185,10 +210,7 @@ def create_plan():
         db.session.add(plan)
         db.session.commit()
         
-        # Grant immediate access to the creator
-        session['accessed_plan_id'] = plan.id
-        session['access_time'] = time.time()
-        
+        # Plan code provides access - no session needed
         return jsonify({
             'plan': plan.to_dict(),
             'message': f'Plan created successfully with code: {plan.plan_code}',
@@ -264,10 +286,6 @@ def delete_plan(plan_id):
     try:
         db.session.delete(plan)
         db.session.commit()
-        
-        # Clear session access
-        session.pop('accessed_plan_id', None)
-        session.pop('access_time', None)
         
         return jsonify({'message': 'Plan deleted successfully'})
     except Exception as e:
@@ -400,10 +418,6 @@ def add_course_to_plan_by_code(plan_code):
             _assign_requirement_group(plan, plan_course)
         db.session.add(plan_course)
         db.session.commit()
-        
-        # Grant session access for this plan
-        session['accessed_plan_id'] = plan.id
-        session['access_time'] = time.time()
         
         return jsonify(plan_course.to_dict()), 201
     except Exception as e:
@@ -697,22 +711,18 @@ def clear_session():
 
 @bp.route('/session/status', methods=['GET'])
 def session_status():
-    """Check current session status"""
-    accessed_plan_id = session.get('accessed_plan_id')
-    access_time = session.get('access_time', 0)
-    current_time = time.time()
-    
-    if accessed_plan_id and current_time - access_time < 3600:
+    """Check current session status for advisor authentication"""
+    if 'advisor_id' in session:
         return jsonify({
-            'has_access': True,
-            'plan_id': accessed_plan_id,
-            'expires_in': 3600 - (current_time - access_time)
+            'authenticated': True,
+            'advisor_id': session['advisor_id'],
+            'advisor_email': session.get('advisor_email')
         })
     else:
-        # Clear expired session
-        session.pop('accessed_plan_id', None)
-        session.pop('access_time', None)
-        return jsonify({'has_access': False})
+        return jsonify({
+            'authenticated': False,
+            'message': 'No active advisor session. Plan access via codes does not require sessions.'
+        })
 
 
 # --- Helpers ---------------------------------------------------------------

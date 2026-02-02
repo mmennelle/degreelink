@@ -112,7 +112,13 @@ def create_app(config_name='default'):
     
     @app.errorhandler(429)
     def too_many_requests(error):
-        return error_response('Too many requests. Please try again later.', 429, code='rate_limited')
+        response = error_response('Too many requests. Please try again later.', 429, code='rate_limited')
+        # Add Retry-After header if not already present
+        if isinstance(response, tuple) and len(response) == 2:
+            resp_obj = response[0]
+            if hasattr(resp_obj, 'headers') and 'Retry-After' not in resp_obj.headers:
+                resp_obj.headers['Retry-After'] = '300'
+        return response
     
     @app.errorhandler(500)
     def internal_error(error):
