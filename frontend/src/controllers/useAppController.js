@@ -74,29 +74,32 @@ export default function useAppController() {
         setPrograms(prog || []);
       } else {
         // If we have a plan loaded with a plan_code, refresh it by code
-        const currentPlan = plans.find(p => p.id === selectedPlanId);
-        if (currentPlan?.plan_code) {
-          try {
-            const refreshedPlan = await api.getPlanByCode(currentPlan.plan_code);
-            if (refreshedPlan) {
-              setPlans([refreshedPlan]);
-              setSelectedPlanId(refreshedPlan.id);
+        // Use functional update to access current state without dependency
+        setPlans(currentPlans => {
+          setSelectedPlanId(currentSelectedId => {
+            const currentPlan = currentPlans.find(p => p.id === currentSelectedId);
+            if (currentPlan?.plan_code) {
+              // Refresh plan asynchronously
+              api.getPlanByCode(currentPlan.plan_code)
+                .then(refreshedPlan => {
+                  if (refreshedPlan) {
+                    setPlans([refreshedPlan]);
+                    setSelectedPlanId(refreshedPlan.id);
+                  }
+                })
+                .catch(e => console.error('Failed to refresh plan by code:', e));
             }
-          } catch (e) {
-            console.error('Failed to refresh plan by code:', e);
-          }
-        } else if (plans.length === 0) {
-          // Only clear if we have no plans loaded
-          setPlans([]);
-          setSelectedPlanId(null);
-        }
+            return currentSelectedId; // Don't change selectedPlanId synchronously
+          });
+          return currentPlans; // Don't change plans synchronously
+        });
         const prog = await api.getPrograms({ include_all: userMode === 'advisor' });
         setPrograms(prog || []);
       }
     } catch (e) {
       console.error(e);
     }
-  }, [userMode, plans, selectedPlanId]);
+  }, [userMode]);
 
   // Set a loaded plan directly (used by advisor center and plan code lookup)
   const setLoadedPlan = useCallback(async (planData) => {
@@ -261,10 +264,6 @@ const returnObject = {
   clearPlanAccess, 
   deleteActivePlan
 };
-
-console.log('RETURN: useAppController returning:', returnObject);
-console.log('RETURN: handlePlanCreated in return object:', returnObject.handlePlanCreated);
-console.log('RETURN: planCreatedModal in return object:', returnObject.planCreatedModal);
 
 return returnObject;
 }
