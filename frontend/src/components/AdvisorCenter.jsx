@@ -121,11 +121,11 @@ const AdvisorCenter = ({ onOpenPlan }) => {
       const planData = await api.getPlanByCode(planCode);
       
       if (planData) {
-        // Plan is now loaded and accessible in the session
-        // Navigate to the plans page and trigger reload
+        // Navigate to the plans page and pass the loaded plan data
         navigate('/plans');
         if (onOpenPlan) {
-          onOpenPlan();
+          // Pass the loaded plan data so it can be set in app state
+          onOpenPlan(planData);
         }
       }
     } catch (err) {

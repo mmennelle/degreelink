@@ -73,13 +73,39 @@ export default function useAppController() {
         setSelectedPlanId(planData.id);
         setPrograms(prog || []);
       } else {
-        setPlans([]);
-        setSelectedPlanId(null);
+        // If we have a plan loaded with a plan_code, refresh it by code
+        const currentPlan = plans.find(p => p.id === selectedPlanId);
+        if (currentPlan?.plan_code) {
+          try {
+            const refreshedPlan = await api.getPlanByCode(currentPlan.plan_code);
+            if (refreshedPlan) {
+              setPlans([refreshedPlan]);
+              setSelectedPlanId(refreshedPlan.id);
+            }
+          } catch (e) {
+            console.error('Failed to refresh plan by code:', e);
+          }
+        } else if (plans.length === 0) {
+          // Only clear if we have no plans loaded
+          setPlans([]);
+          setSelectedPlanId(null);
+        }
         const prog = await api.getPrograms({ include_all: userMode === 'advisor' });
         setPrograms(prog || []);
       }
     } catch (e) {
       console.error(e);
+    }
+  }, [userMode, plans, selectedPlanId]);
+
+  // Set a loaded plan directly (used by advisor center and plan code lookup)
+  const setLoadedPlan = useCallback(async (planData) => {
+    if (planData && planData.id) {
+      setPlans([planData]);
+      setSelectedPlanId(planData.id);
+      // Also load programs if needed
+      const prog = await api.getPrograms({ include_all: userMode === 'advisor' });
+      setPrograms(prog || []);
     }
   }, [userMode]);
 
@@ -228,6 +254,7 @@ const returnObject = {
   // actions
   resetToOnboarding, 
   loadPlansAndPrograms,
+  setLoadedPlan,  // New function to set a loaded plan directly
   handleOnboardingComplete, 
   handlePlanCreated, 
   handleAddToPlan,

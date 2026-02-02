@@ -43,7 +43,7 @@ export default function AdvisorCenterPage({ onOpenPlan, selectedPlanId, plans })
       </div>
 
       {/* Content */}
-      {activeSubTab === 'students' && <AdvisorCenter onOpenPlan={onOpenPlan} />}
+      {activeSubTab === 'students' && <AdvisorCenter onOpenPlan={(planData) => onOpenPlan && onOpenPlan(planData)} />}
       {activeSubTab === 'audit' && <AuditPage selectedPlanId={selectedPlanId} plans={plans} />}
     </div>
   );

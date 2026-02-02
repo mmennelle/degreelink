@@ -278,7 +278,8 @@ const PlanCodeLookup = ({ onPlanFound = null, onClose = null, showAsModal = fals
                 disabled={!foundPlan}
                 onClick={() => {
                   if (!foundPlan?.id || !onOpenPlan) return;
-                  onOpenPlan(foundPlan.id);
+                  // Pass the full plan data so it can be set directly in app state
+                  onOpenPlan(foundPlan);
                 }}
                 className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors disabled:opacity-50"
               >

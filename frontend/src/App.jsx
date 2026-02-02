@@ -184,11 +184,18 @@ export default function App() {
                 onSuccess={() => {
                   // keep whatever you do on success; do NOT auto-switch tabs
                 }}
-                onOpenPlan={(planId) => {
-                  if (!planId) return;
-                  c.setSelectedPlanId(planId);
+                onOpenPlan={(planData) => {
+                  // planData can be full plan object or just plan ID (for backward compatibility)
+                  if (!planData) return;
+                  if (typeof planData === 'object' && planData.id) {
+                    // Full plan data passed - use setLoadedPlan
+                    c.setLoadedPlan?.(planData);
+                  } else {
+                    // Just plan ID passed (legacy) - set selected and try to load
+                    c.setSelectedPlanId(planData);
+                    c.loadPlansAndPrograms?.();
+                  }
                   c.setActiveTab('plans');
-                  c.loadPlansAndPrograms?.();
                 }}
               />
             } />
@@ -202,9 +209,12 @@ export default function App() {
                 {/* Advisor Center with nested tabs: Student Plans + Degree Audit */}
                 <Route path="/advisor-center" element={
                   <AdvisorCenterPage 
-                    onOpenPlan={() => {
+                    onOpenPlan={(planData) => {
+                      // If planData is passed, set it directly in state
+                      if (planData && planData.id) {
+                        c.setLoadedPlan?.(planData);
+                      }
                       c.setActiveTab('plans');
-                      c.loadPlansAndPrograms?.();
                     }}
                     selectedPlanId={c.selectedPlanId}
                     plans={c.plans}
