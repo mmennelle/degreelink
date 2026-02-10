@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  grafana:
+    image: grafana/grafana:latest
+    container_name: degreelink-grafana
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"  # Only accessible via localhost (Caddy will proxy)
+    environment:
+      - GF_SERVER_ROOT_URL=https://dlink.cs.uno.edu/grafana
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=changeme_ASAP
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_SECURITY_ALLOW_EMBEDDING=false
+      - GF_SESSION_COOKIE_SECURE=true
+      - GF_SESSION_COOKIE_SAMESITE=lax
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    network_mode: host  # Since your Postgres is on localhost
+
+volumes:
+  grafana-data:
+    driver: local
