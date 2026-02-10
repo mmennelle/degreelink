@@ -10,7 +10,7 @@ datasources:
     secureJsonData:
       password: 'GrafanaReadOnly2025!'  # Change this!
     jsonData:
-      sslmode: 'prefer'
+      sslmode: 'disable'
       maxOpenConns: 10
       maxIdleConns: 5
       connMaxLifetime: 14400
