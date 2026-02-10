@@ -5,11 +5,11 @@ datasources:
     type: postgres
     access: proxy
     url: localhost:5432
-    database: course_transfer
     user: grafana_readonly
     secureJsonData:
       password: 'GrafanaReadOnly2025!'  # Change this!
     jsonData:
+      database: course_transfer
       sslmode: 'disable'
       maxOpenConns: 10
       maxIdleConns: 5
