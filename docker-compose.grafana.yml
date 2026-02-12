@@ -5,11 +5,11 @@ services:
     image: grafana/grafana:latest
     container_name: degreelink-grafana
     restart: unless-stopped
+    env_file:
+      - ./grafana/.env.grafana
     environment:
       - GF_SERVER_ROOT_URL=https://dlink.cs.uno.edu/grafana
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=courses_uno1
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_AUTH_ANONYMOUS_ENABLED=false
       - GF_SECURITY_ALLOW_EMBEDDING=false
