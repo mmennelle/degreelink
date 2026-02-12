@@ -7,7 +7,7 @@ datasources:
     url: localhost:5432
     user: grafana_readonly
     secureJsonData:
-      password: 'GrafanaReadOnly2025!'  # Change this!
+      password: 'GrafanaReadOnly2025!'
     jsonData:
       database: course_transfer
       sslmode: 'disable'
