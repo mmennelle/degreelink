@@ -512,6 +512,12 @@ export async function generatePlanHTML(plan, currentProgram, targetProgram, prog
             ${targetProgram.institution ? `<div class="info-institution">${targetProgram.institution}</div>` : ''}
           </div>
           ` : ''}
+          ${plan.program_version_semester && plan.program_version_year ? `
+          <div class="info-card">
+            <div class="info-label">Catalog Year</div>
+            <div class="info-value">${plan.program_version_semester} ${plan.program_version_year}</div>
+          </div>
+          ` : ''}
           <div class="info-card">
             <div class="info-label">Status</div>
             <div class="info-value">${plan.status || 'Draft'}</div>

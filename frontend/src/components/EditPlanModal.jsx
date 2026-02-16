@@ -8,10 +8,19 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { Calendar, AlertCircle } from 'lucide-react';
+import api from '../services/api';
 
-export default function EditPlanModal({ isOpen, onClose, plan, programs = [], onSave }) {
+export default function EditPlanModal({ isOpen, onClose, plan, programs = [], onSave, userMode }) {
   const [form, setForm] = useState({ plan_name: '', student_email: '', status: 'draft', current_program_id: null });
+  const [catalogYearForm, setCatalogYearForm] = useState({ semester: '', year: '' });
+  const [programVersions, setProgramVersions] = useState([]);
+  const [loadingVersions, setLoadingVersions] = useState(false);
+  const [updatingCatalogYear, setUpdatingCatalogYear] = useState(false);
+  const [catalogYearMessage, setCatalogYearMessage] = useState(null);
   const [saving, setSaving] = useState(false);
+
+  const isAdmin = userMode === 'advisor';
 
   useEffect(() => {
     if (!isOpen || !plan) return;
@@ -21,7 +30,61 @@ export default function EditPlanModal({ isOpen, onClose, plan, programs = [], on
       status: plan.status || 'draft',
       current_program_id: plan.current_program_id || null,
     });
-  }, [isOpen, plan]);
+    setCatalogYearForm({
+      semester: plan.program_version_semester || '',
+      year: plan.program_version_year || ''
+    });
+    setCatalogYearMessage(null);
+    
+    // Load available program versions if admin
+    if (isAdmin && plan.program_id) {
+      loadProgramVersions(plan.program_id);
+    }
+  }, [isOpen, plan, isAdmin]);
+
+  const loadProgramVersions = async (programId) => {
+    setLoadingVersions(true);
+    try {
+      const response = await api.getProgramVersions(programId);
+      setProgramVersions(response.versions || []);
+    } catch (error) {
+      console.error('Failed to load program versions:', error);
+      setProgramVersions([]);
+    } finally {
+      setLoadingVersions(false);
+    }
+  };
+
+  const handleCatalogYearUpdate = async () => {
+    if (!plan || !catalogYearForm.semester || !catalogYearForm.year) {
+      setCatalogYearMessage({ type: 'error', text: 'Please select a semester and year' });
+      return;
+    }
+    
+    setUpdatingCatalogYear(true);
+    setCatalogYearMessage(null);
+    
+    try {
+      await api.updateCatalogYearByCode(plan.plan_code, catalogYearForm.semester, parseInt(catalogYearForm.year));
+      setCatalogYearMessage({ 
+        type: 'success', 
+        text: `Catalog year updated to ${catalogYearForm.semester} ${catalogYearForm.year}` 
+      });
+      
+      // Refresh the plan data
+      setTimeout(() => {
+        onClose?.();
+        window.location.reload(); // Simple refresh to get updated data
+      }, 1500);
+    } catch (error) {
+      setCatalogYearMessage({ 
+        type: 'error', 
+        text: error.message || 'Failed to update catalog year' 
+      });
+    } finally {
+      setUpdatingCatalogYear(false);
+    }
+  };
 
   const programOptions = useMemo(() => programs.map(p => ({ id: p.id, label: `${p.institution} — ${p.name || p.program_name || p.id}` })), [programs]);
 
@@ -78,6 +141,84 @@ export default function EditPlanModal({ isOpen, onClose, plan, programs = [], on
           </div>
           {plan.program_id && (
             <p className="text-xs text-gray-500 dark:text-gray-400">Target Program is fixed at creation for now.</p>
+          )}
+          
+          {/* Catalog Year Management - Admin Only */}
+          {isAdmin && (
+            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center mb-3">
+                <Calendar size={18} className="text-blue-600 dark:text-blue-400 mr-2" />
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Catalog Year Lock</h3>
+              </div>
+              
+              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                Students follow requirements from their starting catalog year. Update this if the student stops for a semester or requests a catalog change.
+              </p>
+              
+              {loadingVersions ? (
+                <div className="text-sm text-gray-500 dark:text-gray-400">Loading available versions...</div>
+              ) : programVersions.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor="catalog-semester" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Semester
+                      </label>
+                      <select
+                        id="catalog-semester"
+                        value={catalogYearForm.semester}
+                        onChange={(e) => setCatalogYearForm({ ...catalogYearForm, semester: e.target.value })}
+                        className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      >
+                        <option value="">Select...</option>
+                        {[...new Set(programVersions.map(v => v.semester))].map(sem => (
+                          <option key={sem} value={sem}>{sem}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="catalog-year" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Year
+                      </label>
+                      <select
+                        id="catalog-year"
+                        value={catalogYearForm.year}
+                        onChange={(e) => setCatalogYearForm({ ...catalogYearForm, year: e.target.value })}
+                        className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      >
+                        <option value="">Select...</option>
+                        {[...new Set(programVersions.map(v => v.year))].sort((a, b) => b - a).map(yr => (
+                          <option key={yr} value={yr}>{yr}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={handleCatalogYearUpdate}
+                    disabled={updatingCatalogYear || !catalogYearForm.semester || !catalogYearForm.year}
+                    className="w-full px-3 py-2 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {updatingCatalogYear ? 'Updating...' : 'Update Catalog Year'}
+                  </button>
+                  
+                  {catalogYearMessage && (
+                    <div className={`flex items-start gap-2 p-2 rounded text-xs ${
+                      catalogYearMessage.type === 'success'
+                        ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700'
+                        : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700'
+                    }`}>
+                      <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+                      <span>{catalogYearMessage.text}</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  No program versions available for this program.
+                </div>
+              )}
+            </div>
           )}
         </div>
 

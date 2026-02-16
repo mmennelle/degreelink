@@ -191,6 +191,23 @@ class ApiService {
       });
     }
     
+    async updateCatalogYear(planId, semester, year) {
+      return this.request(`/plans/${planId}/catalog-year`, {
+        method: 'PUT',
+        body: JSON.stringify({ semester, year })
+      });
+    }
+    
+    async updateCatalogYearByCode(planCode, semester, year) {
+      if (!planCode || planCode.length !== 8) {
+        throw new Error('Plan code must be exactly 8 characters');
+      }
+      return this.request(`/plans/by-code/${planCode.toUpperCase()}/catalog-year`, {
+        method: 'PUT',
+        body: JSON.stringify({ semester, year })
+      });
+    }
+    
     // Existing methods...
     async getPrograms(params = {}) {
       // Supports optional params: include_all (bool), semester, year

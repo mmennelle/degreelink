@@ -1,8 +1,12 @@
 import logging
 from logging.config import fileConfig
+import sys
+import os
+
+# Add parent directory to path so we can import app
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from flask import current_app
-
 from alembic import context
 
 # this is the Alembic Config object, which provides
@@ -13,6 +17,24 @@ config = context.config
 # This line sets up loggers basically.
 fileConfig(config.config_file_name)
 logger = logging.getLogger('alembic.env')
+
+# Create Flask app context if not already in one
+def get_app():
+    """Get or create Flask application with context."""
+    try:
+        # Try to access current_app (will fail if no context)
+        _ = current_app.name
+        return current_app._get_current_object()
+    except RuntimeError:
+        # No app context, create one
+        from app import create_app
+        app = create_app()
+        return app
+
+# Set up app context
+app = get_app()
+app_context = app.app_context()
+app_context.push()
 
 
 def get_engine():

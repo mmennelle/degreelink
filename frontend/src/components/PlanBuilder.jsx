@@ -289,6 +289,7 @@ const PlanBuilder = ({
           plan={selectedPlan}
           programs={programsList}
           onSave={handleSavePlan}
+          userMode={userMode}
         />
       )}
 
