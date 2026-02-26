@@ -73,7 +73,16 @@ def get_courses():
             return jsonify({'error': 'Level must be non‑negative'}), 400
         query = query.filter(Course.course_level == level)
 
-    # Order by relevance when search term is provided, otherwise by subject/number
+    # Order by relevance when search term is provided, otherwise by subject/number.
+    # Always push articulation-imported placeholder courses (wildcards, generics)
+    # to the end so that pre-existing courses appear first.
+    is_placeholder = case(
+        (Course.course_number == '***', 1),
+        (Course.course_number == 'GEN', 1),
+        (Course.institution == 'Louisiana Board of Regents', 1),
+        else_=0
+    )
+
     if search_term_for_ordering:
         # Prioritize matches in this order:
         # 1. Exact subject_code match (MATH = MATH)
@@ -88,9 +97,9 @@ def get_courses():
             (func.upper(Course.title).contains(search_term_for_ordering), 4),
             else_=5
         )
-        ordered_query = query.order_by(relevance_score, Course.subject_code, Course.course_number)
+        ordered_query = query.order_by(is_placeholder, relevance_score, Course.subject_code, Course.course_number)
     else:
-        ordered_query = query.order_by(Course.subject_code, Course.course_number)
+        ordered_query = query.order_by(is_placeholder, Course.subject_code, Course.course_number)
 
     # Custom institution filtering to support abbreviation search.  If the
     # client supplies an institution string, we will include any course

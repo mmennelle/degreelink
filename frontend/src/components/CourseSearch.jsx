@@ -34,6 +34,8 @@ const CourseSearch = ({
   const [viewMode, setViewMode] = useState('list');
   const [hasSearched, setHasSearched] = useState(false);
   const [isDebouncing, setIsDebouncing] = useState(false);
+  const [pagination, setPagination] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Refs for optimization
   const searchTimeoutRef = useRef(null);
@@ -126,12 +128,13 @@ const CourseSearch = ({
     return 'Elective';
   }, [categoryLookup]);
 
-  const searchCourses = useCallback(async (immediate = false) => {
+  const searchCourses = useCallback(async (immediate = false, page = null) => {
     const trimmedSearch = searchTerm.trim();
     if (!trimmedSearch && !institution.trim() && !levelFilter) {
       setError('Please enter a search term, institution, or select a level');
       return;
     }
+    const searchPage = page ?? currentPage;
     
     // Abort any pending request
     if (abortControllerRef.current) {
@@ -169,12 +172,17 @@ const CourseSearch = ({
     if (institution.trim()) {
       params.institution = institution.trim();
     }
+
+    if (searchPage > 1) {
+      params.page = searchPage;
+    }
     
     // Check cache first
     const cacheKey = JSON.stringify(params);
     if (searchCacheRef.current.has(cacheKey)) {
       const cached = searchCacheRef.current.get(cacheKey);
       setCourses(cached.courses);
+      setPagination(cached.pagination || null);
       setDetectedCategories(cached.categories);
       applyFilter(cached.courses, categoryFilter);
       setHasSearched(true);
@@ -199,7 +207,9 @@ const CourseSearch = ({
       try {
         const response = await api.searchCourses(params);
         const searchResults = response.courses || [];
+        const paginationData = response.pagination || null;
           setCourses(searchResults);
+          setPagination(paginationData);
         
         // Optimized category detection
         const categoryMap = new Map();
@@ -213,7 +223,8 @@ const CourseSearch = ({
         // Cache results (limit cache size to 20 entries)
         searchCacheRef.current.set(cacheKey, {
           courses: searchResults,
-          categories: categoryMap
+          categories: categoryMap,
+          pagination: paginationData
         });
         if (searchCacheRef.current.size > 20) {
           const firstKey = searchCacheRef.current.keys().next().value;
@@ -245,7 +256,7 @@ const CourseSearch = ({
       setIsDebouncing(true);
       searchTimeoutRef.current = setTimeout(executeSearch, 300);
     }
-  }, [searchTerm, institution, levelFilter, categoryFilter, detectCategory, courses.length]);
+  }, [searchTerm, institution, levelFilter, categoryFilter, detectCategory, courses.length, currentPage]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -284,6 +295,8 @@ const CourseSearch = ({
     setFilteredCourses([]);
     setError(null);
     setHasSearched(false);
+    setPagination(null);
+    setCurrentPage(1);
   }, []);
 
   const viewCourseDetails = async (courseId) => {
@@ -299,9 +312,17 @@ const CourseSearch = ({
     }
   };
 
+  const handlePageChange = useCallback((newPage) => {
+    setCurrentPage(newPage);
+    searchCourses(true, newPage);
+    // Scroll to top of results
+    document.querySelector('[data-course-results]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [searchCourses]);
+
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
-      searchCourses(true);
+      setCurrentPage(1);
+      searchCourses(true, 1);
     }
   };
 
@@ -371,7 +392,7 @@ const CourseSearch = ({
               )}
             </div>
             <button
-              onClick={() => searchCourses(true)}
+              onClick={() => { setCurrentPage(1); searchCourses(true, 1); }}
               disabled={loading}
               aria-label={loading ? "Searching..." : "Search courses"}
               className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors"
@@ -464,7 +485,7 @@ const CourseSearch = ({
       </div>
 
       {/* Results Section */}
-      <div className="p-4 sm:p-6">
+      <div className="p-4 sm:p-6" data-course-results>
         {/* Empty State */}
         {!hasSearched && !loading && courses.length === 0 && (
           <div className="text-center py-12">
@@ -511,7 +532,7 @@ const CourseSearch = ({
             {/* Results Header */}
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
               <h3 className="font-medium text-gray-700 dark:text-gray-300">
-                Search Results ({filteredCourses.length} of {courses.length})
+                Search Results ({filteredCourses.length}{pagination && pagination.total > courses.length ? ` of ${pagination.total}` : courses.length !== filteredCourses.length ? ` of ${courses.length}` : ''})
               </h3>
               
               {showMultiSelect && selectedCourses.length > 0 && (
@@ -638,6 +659,72 @@ const CourseSearch = ({
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {pagination && pagination.pages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Page {pagination.page} of {pagination.pages} ({pagination.total} total results)
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handlePageChange(1)}
+                    disabled={!pagination.has_prev}
+                    className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-700 dark:text-gray-300"
+                  >
+                    First
+                  </button>
+                  <button
+                    onClick={() => handlePageChange(pagination.page - 1)}
+                    disabled={!pagination.has_prev}
+                    className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-700 dark:text-gray-300"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  {(() => {
+                    const pages = [];
+                    const total = pagination.pages;
+                    const current = pagination.page;
+                    let start = Math.max(1, current - 2);
+                    let end = Math.min(total, current + 2);
+                    if (end - start < 4) {
+                      if (start === 1) end = Math.min(total, start + 4);
+                      else start = Math.max(1, end - 4);
+                    }
+                    for (let i = start; i <= end; i++) {
+                      pages.push(
+                        <button
+                          key={i}
+                          onClick={() => handlePageChange(i)}
+                          className={`px-3 py-1 text-sm rounded transition-colors ${
+                            i === current
+                              ? 'bg-blue-600 text-white'
+                              : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          {i}
+                        </button>
+                      );
+                    }
+                    return pages;
+                  })()}
+                  <button
+                    onClick={() => handlePageChange(pagination.page + 1)}
+                    disabled={!pagination.has_next}
+                    className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-700 dark:text-gray-300"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                  <button
+                    onClick={() => handlePageChange(pagination.pages)}
+                    disabled={!pagination.has_next}
+                    className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-700 dark:text-gray-300"
+                  >
+                    Last
+                  </button>
+                </div>
               </div>
             )}
           </div>
