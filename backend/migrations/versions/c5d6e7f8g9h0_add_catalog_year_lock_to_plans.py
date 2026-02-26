@@ -36,14 +36,14 @@ def upgrade():
                 SELECT semester 
                 FROM program_requirements 
                 WHERE program_requirements.program_id = plans.program_id 
-                AND program_requirements.is_current = 1 
+                AND program_requirements.is_current = true 
                 LIMIT 1
             ),
             program_version_year = (
                 SELECT year 
                 FROM program_requirements 
                 WHERE program_requirements.program_id = plans.program_id 
-                AND program_requirements.is_current = 1 
+                AND program_requirements.is_current = true 
                 LIMIT 1
             ),
             catalog_year_locked_at = plans.created_at
@@ -51,7 +51,7 @@ def upgrade():
             SELECT 1 
             FROM program_requirements 
             WHERE program_requirements.program_id = plans.program_id 
-            AND program_requirements.is_current = 1
+            AND program_requirements.is_current = true
         )
     """))
 

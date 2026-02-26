@@ -31,10 +31,14 @@ def get_app():
         app = create_app()
         return app
 
-# Set up app context
-app = get_app()
-app_context = app.app_context()
-app_context.push()
+# Set up app context — only push a new one if Flask CLI hasn't already
+try:
+    _ = current_app.name
+    # Context already active (e.g. from Flask CLI), reuse it
+except RuntimeError:
+    app = get_app()
+    app_context = app.app_context()
+    app_context.push()
 
 
 def get_engine():
