@@ -602,6 +602,54 @@ class ApiService {
       }
     });
   }
+
+  // -------------------------------------------------------------------------
+  // Articulation Matrix (Louisiana CCN)
+  // -------------------------------------------------------------------------
+
+  async getArticulationInstitutions() {
+    return this.request('/articulation/institutions');
+  }
+
+  async getArticulationCCN(params = {}) {
+    const query = new URLSearchParams();
+    if (params.subject) query.set('subject', params.subject);
+    if (params.page)    query.set('page', params.page);
+    if (params.per_page) query.set('per_page', params.per_page);
+    const qs = query.toString();
+    return this.request(`/articulation/ccn${qs ? `?${qs}` : ''}`);
+  }
+
+  async lookupArticulation(params = {}) {
+    // params: { course_code, institution } OR { ccn }
+    const query = new URLSearchParams();
+    if (params.course_code)  query.set('course_code', params.course_code);
+    if (params.institution)  query.set('institution', params.institution);
+    if (params.ccn)          query.set('ccn', params.ccn);
+    return this.request(`/articulation/lookup?${query.toString()}`);
+  }
+
+  async validateArticulation() {
+    return this.request('/articulation/validate');
+  }
+
+  async previewArticulationMatrix(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request('/articulation/upload/preview', {
+      method: 'POST',
+      body: formData
+    });
+  }
+
+  async uploadArticulationMatrix(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request('/articulation/upload', {
+      method: 'POST',
+      body: formData
+    });
+  }
 }
 
 const api = new ApiService();

@@ -68,3 +68,11 @@ def register_routes(app):
         print("Advisor Auth blueprint registered")
     except ImportError as e:
         print(f"Failed to import advisor_auth: {e}")
+
+    # Register Articulation Matrix routes
+    try:
+        from . import articulation
+        app.register_blueprint(articulation.bp)
+        print("Articulation blueprint registered")
+    except ImportError as e:
+        print(f"Failed to import articulation: {e}")

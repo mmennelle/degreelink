@@ -8,7 +8,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Upload, FileText, AlertCircle, CheckCircle, Download, Settings } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle, Download, Settings, ArrowRightLeft } from 'lucide-react';
 import api from '../services/api';
 import UploadConfirmationModal from './UploadConfirmationModal';
 import ProgramRequirementsEditModal from './ProgramRequirementsEditModal';
@@ -88,6 +88,9 @@ const CSVUpload = () => {
         case 'equivalencies':
           preview = await api.previewEquivalencies(file);
           break;
+        case 'articulation':
+          preview = await api.previewArticulationMatrix(file);
+          break;
         default:
           throw new Error('Invalid upload type');
       }
@@ -125,6 +128,9 @@ const CSVUpload = () => {
           break;
         case 'equivalencies':
           result = await api.uploadEquivalencies(pendingFile);
+          break;
+        case 'articulation':
+          result = await api.uploadArticulationMatrix(pendingFile);
           break;
         default:
           throw new Error('Invalid upload type');
@@ -238,7 +244,15 @@ const CSVUpload = () => {
       filename = 'sample_program_requirements.csv';
     }
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    } else if (type === 'articulation') {
+      // Sample articulation matrix — a tiny excerpt showing the column format
+      csvContent = `ccn,ccn_title,BPCC,BRCC,CLTCC,DCC,FTCC,LDCC,NCC,NTCC,RPCC,SLCC,STCC,LSU_AM,LSUA,LSUE,LSUS,GSU,LA_TECH,MCNEESE,NICHOLLS,NSU,SLU,ULL,ULM,UNO,SU_AM,SUNO,SUSLA
+CACC 2113,Intro to Financial Accounting,ACCT 205,ACCT 2113,ACCT 2400,ACCT 205,ACCT 2100,ACCT 201,ACCT 201,ACCT 2113,ACCT 201,ACCT 201,ACCT 1100,ACCT 2001,ACCT 2001,ACCT 2001,ACCT 2001,ACCT 201,ACCT 2013,ACCT 2003,ACCT 201,ACCT 2113,ACCT 201,ACCT 2101,ACCT 2003,ACCT 2100,ACCT 201,ACCT 201,ACCT 201
+CACC 2213,Intro to Managerial Accounting,ACCT 206,ACCT 2213,ACCT 2150,ACCT 211,ACCT 2110,ACCT 202,ACCT 202,ACCT 2213,ACCT 202,ACCT 202,ACCT 1200,ACCT 2101,ACCT 2101,ACCT 2101,ACCT 2101,ACCT 211,ACCT 2023,ACCT 2013,ACCT 202,ACCT 2213,ACCT 202,ACCT 2102,ACCT 2013,ACCT 2101,ACCT 202,ACCT 202,ACCT 202
+CATR 1013,Intro to Anthropology,GSOC 3,ANTH 1013,ANTH 1100,GSOC 3,GSOC 3,GSOC 3,ANTH 101,GSOC 3,GSOC 3,ANTH 101,GSOC 3,ANTH 2051,ANTH 1001,GSOC 3,GSOC 3,ANTH 212,ANTH 1013,ANTH 1003,ANTH 101,ANTH 1013,ANTH 2000,ANTH 101,ANTH 1003,ANTH 1010,GSOC 3,GSOC 3,GSOC 3
+CECN 2213,Macroeconomics,BADM 201,ECON 2213,GSOC 3,ECON 201,ECON 2010,ECON 201,ECON 201,ECON 2213,ECON 201,ECON 201,ECON 2010,ECON 2000,ECON 2000,ECON 2000,ECON 2000,ECON 201,ECON 2013,ECON 2003,ECON 201,ECON 2213,ECON 201,ECON 2010,ECON 2003,ECON 2000,ECON 201,ECON 201,ECON 201`;
+      filename = 'sample_articulation_matrix.csv';
+    }
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -307,16 +321,29 @@ const CSVUpload = () => {
           { name: 'scope_subject_codes', description: 'Limit to subjects (space-separated: "BIOS CHEM")', required: false }
         ]
       };
+    } else if (uploadType === 'articulation') {
+      return {
+        title: 'Articulation Matrix Upload Instructions',
+        description: 'Upload the Louisiana Board of Regents Common Course Number (CCN) articulation matrix. Use the extracted CSV produced by extract_articulation_matrix.py, or download the sample for the correct column format.',
+        columns: [
+          { name: 'ccn',        description: 'Common Course Number code (e.g. "CACC 2113")', required: true },
+          { name: 'ccn_title',  description: 'Common Course title (e.g. "Intro to Financial Accounting")', required: true },
+          { name: 'BPCC',       description: 'Local course code at Bossier Parish CC (or empty)', required: false },
+          { name: 'BRCC',       description: 'Local course code at Baton Rouge CC', required: false },
+          { name: 'DCC',        description: 'Local course code at Delgado CC', required: false },
+          { name: 'UNO',        description: 'Local course code at University of New Orleans', required: false },
+          { name: '… (25 more)', description: 'One column per institution — see sample CSV for all 27 columns', required: false },
+        ]
+      };
     }
   };
-
-  const instructions = getUploadInstructions();
 
   const getUploadTypeIcon = () => {
     switch (uploadType) {
       case 'courses': return <FileText className="mr-2" size={20} />;
       case 'equivalencies': return <Upload className="mr-2" size={20} />;
       case 'requirements': return <Settings className="mr-2" size={20} />;
+      case 'articulation': return <ArrowRightLeft className="mr-2" size={20} />;
       default: return <Upload className="mr-2" size={20} />;
     }
   };
@@ -349,6 +376,17 @@ const CSVUpload = () => {
             {uploadResult.constraints_created > 0 && (
               <p>• <strong>{uploadResult.constraints_created}</strong> constraints created</p>
             )}
+          </>
+        );
+      case 'articulation':
+        return (
+          <>
+            <p>• <strong>{uploadResult.ccn_created || 0}</strong> CCN courses created</p>
+            {uploadResult.ccn_updated > 0 && <p>• <strong>{uploadResult.ccn_updated}</strong> CCN courses updated</p>}
+            <p>• <strong>{uploadResult.local_courses_created || 0}</strong> local courses created</p>
+            {uploadResult.local_courses_updated > 0 && <p>• <strong>{uploadResult.local_courses_updated}</strong> local courses updated</p>}
+            <p>• <strong>{uploadResult.equivalencies_created || 0}</strong> articulation equivalencies created</p>
+            {uploadResult.wildcards_noted > 0 && <p>• <strong>{uploadResult.wildcards_noted}</strong> wildcard subject-area credits noted</p>}
           </>
         );
       default:
@@ -386,8 +424,7 @@ const CSVUpload = () => {
           >
             <option value="courses">Course Information</option>
             <option value="equivalencies">Course Equivalencies</option>
-            <option value="requirements">Program Requirements & Constraints</option>
-          </select>
+            <option value="requirements">Program Requirements & Constraints</option>            <option value="articulation">Articulation Matrix (Louisiana CCN)</option>          </select>
           
           {/* Type Description */}
           <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
@@ -395,6 +432,7 @@ const CSVUpload = () => {
               {uploadType === 'courses' && '📚 Upload course catalog data with codes, titles, credits, and descriptions.'}
               {uploadType === 'equivalencies' && '🔗 Upload course transfer mappings between institutions.'}
               {uploadType === 'requirements' && '⚙️ Upload program requirements with two types: SIMPLE (pool of courses, choose any), GROUPED (multiple mandatory groups).'}
+              {uploadType === 'articulation' && '🏛️ Upload the Louisiana BoR articulation matrix CSV to seed all 27-institution CCN equivalency data. Run extract_articulation_matrix.py first to produce this file.'}
             </p>
           </div>
         </div>
@@ -454,8 +492,9 @@ const CSVUpload = () => {
           >
             <Download className="mr-2" size={16} />
             Download Sample {
-              uploadType === 'courses' ? 'Courses' : 
+              uploadType === 'courses' ? 'Courses' :
               uploadType === 'equivalencies' ? 'Equivalencies' :
+              uploadType === 'articulation' ? 'Articulation Matrix' :
               'Requirements'
             } CSV
           </button>

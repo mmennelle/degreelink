@@ -26,7 +26,7 @@ export default function useAppController() {
   const [activeTab, setActiveTab] = useState(() => {
     // Get initial tab from URL path or localStorage
     const path = window.location.pathname.slice(1) || 'search';
-    const validTabs = ['search', 'plans', 'lookup', 'management', 'advisor-center', 'app-settings'];
+    const validTabs = ['search', 'plans', 'lookup', 'articulation', 'management', 'advisor-center', 'app-settings'];
     if (validTabs.includes(path)) return path;
     
     const s = localStorage.getItem('currentSession');
@@ -223,6 +223,7 @@ export default function useAppController() {
     { id: 'search', label: 'Course Search', shortLabel: 'Search', icon: 'Search' },
     { id: 'plans',  label: 'Academic Plans', shortLabel: 'Plans', icon: 'FileText' },
     { id: 'lookup', label: 'Find Plan', shortLabel: 'Find', icon: 'Key' },
+    { id: 'articulation', label: 'Transfer Lookup', shortLabel: 'Transfer', icon: 'ArrowRightLeft' },
     // Advisor-only tabs (advisors are also admins)
     ...(userMode === 'advisor' ? [{ id: 'advisor-center', label: 'Advisor Center', shortLabel: 'Advisor', icon: 'Shield' }] : []),
     ...(userMode === 'advisor' ? [{ id: 'management', label: 'Program Settings', shortLabel: 'Programs', icon: 'Settings' }] : []),
