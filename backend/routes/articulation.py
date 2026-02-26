@@ -399,7 +399,34 @@ def lookup_course():
         ).first()
 
         if not local_course:
-            return jsonify({'error': f'Course {course_code} not found at {inst_display}'}), 404
+            # Try a fuzzy match: same subject at that institution
+            similar = Course.query.filter(
+                Course.subject_code == subj_l,
+                Course.institution.ilike(inst_display)
+            ).order_by(Course.course_number).limit(5).all()
+            suggestions = [c.code for c in similar] if similar else []
+
+            # Resolve institution key for display
+            inst_key = ''
+            for k, v in INSTITUTION_DISPLAY.items():
+                if v.lower() == inst_display.lower():
+                    inst_key = k
+                    break
+
+            return jsonify({
+                'message': f'Course {course_code} not found at {inst_display}.',
+                'results': [],
+                'help': {
+                    'reason': 'course_not_found',
+                    'institution': inst_display,
+                    'institution_key': inst_key,
+                    'searched_code': course_code.upper(),
+                    'suggestions': suggestions,
+                    'tip': 'This course may not be in the articulation matrix. '
+                           'Try searching by CCN if you know the Common Course Number, '
+                           'or check the course code spelling.',
+                },
+            })
 
         # Find its articulation equivalency → CCN
         art_equivs = Equivalency.query.filter(
@@ -411,9 +438,35 @@ def lookup_course():
         ccn_courses = [c for c in ccn_courses if c and c.institution == CCN_INSTITUTION]
 
     if not ccn_courses:
+        # Build a context object so the frontend can show a helpful empty state
+        help_ctx = {'reason': 'no_ccn_mapping', 'tip': 'This course exists in the database but has no CCN articulation mapping.'}
+        if not ccn_param and local_course:
+            # Check if the course has ANY equivalencies (manual/direct)
+            any_equivs = Equivalency.query.filter(
+                db.or_(
+                    Equivalency.from_course_id == local_course.id,
+                    Equivalency.to_course_id == local_course.id
+                )
+            ).count()
+            help_ctx['course'] = local_course.to_dict()
+            help_ctx['has_other_equivalencies'] = any_equivs > 0
+            help_ctx['other_equivalency_count'] = any_equivs
+            help_ctx['tip'] = (
+                f'{local_course.code} at {local_course.institution} exists but is not in the '
+                'Louisiana Articulation Matrix. It may still have direct equivalencies — '
+                'check the Course Search tab.'
+            )
+        elif ccn_param:
+            help_ctx['reason'] = 'ccn_not_found'
+            help_ctx['searched_ccn'] = ccn_param.upper()
+            help_ctx['tip'] = (
+                f'No CCN course found for "{ccn_param.upper()}". '
+                'Verify the format: C + 3-letter subject + 4-digit number (e.g. CMAT 1103).'
+            )
         return jsonify({
-            'message': 'No CCN mapping found for this course',
+            'message': help_ctx['tip'],
             'results': [],
+            'help': help_ctx,
         })
 
     result = []

@@ -401,6 +401,8 @@ CECN 2213,Macroeconomics,BADM 201,ECON 2213,GSOC 3,ECON 201,ECON 2010,ECON 201,E
     }
   }, [uploadType]);
 
+  const instructions = getUploadInstructions();
+
   return (
     <div className="space-y-6">
       {/* Upload Type Selection */}

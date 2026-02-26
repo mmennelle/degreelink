@@ -314,9 +314,68 @@ export default function ArticulationLookup() {
       {results && (
         <div className="space-y-4">
           {results.message && !results.results?.length && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 flex items-center gap-3 text-gray-500 dark:text-gray-400">
-              <Info size={18} />
-              <p className="text-sm">{results.message}</p>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 space-y-4">
+              <div className="flex items-start gap-3 text-gray-600 dark:text-gray-300">
+                <Info size={18} className="mt-0.5 flex-shrink-0 text-amber-500" />
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">{results.message}</p>
+
+                  {/* Course found but no CCN mapping */}
+                  {results.help?.reason === 'no_ccn_mapping' && results.help?.course && (
+                    <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Course found in database:</p>
+                      <p className="font-mono font-bold text-sm text-gray-900 dark:text-white">
+                        {results.help.course.code}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {results.help.course.title} &middot; {results.help.course.credits} credits &middot; {results.help.course.institution}
+                      </p>
+                      {results.help.has_other_equivalencies && (
+                        <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1">
+                          This course has {results.help.other_equivalency_count} equivalenc{results.help.other_equivalency_count === 1 ? 'y' : 'ies'} in the Course Search.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Course not found — similar courses */}
+                  {results.help?.reason === 'course_not_found' && results.help?.suggestions?.length > 0 && (
+                    <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">
+                        Similar courses at {results.help.institution_key || results.help.institution}:
+                      </p>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {results.help.suggestions.map((code, i) => (
+                          <button
+                            key={i}
+                            onClick={() => { setCourseCode(code); }}
+                            className="px-2 py-1 text-xs font-mono bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:border-indigo-300 dark:hover:border-indigo-500 transition-colors text-gray-700 dark:text-gray-300"
+                          >
+                            {code}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tip */}
+                  {results.help?.tip && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 italic">
+                      {results.help.tip}
+                    </p>
+                  )}
+
+                  {/* Suggest switching modes */}
+                  {searchMode === 'local' && results.help?.reason !== 'no_ccn_mapping' && (
+                    <button
+                      onClick={() => { setSearchMode('ccn'); setResults(null); setError(''); }}
+                      className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline mt-1"
+                    >
+                      Try searching by CCN instead &rarr;
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 

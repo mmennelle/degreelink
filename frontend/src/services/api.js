@@ -25,6 +25,12 @@ class ApiService {
     if (typeof window !== 'undefined') {
       this.advisorToken = window.localStorage.getItem('advisorToken');
     }
+
+    // Plan code for authorising ID-based plan endpoints
+    this.currentPlanCode = null;
+    if (typeof window !== 'undefined') {
+      this.currentPlanCode = window.localStorage.getItem('currentPlanCode') || null;
+    }
     
     if (!this.adminToken && import.meta?.env?.MODE !== 'production') {
       console.warn('[ApiService] Admin token not found at init (may be set later).');
@@ -43,6 +49,18 @@ class ApiService {
         window.localStorage.setItem('advisorToken', token);
       } else {
         window.localStorage.removeItem('advisorToken');
+      }
+    }
+  }
+
+  /** Store the current plan code so all subsequent requests include it. */
+  setPlanCode(code) {
+    this.currentPlanCode = code || null;
+    if (typeof window !== 'undefined') {
+      if (code) {
+        window.localStorage.setItem('currentPlanCode', code);
+      } else {
+        window.localStorage.removeItem('currentPlanCode');
       }
     }
   }
@@ -79,6 +97,11 @@ class ApiService {
     // Inject advisor token if available
     if (this.advisorToken && !headers['X-Advisor-Token']) {
       headers['X-Advisor-Token'] = this.advisorToken.trim();
+    }
+
+    // Inject plan code for ID-based plan endpoint authorisation
+    if (this.currentPlanCode && !headers['X-Plan-Code']) {
+      headers['X-Plan-Code'] = this.currentPlanCode;
     }
     
     // Dev aid: warn if making a known protected mutation without token

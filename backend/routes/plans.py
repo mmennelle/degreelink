@@ -155,15 +155,28 @@ def verify_plan_code(plan_code):
     })
 
 def check_plan_access(plan_id):
-    """Check if current session has access to the specified plan"""
-    # For advisor authenticated requests, check session
-    # Otherwise rely on plan code based access control
+    """Check if current session has access to the specified plan.
+
+    Access is granted when ANY of the following are true:
+      1. The request comes from an authenticated advisor session.
+      2. The request includes a valid ``X-Plan-Code`` header whose
+         corresponding plan matches *plan_id*.  This allows the frontend
+         to transparently authorise ID-based endpoint calls once the user
+         has proved possession of the plan code.
+    """
+    # 1. Advisor session
     if 'advisor_id' in session:
-        # Advisor is authenticated - they have access to manage plans
         return True
-    
-    # For non-advisors, access is controlled by plan code at endpoint level
-    # This function is mainly for update/delete operations
+
+    # 2. Plan code header (set by the frontend ApiService automatically)
+    plan_code = request.headers.get('X-Plan-Code', '').strip()
+    if plan_code and len(plan_code) == 8:
+        clean = ''.join(c for c in plan_code.upper() if c.isalnum())
+        if len(clean) == 8:
+            plan = Plan.find_by_code(clean)
+            if plan and plan.id == plan_id:
+                return True
+
     return False
 
 @bp.route('', methods=['POST'])
