@@ -118,14 +118,58 @@ def ccn_to_credits(ccn: str) -> int:
     return 3  # default
 
 
+# Regex for a clean course code: SUBJ + optional NUM (with possible letter suffix)
+_COURSE_RE = re.compile(r'^([A-Za-z]{2,6})\s*([0-9]+[A-Za-z]*)$')
+
+
 def split_code(code: str):
+    """Parse a course code string into (subject, number).
+
+    Handles:
+      - Normal: 'ACCT 2113' → ('ACCT', '2113')
+      - PDF artifacts with merged spaces: 'BIOL10 40' → ('BIOL', '1040')
+      - Slash alternatives: 'BIOL 1207/1208' → ('BIOL', '1207')
+      - 'or'/'and'/'+' alternatives: 'MATH 102 or 103' → ('MATH', '102')
+      - Parenthetical credits: 'CHEM 205 (4 cr.)' → ('CHEM', '205')
+      - Bare number (from & split): '1021' → ('', '1021')
+    """
     code = code.strip()
-    match = re.match(r'^([A-Za-z]+)[\s-]*([0-9]+[A-Za-z]*)?$', code)
-    if match:
-        subj = (match.group(1) or '').upper()
-        num  = (match.group(2) or '').upper()
-        return subj, num
-    return code.upper(), ''
+    if not code:
+        return '', ''
+
+    # Strip parenthetical suffixes like '(4 cr.)', '(G)', '(1cr.)'
+    code = re.sub(r'\s*\(.*?\)\s*', ' ', code).strip()
+
+    # Remove trailing single letters that are PDF noise: 'ACCT 462 N' → 'ACCT 462'
+    code = re.sub(r'\s+[A-Z]$', '', code)
+
+    # Split on 'or', 'and', '+', '/' — take only the first alternative
+    first = re.split(r'\s+or\s+|\s+and\s+|\s*\+\s*|/', code)[0].strip()
+
+    # Fix PDF artifacts where subject runs into number: 'BIOL10 40' → 'BIOL 1040'
+    m_artifact = re.match(r'^([A-Za-z]{2,6})(\d+)\s+(\d+[A-Za-z]*)$', first)
+    if m_artifact:
+        first = f"{m_artifact.group(1)} {m_artifact.group(2)}{m_artifact.group(3)}"
+
+    # Try clean parse
+    m = _COURSE_RE.match(first)
+    if m:
+        return m.group(1).upper(), m.group(2).upper()
+
+    # Bare number like '1021'
+    if re.match(r'^\d+[A-Za-z]*$', first):
+        return '', first.upper()
+
+    # Dashes like 'BIOL ---' or '---' → empty
+    if re.match(r'^[A-Za-z]*\s*-+$', first):
+        return '', ''
+
+    # Last resort: try to grab the first 2-6 letter prefix + first number
+    m2 = re.match(r'^([A-Za-z]{2,6})[\s/*+&-]+([0-9]+[A-Za-z]*)', first)
+    if m2:
+        return m2.group(1).upper(), m2.group(2).upper()
+
+    return first[:20].upper(), ''
 
 
 # ---------------------------------------------------------------------------
@@ -234,15 +278,31 @@ def import_matrix(csv_path: str, dry_run: bool = False, validate_only: bool = Fa
 
                 # Handle combined equivalencies like "ACCT 2101 & ACCT 2***"
                 parts = [p.strip() for p in local_code_raw.split('&')]
+                last_subj = ''  # track subject for bare-number parts
                 for part in parts:
+                    if not part:
+                        continue
                     if is_wildcard(part):
                         _upsert_wildcard(db, Course, Equivalency,
                                          part, inst_name, ccn_course, stats, dry_run)
+                        last_subj = part.split()[0].upper() if part.split() else last_subj
                         continue
-                    _upsert_local_and_equiv(
-                        db, Course, Equivalency,
-                        part, inst_name, ccn_course, credits, stats, dry_run
-                    )
+                    # If this is a bare number (from '&' split), prepend last subject
+                    if re.match(r'^\d+[A-Za-z]*$', part.strip()) and last_subj:
+                        part = f"{last_subj} {part.strip()}"
+                    try:
+                        _upsert_local_and_equiv(
+                            db, Course, Equivalency,
+                            part, inst_name, ccn_course, credits, stats, dry_run
+                        )
+                        # Remember subject for next bare-number part
+                        s, _ = split_code(part)
+                        if s:
+                            last_subj = s
+                    except Exception as e:
+                        stats['errors'].append(f"{part!r} @ {inst_name}: {e}")
+                        db.session.rollback()  # discard the failed flush
+                        continue
 
         if not dry_run:
             try:
@@ -282,8 +342,13 @@ def _upsert_local_and_equiv(db, Course, Equivalency,
         stats['errors'].append(f"Could not parse local code: {local_code_raw!r} at {inst_name}")
         return
 
+    # Guard: subject_code and course_number columns are varchar(20)
+    if len(subj) > 20 or len(num) > 20:
+        stats['errors'].append(f"Parsed code too long: subj={subj!r} num={num!r} from {local_code_raw!r} at {inst_name}")
+        return
+
     # For generic designations (GSOC 3) the "num" is a credit count, not a course number
-    is_gen = is_generic(local_code_raw)
+    is_gen = is_generic(local_code_raw) or is_generic(f"{subj} {num}")
     if is_gen:
         course_num = 'GEN'
         cred = int(num) if num.isdigit() else credits
@@ -321,6 +386,8 @@ def _upsert_local_and_equiv(db, Course, Equivalency,
         code_str = f"{subj} {course_num}".strip()
         local_course = Course(
             code=code_str,
+            subject_code=subj,
+            course_number=course_num,
             title=local_code_raw,
             credits=cred,
             institution=inst_name,
@@ -373,6 +440,8 @@ def _upsert_wildcard(db, Course, Equivalency,
         if not placeholder:
             placeholder = Course(
                 code=f'{subj} ***',
+                subject_code=subj,
+                course_number='***',
                 title=f'{subj} — Subject Credit (No Direct Equivalent)',
                 credits=0,
                 institution=inst_name,
