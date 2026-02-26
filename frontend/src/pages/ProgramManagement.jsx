@@ -654,13 +654,21 @@ const EquivalenciesTable = ({ equivalencies, onEdit, onDelete }) => {
                 <div className="text-xs text-gray-500 dark:text-gray-400">{equiv.to_course?.institution}</div>
               </td>
               <td onClick={() => onEdit(equiv)} className="px-6 py-4 whitespace-nowrap text-sm">
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  equiv.equivalency_type === 'direct' 
-                    ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
-                    : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'
-                }`}>
-                  {equiv.equivalency_type}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    equiv.equivalency_type === 'direct' 
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                      : equiv.equivalency_type === 'articulation' || equiv.equivalency_type === 'subject_area'
+                      ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300'
+                      : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'
+                  }`}>
+                    {equiv.equivalency_type === 'articulation' || equiv.equivalency_type === 'subject_area'
+                      ? 'CCN' : equiv.equivalency_type}
+                  </span>
+                  {(equiv.equivalency_type === 'articulation' || equiv.equivalency_type === 'subject_area') && (
+                    <span className="text-purple-500 dark:text-purple-400" title="Louisiana Articulation Matrix">🔄</span>
+                  )}
+                </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <button
@@ -797,6 +805,20 @@ const EditModal = ({ item, type, onClose, onSave }) => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [showRequirementsModal, setShowRequirementsModal] = useState(false);
+  const [matrixInfo, setMatrixInfo] = useState(null);
+
+  // Check for matrix backing when editing equivalencies
+  useEffect(() => {
+    if (type === 'equivalencies' && item?.id) {
+      api.checkEquivalencyMatrix(item.id)
+        .then(data => {
+          if (data.is_matrix_backed) {
+            setMatrixInfo(data);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [item, type]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -848,6 +870,20 @@ const EditModal = ({ item, type, onClose, onSave }) => {
           {error && (
             <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-4 text-red-800 dark:text-red-200">
               {error}
+            </div>
+          )}
+
+          {matrixInfo && type === 'equivalencies' && (
+            <div className="p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-600 rounded-lg">
+              <div className="flex items-start gap-2">
+                <span className="text-amber-600 dark:text-amber-400 text-lg mt-0.5">⚠️</span>
+                <div>
+                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">Articulation Matrix Entry</p>
+                  <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                    This equivalency is defined by the Louisiana Articulation Matrix. Changes may cause it to no longer align with statewide transfer policy.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1088,6 +1124,23 @@ const EditModal = ({ item, type, onClose, onSave }) => {
 
 // Delete Confirmation Modal
 const DeleteConfirmModal = ({ item, type, onClose, onConfirm }) => {
+  const [matrixWarning, setMatrixWarning] = useState(null);
+  const [checkingMatrix, setCheckingMatrix] = useState(false);
+
+  useEffect(() => {
+    if (type === 'equivalencies' && item?.id) {
+      setCheckingMatrix(true);
+      api.checkEquivalencyMatrix(item.id)
+        .then(data => {
+          if (data.delete_warning) {
+            setMatrixWarning(data.delete_warning);
+          }
+        })
+        .catch(() => {})
+        .finally(() => setCheckingMatrix(false));
+    }
+  }, [item, type]);
+
   const getItemDisplay = () => {
     switch (type) {
       case 'courses':
@@ -1109,6 +1162,19 @@ const DeleteConfirmModal = ({ item, type, onClose, onConfirm }) => {
           <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
             Confirm Deletion
           </h3>
+
+          {matrixWarning && (
+            <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-600 rounded-lg">
+              <div className="flex items-start gap-2">
+                <span className="text-amber-600 dark:text-amber-400 text-lg mt-0.5">⚠️</span>
+                <div>
+                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">Articulation Matrix Conflict</p>
+                  <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">{matrixWarning.message}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <p className="text-gray-600 dark:text-gray-300 mb-6">
             Are you sure you want to delete <strong>{getItemDisplay()}</strong>? This action cannot be undone.
           </p>
@@ -1121,9 +1187,10 @@ const DeleteConfirmModal = ({ item, type, onClose, onConfirm }) => {
             </button>
             <button
               onClick={onConfirm}
-              className="px-6 py-2 bg-red-600 dark:bg-red-500 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-600"
+              disabled={checkingMatrix}
+              className="px-6 py-2 bg-red-600 dark:bg-red-500 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-600 disabled:opacity-50"
             >
-              Delete
+              {matrixWarning ? 'Delete Anyway' : 'Delete'}
             </button>
           </div>
         </div>

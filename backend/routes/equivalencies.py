@@ -153,20 +153,42 @@ def create_no_equivalent():
         db.session.rollback()
         return jsonify({'error': 'Failed to create no equivalent record'}), 500
 
+@bp.route('/<int:equiv_id>/check', methods=['GET'])
+def check_equivalency_matrix(equiv_id):
+    """Preflight check: returns matrix conflict warnings for an equivalency.
+
+    Used by the frontend before showing edit/delete confirmation dialogs.
+    """
+    from services.articulation_service import check_edit_conflict, check_delete_conflict
+    edit_warning = check_edit_conflict(equiv_id, {})
+    delete_warning = check_delete_conflict(equiv_id)
+    return jsonify({
+        'is_matrix_backed': edit_warning is not None or delete_warning is not None,
+        'edit_warning': edit_warning,
+        'delete_warning': delete_warning,
+    })
+
 @bp.route('/<int:equiv_id>', methods=['PUT'])
 @require_admin
 def update_equivalency(equiv_id):
-    
+    from services.articulation_service import check_edit_conflict
+
     equivalency = Equivalency.query.get_or_404(equiv_id)
     data = request.get_json()
-    
+
+    # Check for matrix conflict (advisory, never blocking)
+    matrix_warning = check_edit_conflict(equiv_id, data)
+
     equivalency.equivalency_type = data.get('equivalency_type', equivalency.equivalency_type)
     equivalency.notes = data.get('notes', equivalency.notes)
     equivalency.approved_by = data.get('approved_by', equivalency.approved_by)
     
     try:
         db.session.commit()
-        return jsonify(equivalency.to_dict())
+        result = equivalency.to_dict()
+        if matrix_warning:
+            result['matrix_warning'] = matrix_warning
+        return jsonify(result)
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': 'Failed to update equivalency'}), 500
@@ -174,13 +196,20 @@ def update_equivalency(equiv_id):
 @bp.route('/<int:equiv_id>', methods=['DELETE'])
 @require_admin
 def delete_equivalency(equiv_id):
-    
+    from services.articulation_service import check_delete_conflict
+
     equivalency = Equivalency.query.get_or_404(equiv_id)
+
+    # Check for matrix conflict — include in response but don't block
+    matrix_warning = check_delete_conflict(equiv_id)
     
     try:
         db.session.delete(equivalency)
         db.session.commit()
-        return jsonify({'message': 'Equivalency deleted successfully'})
+        result = {'message': 'Equivalency deleted successfully'}
+        if matrix_warning:
+            result['matrix_warning'] = matrix_warning
+        return jsonify(result)
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': 'Failed to delete equivalency'}), 500

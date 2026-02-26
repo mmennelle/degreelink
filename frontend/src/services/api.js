@@ -465,6 +465,10 @@ class ApiService {
         body: JSON.stringify(data)
       });
     }
+
+    async checkEquivalencyMatrix(id) {
+      return this.request(`/equivalencies/${id}/check`);
+    }
   
     async updateEquivalency(id, data) {
       return this.request(`/equivalencies/${id}`, {

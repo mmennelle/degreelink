@@ -839,11 +839,17 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 										<div className="flex-1 min-w-0">
 											<div className="flex items-center gap-1 flex-wrap">
 												<h6 className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">{pc.course?.code}: {pc.course?.title}</h6>
+												{pc.ccn_info && (
+													<span className="px-1.5 py-0.5 text-xs bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded flex-shrink-0" title={`Statewide transfer via CCN ${pc.ccn_info.ccn_course?.code || ''} ${pc.ccn_info.matrix_year || ''}`}>🔄 CCN</span>
+												)}
 												{pc.constraint_violation && (
 													<span className="px-1.5 py-0.5 text-xs bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200 rounded flex-shrink-0" title={pc.constraint_violation_reason}>⚠️</span>
 												)}
 											</div>
 											<p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{(pc.credits || pc.course?.credits) ?? 0} credits • {pc.course?.institution}</p>
+											{pc.ccn_info && (
+												<p className="text-xs text-purple-600 dark:text-purple-400 mt-0.5">🔄 Louisiana Statewide Transfer → {pc.ccn_info.ccn_course?.code} {pc.ccn_info.matrix_year ? `(${pc.ccn_info.matrix_year})` : ''}</p>
+											)}
 											{pc.constraint_violation && pc.constraint_violation_reason && (
 												<p className="text-xs text-orange-600 dark:text-orange-400 mt-1">⚠️ {pc.constraint_violation_reason}</p>
 											)}
