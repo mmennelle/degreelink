@@ -8,19 +8,25 @@
  */
 
 import React from 'react';
-import { ChevronLeft, Pencil, Download, Printer } from 'lucide-react';
+import { ChevronLeft, Pencil, Download, Printer, Calendar } from 'lucide-react';
 
 export function PlanHeader({ selectedPlan, onBack, canEdit = false, onEditPlan, onDownload, onPrint }) {
+  // Display catalog year if available
+  const catalogYear = selectedPlan?.program_version_semester && selectedPlan?.program_version_year
+    ? `${selectedPlan.program_version_semester} ${selectedPlan.program_version_year}`
+    : null;
+    
   return (
-    <div className="flex items-center justify-between mb-2">
-      <button
-        onClick={onBack}
-        className="flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
-      >
-        <ChevronLeft className="mr-1" size={16} />
-        Back to Plans
-      </button>
-      <div className="flex items-center gap-2">
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <button
+          onClick={onBack}
+          className="flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+        >
+          <ChevronLeft className="mr-1" size={16} />
+          Back to Plans
+        </button>
+        <div className="flex items-center gap-2">
         {onDownload && (
           <button
             onClick={onDownload}
@@ -64,6 +70,17 @@ export function PlanHeader({ selectedPlan, onBack, canEdit = false, onEditPlan, 
           </button>
         )}
       </div>
+    </div>
+    
+    {/* Catalog Year Info */}
+    {catalogYear && (
+      <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-md">
+        <Calendar size={16} className="text-blue-600 dark:text-blue-400" />
+        <span className="text-sm text-blue-800 dark:text-blue-300">
+          Following <strong>{catalogYear}</strong> Catalog
+        </span>
+      </div>
+    )}
     </div>
   );
 }

@@ -25,6 +25,12 @@ class ApiService {
     if (typeof window !== 'undefined') {
       this.advisorToken = window.localStorage.getItem('advisorToken');
     }
+
+    // Plan code for authorising ID-based plan endpoints
+    this.currentPlanCode = null;
+    if (typeof window !== 'undefined') {
+      this.currentPlanCode = window.localStorage.getItem('currentPlanCode') || null;
+    }
     
     if (!this.adminToken && import.meta?.env?.MODE !== 'production') {
       console.warn('[ApiService] Admin token not found at init (may be set later).');
@@ -43,6 +49,18 @@ class ApiService {
         window.localStorage.setItem('advisorToken', token);
       } else {
         window.localStorage.removeItem('advisorToken');
+      }
+    }
+  }
+
+  /** Store the current plan code so all subsequent requests include it. */
+  setPlanCode(code) {
+    this.currentPlanCode = code || null;
+    if (typeof window !== 'undefined') {
+      if (code) {
+        window.localStorage.setItem('currentPlanCode', code);
+      } else {
+        window.localStorage.removeItem('currentPlanCode');
       }
     }
   }
@@ -79,6 +97,11 @@ class ApiService {
     // Inject advisor token if available
     if (this.advisorToken && !headers['X-Advisor-Token']) {
       headers['X-Advisor-Token'] = this.advisorToken.trim();
+    }
+
+    // Inject plan code for ID-based plan endpoint authorisation
+    if (this.currentPlanCode && !headers['X-Plan-Code']) {
+      headers['X-Plan-Code'] = this.currentPlanCode;
     }
     
     // Dev aid: warn if making a known protected mutation without token
@@ -188,6 +211,23 @@ class ApiService {
       }
       return this.request(`/plans/by-code/${planCode.toUpperCase()}`, {
         method: 'DELETE'
+      });
+    }
+    
+    async updateCatalogYear(planId, semester, year) {
+      return this.request(`/plans/${planId}/catalog-year`, {
+        method: 'PUT',
+        body: JSON.stringify({ semester, year })
+      });
+    }
+    
+    async updateCatalogYearByCode(planCode, semester, year) {
+      if (!planCode || planCode.length !== 8) {
+        throw new Error('Plan code must be exactly 8 characters');
+      }
+      return this.request(`/plans/by-code/${planCode.toUpperCase()}/catalog-year`, {
+        method: 'PUT',
+        body: JSON.stringify({ semester, year })
       });
     }
     
@@ -583,6 +623,54 @@ class ApiService {
       headers: {
         'X-Advisor-Session-Token': this.advisorToken
       }
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Articulation Matrix (Louisiana CCN)
+  // -------------------------------------------------------------------------
+
+  async getArticulationInstitutions() {
+    return this.request('/articulation/institutions');
+  }
+
+  async getArticulationCCN(params = {}) {
+    const query = new URLSearchParams();
+    if (params.subject) query.set('subject', params.subject);
+    if (params.page)    query.set('page', params.page);
+    if (params.per_page) query.set('per_page', params.per_page);
+    const qs = query.toString();
+    return this.request(`/articulation/ccn${qs ? `?${qs}` : ''}`);
+  }
+
+  async lookupArticulation(params = {}) {
+    // params: { course_code, institution } OR { ccn }
+    const query = new URLSearchParams();
+    if (params.course_code)  query.set('course_code', params.course_code);
+    if (params.institution)  query.set('institution', params.institution);
+    if (params.ccn)          query.set('ccn', params.ccn);
+    return this.request(`/articulation/lookup?${query.toString()}`);
+  }
+
+  async validateArticulation() {
+    return this.request('/articulation/validate');
+  }
+
+  async previewArticulationMatrix(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request('/articulation/upload/preview', {
+      method: 'POST',
+      body: formData
+    });
+  }
+
+  async uploadArticulationMatrix(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request('/articulation/upload', {
+      method: 'POST',
+      body: formData
     });
   }
 }

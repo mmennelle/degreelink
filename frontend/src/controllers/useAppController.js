@@ -26,7 +26,7 @@ export default function useAppController() {
   const [activeTab, setActiveTab] = useState(() => {
     // Get initial tab from URL path or localStorage
     const path = window.location.pathname.slice(1) || 'search';
-    const validTabs = ['search', 'plans', 'lookup', 'management', 'advisor-center', 'app-settings'];
+    const validTabs = ['search', 'plans', 'lookup', 'articulation', 'management', 'advisor-center', 'app-settings'];
     if (validTabs.includes(path)) return path;
     
     const s = localStorage.getItem('currentSession');
@@ -71,6 +71,7 @@ export default function useAppController() {
         ]);
         setPlans([planData]);
         setSelectedPlanId(planData.id);
+        if (planData.plan_code) api.setPlanCode(planData.plan_code);
         setPrograms(prog || []);
       } else {
         // If we have a plan loaded with a plan_code, refresh it by code
@@ -85,6 +86,7 @@ export default function useAppController() {
                   if (refreshedPlan) {
                     setPlans([refreshedPlan]);
                     setSelectedPlanId(refreshedPlan.id);
+                    if (refreshedPlan.plan_code) api.setPlanCode(refreshedPlan.plan_code);
                   }
                 })
                 .catch(e => console.error('Failed to refresh plan by code:', e));
@@ -106,6 +108,8 @@ export default function useAppController() {
     if (planData && planData.id) {
       setPlans([planData]);
       setSelectedPlanId(planData.id);
+      // Store plan code so ID-based API calls can authenticate
+      if (planData.plan_code) api.setPlanCode(planData.plan_code);
       // Also load programs if needed
       const prog = await api.getPrograms({ include_all: userMode === 'advisor' });
       setPrograms(prog || []);
@@ -120,6 +124,8 @@ export default function useAppController() {
       if (newPlan) {
         setPlans([newPlan]);
         setSelectedPlanId(newPlan.id);
+        // Store plan code so subsequent ID-based API calls can authenticate
+        if (newPlan.plan_code) api.setPlanCode(newPlan.plan_code);
         // open copy-code modal immediately if available
         if (newPlan.plan_code) {
           setPlanCreatedModal({ isOpen: true, planData: newPlan });
@@ -157,6 +163,7 @@ export default function useAppController() {
 
   const clearPlanAccess = useCallback(async () => {
     await api.clearPlanAccess();
+    api.setPlanCode(null);
     setSelectedPlanId(null);
     setPlans([]);
     setActiveTab('lookup');
@@ -167,6 +174,7 @@ export default function useAppController() {
     const plan = plans.find(p => p.id === selectedPlanId);
     if (!plan) return;
     await api.deletePlan(plan.id);
+    api.setPlanCode(null);
     setPlans([]);
     setSelectedPlanId(null);
     setActiveTab('lookup');
@@ -223,6 +231,7 @@ export default function useAppController() {
     { id: 'search', label: 'Course Search', shortLabel: 'Search', icon: 'Search' },
     { id: 'plans',  label: 'Academic Plans', shortLabel: 'Plans', icon: 'FileText' },
     { id: 'lookup', label: 'Find Plan', shortLabel: 'Find', icon: 'Key' },
+    { id: 'articulation', label: 'Transfer Lookup', shortLabel: 'Transfer', icon: 'ArrowRightLeft' },
     // Advisor-only tabs (advisors are also admins)
     ...(userMode === 'advisor' ? [{ id: 'advisor-center', label: 'Advisor Center', shortLabel: 'Advisor', icon: 'Shield' }] : []),
     ...(userMode === 'advisor' ? [{ id: 'management', label: 'Program Settings', shortLabel: 'Programs', icon: 'Settings' }] : []),

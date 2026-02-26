@@ -9,7 +9,7 @@
 
 // src/views/AppShell.jsx
 import React from 'react';
-import { Moon, Sun, Key, FileText, Search, Shield, Home, GraduationCap, Settings, LogIn, UserCircle } from 'lucide-react';
+import { Moon, Sun, Key, FileText, Search, Shield, Home, GraduationCap, Settings, LogIn, UserCircle, ArrowRightLeft } from 'lucide-react';
 import { useDarkMode } from '../hooks/useDarkMode';
 
 export default function AppShell({
@@ -68,8 +68,8 @@ export default function AppShell({
             <div className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-hide" role="tablist" aria-label="Page sections">
               {tabs.map(t => {
                 // Map the string name from tab.icon to an imported Lucide icon.
-                // Shield is included here to support the audit tab.
-                const Icon = {Search, FileText, Key, Shield, Settings}[t.icon] || Search;
+                // ArrowRightLeft is included for the articulation/transfer lookup tab.
+                const Icon = {Search, FileText, Key, Shield, Settings, ArrowRightLeft}[t.icon] || Search;
                 const active = t.id === activeTab;
                 return (
                   <button

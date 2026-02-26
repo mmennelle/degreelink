@@ -33,6 +33,11 @@ class Plan(db.Model):
     # Current program (where student is currently enrolled) - ADDED
     current_program_id = db.Column(db.Integer, db.ForeignKey('programs.id'), nullable=True)
     
+    # Catalog year lock - tracks which version of program requirements the student follows
+    program_version_semester = db.Column(db.String(50), nullable=True)
+    program_version_year = db.Column(db.Integer, nullable=True)
+    catalog_year_locked_at = db.Column(db.DateTime, nullable=True)
+    
     plan_name = db.Column(db.String(200), nullable=False)
     plan_code = db.Column(db.String(8), unique=True, nullable=False, index=True)
     status = db.Column(db.String(50), default='draft')  
@@ -97,6 +102,9 @@ class Plan(db.Model):
             'advisor_email': self.advisor_email,
             'program_id': self.program_id,
             'current_program_id': self.current_program_id,  
+            'program_version_semester': self.program_version_semester,
+            'program_version_year': self.program_version_year,
+            'catalog_year_locked_at': self.catalog_year_locked_at.isoformat() if self.catalog_year_locked_at else None,
             'plan_name': self.plan_name,
             'plan_code': self.plan_code,
             'status': self.status,
@@ -138,6 +146,42 @@ class Plan(db.Model):
         }
         
         return mappings.get(category_lower, category)
+
+    def get_locked_requirements(self):
+        """
+        Get the program requirements that this plan is locked to based on catalog year.
+        If no catalog year is locked, fall back to current requirements.
+        """
+        from models.program import ProgramRequirement
+        
+        if not self.target_program:
+            return []
+        
+        # If catalog year is locked, use that specific version
+        if self.program_version_semester and self.program_version_year:
+            requirements = ProgramRequirement.query.filter_by(
+                program_id=self.program_id,
+                semester=self.program_version_semester,
+                year=self.program_version_year
+            ).all()
+            
+            # If we found requirements for the locked version, return them
+            if requirements:
+                return requirements
+        
+        # Fallback: use current requirements if no locked version or locked version not found
+        requirements = ProgramRequirement.query.filter_by(
+            program_id=self.program_id,
+            is_current=True
+        ).all()
+        
+        # If still no requirements, return all requirements for the program
+        if not requirements:
+            requirements = ProgramRequirement.query.filter_by(
+                program_id=self.program_id
+            ).all()
+        
+        return requirements
 
     
     def calculate_progress(self, program=None, view_filter='All Courses'):
@@ -223,7 +267,15 @@ class Plan(db.Model):
         else:
             use_strict_grouped_eval = False
         
-        for req in program.requirements or []:
+        # Use locked requirements for target program, regular requirements for others
+        if prog_id == self.program_id:
+            # This is the target program - use catalog year locked requirements
+            requirements_list = self.get_locked_requirements()
+        else:
+            # This is current program or other - use program's requirements directly
+            requirements_list = program.requirements or []
+        
+        for req in requirements_list:
             req_type = getattr(req, 'requirement_type', 'simple')
             req_total = getattr(req, 'credits_required', 0) or 0
             
@@ -583,8 +635,9 @@ class Plan(db.Model):
             return unmet
             
         canon = self.normalize_category
-        # Compare plan's completed credits against the TARGET program's requirements
-        for requirement in (self.target_program.requirements or []):
+        # Compare plan's completed credits against the TARGET program's locked requirements
+        locked_requirements = self.get_locked_requirements()
+        for requirement in locked_requirements:
             completed_credits = sum(
                 (pc.credits or (pc.course.credits if pc.course else 0) or 0)
                 for pc in self.courses
@@ -606,12 +659,15 @@ class Plan(db.Model):
         excluded_course_ids = [course.course_id for course in (self.courses or [])]
         unmet_requirements = self.get_unmet_requirements()
 
+        # Get locked requirements for this plan
+        locked_requirements = self.get_locked_requirements()
+
         for unmet_req in unmet_requirements:
             category = unmet_req['category']
             credits_needed = unmet_req['credits_needed']
             
             program_requirement = next(
-                (req for req in self.target_program.requirements if req.category == category), 
+                (req for req in locked_requirements if req.category == category), 
                 None
             )
             

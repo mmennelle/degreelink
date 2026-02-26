@@ -12,6 +12,7 @@ from auth import require_admin
 from models import db, Plan, PlanCourse, Program, Course
 import secrets
 import time
+from datetime import datetime
 from functools import wraps
 from services.progress_service import ProgressService
 from config import Config
@@ -154,15 +155,28 @@ def verify_plan_code(plan_code):
     })
 
 def check_plan_access(plan_id):
-    """Check if current session has access to the specified plan"""
-    # For advisor authenticated requests, check session
-    # Otherwise rely on plan code based access control
+    """Check if current session has access to the specified plan.
+
+    Access is granted when ANY of the following are true:
+      1. The request comes from an authenticated advisor session.
+      2. The request includes a valid ``X-Plan-Code`` header whose
+         corresponding plan matches *plan_id*.  This allows the frontend
+         to transparently authorise ID-based endpoint calls once the user
+         has proved possession of the plan code.
+    """
+    # 1. Advisor session
     if 'advisor_id' in session:
-        # Advisor is authenticated - they have access to manage plans
         return True
-    
-    # For non-advisors, access is controlled by plan code at endpoint level
-    # This function is mainly for update/delete operations
+
+    # 2. Plan code header (set by the frontend ApiService automatically)
+    plan_code = request.headers.get('X-Plan-Code', '').strip()
+    if plan_code and len(plan_code) == 8:
+        clean = ''.join(c for c in plan_code.upper() if c.isalnum())
+        if len(clean) == 8:
+            plan = Plan.find_by_code(clean)
+            if plan and plan.id == plan_id:
+                return True
+
     return False
 
 @bp.route('', methods=['POST'])
@@ -175,6 +189,28 @@ def create_plan():
     target_program = Program.query.get(data.get('program_id'))
     if not target_program:
         return jsonify({'error': 'Target program not found'}), 404
+    
+    # Get current version of target program requirements for catalog year lock
+    from models.program import ProgramRequirement
+    current_version = ProgramRequirement.query.filter_by(
+        program_id=target_program.id,
+        is_current=True
+    ).first()
+    
+    program_version_semester = None
+    program_version_year = None
+    
+    if current_version:
+        program_version_semester = current_version.semester
+        program_version_year = current_version.year
+    else:
+        # Fallback: try to find any version
+        any_version = ProgramRequirement.query.filter_by(
+            program_id=target_program.id
+        ).first()
+        if any_version:
+            program_version_semester = any_version.semester
+            program_version_year = any_version.year
     
     # Validate current program exists (if provided)
     current_program_id = data.get('current_program_id')
@@ -202,6 +238,9 @@ def create_plan():
             advisor_email=advisor_email,  # Link to advisor
             program_id=data.get('program_id'),  # Target program
             current_program_id=current_program_id,  # Current program (optional)
+            program_version_semester=program_version_semester,  # Lock catalog year
+            program_version_year=program_version_year,  # Lock catalog year
+            catalog_year_locked_at=datetime.utcnow(),  # Record when locked
             plan_name=data.get('plan_name'),
             status=data.get('status', 'draft')
             # plan_code will be auto-generated in __init__
@@ -211,9 +250,13 @@ def create_plan():
         db.session.commit()
         
         # Plan code provides access - no session needed
+        catalog_info = ''
+        if program_version_semester and program_version_year:
+            catalog_info = f' Following {program_version_semester} {program_version_year} catalog.'
+        
         return jsonify({
             'plan': plan.to_dict(),
-            'message': f'Plan created successfully with code: {plan.plan_code}',
+            'message': f'Plan created successfully with code: {plan.plan_code}.{catalog_info}',
             'security_note': 'Keep your plan code secure - it provides full access to your plan'
         }), 201
         
@@ -272,6 +315,108 @@ def update_plan(plan_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': 'Failed to update plan'}), 500
+
+@bp.route('/<int:plan_id>/catalog-year', methods=['PUT'])
+@require_admin
+def update_catalog_year(plan_id):
+    """Update the catalog year lock for a plan - admin only"""
+    
+    if not check_plan_access(plan_id):
+        return jsonify({'error': 'Access denied. Use plan code to access this plan.'}), 403
+    
+    plan = Plan.query.get_or_404(plan_id)
+    data = request.get_json()
+    
+    semester = data.get('semester')
+    year = data.get('year')
+    
+    if not semester or not year:
+        return jsonify({'error': 'Both semester and year are required'}), 400
+    
+    try:
+        year_int = int(year)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Year must be an integer'}), 400
+    
+    # Verify that this version exists for the target program
+    from models.program import ProgramRequirement
+    version_exists = ProgramRequirement.query.filter_by(
+        program_id=plan.program_id,
+        semester=semester,
+        year=year_int
+    ).first()
+    
+    if not version_exists:
+        return jsonify({'error': f'No requirements found for {semester} {year_int} version'}), 404
+    
+    # Update catalog year lock
+    plan.program_version_semester = semester
+    plan.program_version_year = year_int
+    plan.catalog_year_locked_at = datetime.utcnow()
+    
+    try:
+        db.session.commit()
+        return jsonify({
+            'message': f'Catalog year updated to {semester} {year_int}',
+            'plan': plan.to_dict()
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Failed to update catalog year'}), 500
+
+@bp.route('/by-code/<plan_code>/catalog-year', methods=['PUT'])
+@require_plan_access
+@require_admin
+def update_catalog_year_by_code(plan_code):
+    """Update catalog year using plan code - admin only"""
+    
+    # Validate and find plan
+    if not plan_code or len(plan_code.strip()) != 8:
+        return jsonify({'error': 'Invalid plan code format'}), 400
+    
+    clean_code = ''.join(c for c in plan_code.upper().strip() if c.isalnum())
+    plan = Plan.find_by_code(clean_code)
+    
+    if not plan:
+        return jsonify({'error': 'Plan not found or access denied'}), 404
+    
+    data = request.get_json()
+    semester = data.get('semester')
+    year = data.get('year')
+    
+    if not semester or not year:
+        return jsonify({'error': 'Both semester and year are required'}), 400
+    
+    try:
+        year_int = int(year)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Year must be an integer'}), 400
+    
+    # Verify that this version exists for the target program
+    from models.program import ProgramRequirement
+    version_exists = ProgramRequirement.query.filter_by(
+        program_id=plan.program_id,
+        semester=semester,
+        year=year_int
+    ).first()
+    
+    if not version_exists:
+        return jsonify({'error': f'No requirements found for {semester} {year_int} version'}), 404
+    
+    # Update catalog year lock
+    plan.program_version_semester = semester
+    plan.program_version_year = year_int
+    plan.catalog_year_locked_at = datetime.utcnow()
+    
+    try:
+        db.session.commit()
+        return jsonify({
+            'message': f'Catalog year updated to {semester} {year_int}',
+            'plan': plan.to_dict()
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Failed to update catalog year'}), 500
 
 @bp.route('/<int:plan_id>', methods=['DELETE'])
 @require_admin
