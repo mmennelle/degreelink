@@ -790,7 +790,12 @@ const CourseSearch = ({
                       Transfer Equivalencies ({selectedCourse.equivalencies.length})
                     </h5>
                     <div className="space-y-3">
-                      {selectedCourse.equivalencies.map((equiv, index) => (
+                      {selectedCourse.equivalencies.map((equiv, index) => {
+                        const isArticulation = equiv.equivalency.equivalency_type === 'articulation';
+                        const isSubjectArea = equiv.equivalency.equivalency_type === 'subject_area';
+                        const isCCN = isArticulation || isSubjectArea;
+
+                        return (
                         <div key={index} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-md border border-gray-200 dark:border-gray-600">
                           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2 gap-2">
                             <h6 className="font-medium text-gray-800 dark:text-gray-200">
@@ -801,18 +806,26 @@ const CourseSearch = ({
                                 ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300'
                                 : equiv.equivalency.equivalency_type === 'partial'
                                 ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300'
+                                : isCCN
+                                ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-300'
                                 : 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300'
                             }`}>
-                              {equiv.equivalency.equivalency_type}
+                              {isCCN ? (isSubjectArea ? 'CCN Subject Area' : 'CCN') : equiv.equivalency.equivalency_type}
                             </span>
                           </div>
                           <div className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
-                            <p>🏫 {equiv.course.institution} • 📚 {equiv.course.credits} credits</p>
-                            {equiv.equivalency.notes && (
-                              <p>📝 {equiv.equivalency.notes}</p>
-                            )}
-                            {equiv.equivalency.approved_by && (
-                              <p>✅ Approved by {equiv.equivalency.approved_by}</p>
+                            {isCCN ? (
+                              <p>📚 {equiv.course.credits} credits • 🔄 Louisiana Statewide Transfer{equiv.equivalency.notes ? ` (${equiv.equivalency.notes.replace('Louisiana Articulation Matrix ', '')})` : ''}</p>
+                            ) : (
+                              <>
+                                <p>🏫 {equiv.course.institution} • 📚 {equiv.course.credits} credits</p>
+                                {equiv.equivalency.notes && (
+                                  <p>📝 {equiv.equivalency.notes}</p>
+                                )}
+                                {equiv.equivalency.approved_by && (
+                                  <p>✅ Approved by {equiv.equivalency.approved_by}</p>
+                                )}
+                              </>
                             )}
                             {showAddToPlan && equiv.course && equiv.course.id && (
                               <button
@@ -845,7 +858,8 @@ const CourseSearch = ({
                             )}
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
