@@ -242,7 +242,6 @@ const CSVUpload = () => {
 "Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Advanced Courses",BIOS 405,"State University",false,,,,,,,,,,
 "Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Advanced Courses",BIOS 410,"State University",false,,,,,,,,,,`;
       filename = 'sample_program_requirements.csv';
-    }
 
     } else if (type === 'articulation') {
       // Sample articulation matrix — a tiny excerpt showing the column format
@@ -253,6 +252,7 @@ CATR 1013,Intro to Anthropology,GSOC 3,ANTH 1013,ANTH 1100,GSOC 3,GSOC 3,GSOC 3,
 CECN 2213,Macroeconomics,BADM 201,ECON 2213,GSOC 3,ECON 201,ECON 2010,ECON 201,ECON 201,ECON 2213,ECON 201,ECON 201,ECON 2010,ECON 2000,ECON 2000,ECON 2000,ECON 2000,ECON 201,ECON 2013,ECON 2003,ECON 201,ECON 2213,ECON 201,ECON 2010,ECON 2003,ECON 2000,ECON 201,ECON 201,ECON 201`;
       filename = 'sample_articulation_matrix.csv';
     }
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
