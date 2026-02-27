@@ -7,7 +7,7 @@ This file is part of Degree Link.
 Licensed under the MIT License. See LICENSE file in the project root.
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
 from auth import require_admin
 from models import db, Equivalency, Course
 from sqlalchemy.orm import aliased
@@ -17,12 +17,24 @@ from hmac import compare_digest
 bp = Blueprint('equivalencies', __name__, url_prefix='/api/equivalencies')
 
 def is_admin_request():
-    """Check if the current request has a valid admin token."""
+    """Check if the current request has a valid admin token or advisor session."""
+    # Check admin token
     token = os.environ.get('ADMIN_API_TOKEN')
-    if not token:
-        return False
-    provided = request.headers.get('X-Admin-Token')
-    return provided and compare_digest(str(provided), str(token))
+    if token:
+        provided = request.headers.get('X-Admin-Token')
+        if provided and compare_digest(str(provided), str(token)):
+            return True
+    # Check advisor session
+    advisor_token = request.headers.get('X-Advisor-Token') or session.get('advisor_token')
+    if advisor_token:
+        try:
+            from models.advisor_auth import AdvisorAuth
+            advisor = AdvisorAuth.find_by_session_token(advisor_token)
+            if advisor and advisor.verify_session(advisor_token):
+                return True
+        except Exception:
+            pass
+    return False
 
 def get_no_equivalent_course():
     

@@ -433,9 +433,9 @@ class Plan(db.Model):
             cat_match = (course_canon == req_canon)
             group_match = (group_ids and getattr(pc, 'requirement_group_id', None) in group_ids)
             
-            # For target program grouped requirements without direct group assignment,
-            # allow equivalency-driven or direct code match
-            if not group_match and allowed_codes and prog_id == getattr(self, 'program_id', None):
+            # For grouped requirements without direct group assignment,
+            # allow equivalency-driven or direct code match (works for both programs)
+            if not group_match and allowed_codes:
                 try:
                     eq_course = self._get_equivalent_course(pc, program)
                     if eq_course:
@@ -445,7 +445,7 @@ class Plan(db.Model):
                 except Exception:
                     pass
                 
-                # Also check if the course itself is a target institution course in the allowed codes
+                # Also check if the course itself is from this program's institution and in allowed codes
                 if not group_match and getattr(pc, 'course', None):
                     if getattr(pc.course, 'institution', None) == program.institution:
                         try:
@@ -471,15 +471,20 @@ class Plan(db.Model):
                 'grade': pc.grade,
             }
             
-            # Add equivalency info for target program courses
-            if prog_id == getattr(self, 'program_id', None):
-                try:
+            # Add equivalency info — works for both current and target programs.
+            # If the course is from a different institution (mapped via equivalency),
+            # show what it maps to at this program's institution.
+            try:
+                course_institution = pc.course.institution if pc.course else None
+                program_institution = getattr(program, 'institution', None)
+                if course_institution and program_institution and course_institution != program_institution:
                     eq = self._get_equivalent_course(pc, program)
                     if eq:
                         ci['equivalent_code'] = eq.code
                         ci['equivalent_title'] = eq.title
-                except Exception:
-                    pass
+                        ci['mapped_from_institution'] = course_institution
+            except Exception:
+                pass
             
             applied.append(ci)
         
@@ -507,7 +512,15 @@ class Plan(db.Model):
 
     
     def _is_course_relevant_to_program(self, plan_course, program):
-        """Check if a course is relevant to a specific program"""
+        """Check if a course is relevant to a specific program.
+        
+        A course is relevant if:
+        1. It's from the same institution as the program (direct match), OR
+        2. It has an equivalency mapping to a course at the program's institution.
+        
+        Equivalency checking works for both the target AND current programs,
+        so courses added at either institution cross-map to the other bar.
+        """
         if not plan_course.course or not program:
             return False
         
@@ -518,30 +531,38 @@ class Plan(db.Model):
         if course_institution == program_institution:
             return True
         
-        # Check for equivalency if this is the target program
-        if program.id == self.program_id:  # Target program
-            equiv_course = self._get_equivalent_course(plan_course, program)
-            return equiv_course is not None
-        
-        return False
+        # Check for equivalency in either direction
+        equiv_course = self._get_equivalent_course(plan_course, program)
+        return equiv_course is not None
     
     def _get_equivalent_course(self, plan_course, target_program):
-        """Get the equivalent course at the target program"""
+        """Get the equivalent course at the target program's institution.
+        
+        Checks equivalencies in both directions:
+        - from_course_id → to_course_id (forward)
+        - to_course_id → from_course_id (reverse)
+        
+        This ensures that regardless of which direction the equivalency was
+        originally stored, the mapping is found.
+        """
         from .equivalency import Equivalency
         from .course import Course
+        from sqlalchemy.orm import aliased
         
         if not plan_course.course:
             return None
 
-        # Prefer an equivalency that maps specifically to the target institution.
+        course_id = plan_course.course.id
+        target_institution = target_program.institution
+
+        # Forward direction: this course → equivalent at target institution
         try:
-            # Join to the Course table for the target (to_course) to filter by institution.
-            to_alias = Course
+            ToC = aliased(Course)
             eq = (Equivalency.query
-                  .join(to_alias, Equivalency.to_course_id == to_alias.id)
+                  .join(ToC, Equivalency.to_course_id == ToC.id)
                   .filter(
-                      Equivalency.from_course_id == plan_course.course.id,
-                      to_alias.institution == target_program.institution
+                      Equivalency.from_course_id == course_id,
+                      ToC.institution == target_institution
                   )
                   .first())
             if eq and eq.to_course:
@@ -549,7 +570,21 @@ class Plan(db.Model):
         except Exception:
             pass
 
-        # Fallback: return None (either no mapping to target institution, or only 'no equivalent')
+        # Reverse direction: equivalent at target institution → this course
+        try:
+            FromC = aliased(Course)
+            eq = (Equivalency.query
+                  .join(FromC, Equivalency.from_course_id == FromC.id)
+                  .filter(
+                      Equivalency.to_course_id == course_id,
+                      FromC.institution == target_institution
+                  )
+                  .first())
+            if eq and eq.from_course:
+                return eq.from_course
+        except Exception:
+            pass
+
         return None
     
     def check_course_constraint_violations(self, course_id, requirement_category, requirement_group_id=None):

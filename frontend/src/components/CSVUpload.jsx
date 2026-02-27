@@ -8,10 +8,33 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Upload, FileText, AlertCircle, CheckCircle, Download, Settings, ArrowRightLeft, Trash2, ExternalLink, RefreshCw } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle, Download, Settings, ArrowRightLeft, Trash2, RefreshCw } from 'lucide-react';
 import api from '../services/api';
 import UploadConfirmationModal from './UploadConfirmationModal';
 import ProgramRequirementsEditModal from './ProgramRequirementsEditModal';
+
+const UPLOAD_HISTORY_KEY = 'degreelink_upload_history';
+const MAX_HISTORY_ENTRIES = 50;
+
+const loadUploadHistory = () => {
+  try {
+    const raw = localStorage.getItem(UPLOAD_HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+};
+
+const saveUploadHistory = (history) => {
+  try {
+    localStorage.setItem(UPLOAD_HISTORY_KEY, JSON.stringify(history.slice(0, MAX_HISTORY_ENTRIES)));
+  } catch { /* localStorage full or unavailable */ }
+};
+
+const UPLOAD_TYPE_LABELS = {
+  courses: 'Course Information',
+  equivalencies: 'Course Equivalencies',
+  requirements: 'Program Requirements',
+  articulation: 'Articulation Matrix',
+};
 
 const CSVUpload = () => {
   const [uploadType, setUploadType] = useState('courses');
@@ -23,6 +46,9 @@ const CSVUpload = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [previewData, setPreviewData] = useState(null);
   const [pendingFile, setPendingFile] = useState(null);
+
+  // Upload history state
+  const [uploadHistory, setUploadHistory] = useState(() => loadUploadHistory());
 
   // Equivalency consistency check state
   const [validation, setValidation] = useState(null);
@@ -183,6 +209,21 @@ const CSVUpload = () => {
       }
       
       setUploadResult(result);
+
+      // Record to upload history
+      if (!result.error) {
+        const historyEntry = {
+          id: Date.now(),
+          type: uploadType,
+          typeLabel: UPLOAD_TYPE_LABELS[uploadType] || uploadType,
+          fileName: pendingFile.name,
+          timestamp: new Date().toISOString(),
+          result: { ...result },
+        };
+        const updated = [historyEntry, ...uploadHistory].slice(0, MAX_HISTORY_ENTRIES);
+        setUploadHistory(updated);
+        saveUploadHistory(updated);
+      }
     } catch (error) {
       console.error('Upload failed:', error);
       setUploadResult({ error: error.message });
@@ -539,7 +580,7 @@ CECN 2213,Macroeconomics,BADM 201,ECON 2213,GSOC 3,ECON 201,ECON 2010,ECON 201,E
             className="flex items-center px-4 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
           >
             <Download className="mr-2" size={16} />
-            Download Sample {
+            Download Template {
               uploadType === 'courses' ? 'Courses' :
               uploadType === 'equivalencies' ? 'Equivalencies' :
               uploadType === 'articulation' ? 'Articulation Matrix' :
@@ -860,13 +901,85 @@ CECN 2213,Macroeconomics,BADM 201,ECON 2213,GSOC 3,ECON 201,ECON 2010,ECON 201,E
       </div>
 
       {/* Recent Upload History */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h3 className="text-lg font-semibold mb-4">Recent Upload Activity</h3>
-        <div className="text-center py-8 text-gray-500">
-          <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-          <p>Upload history will appear here after successful uploads</p>
-          <p className="text-sm mt-1">Track your bulk import operations and results</p>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold dark:text-white">Recent Upload Activity</h3>
+          {uploadHistory.length > 0 && (
+            <button
+              onClick={() => {
+                if (window.confirm('Clear all upload history?')) {
+                  setUploadHistory([]);
+                  saveUploadHistory([]);
+                }
+              }}
+              className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+            >
+              Clear History
+            </button>
+          )}
         </div>
+        {uploadHistory.length === 0 ? (
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            <FileText className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
+            <p>Upload history will appear here after successful uploads</p>
+            <p className="text-sm mt-1">Track your bulk import operations and results</p>
+          </div>
+        ) : (
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {uploadHistory.map((entry) => {
+              const date = new Date(entry.timestamp);
+              const timeStr = date.toLocaleString();
+              const r = entry.result || {};
+              // Build a compact summary string based on upload type
+              let summary = '';
+              if (entry.type === 'courses') {
+                const parts = [];
+                if (r.courses_created) parts.push(`${r.courses_created} created`);
+                if (r.courses_updated) parts.push(`${r.courses_updated} updated`);
+                summary = parts.join(', ') || 'No changes';
+              } else if (entry.type === 'equivalencies') {
+                const parts = [];
+                if (r.equivalencies_created) parts.push(`${r.equivalencies_created} created`);
+                if (r.equivalencies_updated) parts.push(`${r.equivalencies_updated} updated`);
+                summary = parts.join(', ') || 'No changes';
+              } else if (entry.type === 'requirements') {
+                const parts = [];
+                if (r.requirements_created) parts.push(`${r.requirements_created} req`);
+                if (r.groups_created) parts.push(`${r.groups_created} groups`);
+                if (r.options_created) parts.push(`${r.options_created} options`);
+                if (r.constraints_created) parts.push(`${r.constraints_created} constraints`);
+                summary = parts.join(', ') || 'No changes';
+              } else if (entry.type === 'articulation') {
+                const parts = [];
+                if (r.ccn_created) parts.push(`${r.ccn_created} CCN`);
+                if (r.equivalencies_created) parts.push(`${r.equivalencies_created} equiv`);
+                if (r.local_courses_created) parts.push(`${r.local_courses_created} courses`);
+                summary = parts.join(', ') || 'No changes';
+              }
+              const hasErrors = r.errors && r.errors.length > 0;
+              return (
+                <div key={entry.id} className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                  <div className={`flex-shrink-0 w-2 h-2 mt-2 rounded-full ${hasErrors ? 'bg-yellow-500' : 'bg-green-500'}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">{entry.typeLabel}</span>
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 font-mono truncate max-w-[200px]">
+                        {entry.fileName}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{summary}</p>
+                    {hasErrors && (
+                      <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-0.5">
+                        {r.errors.length} error{r.errors.length !== 1 ? 's' : ''} encountered
+                      </p>
+                    )}
+                  </div>
+                  <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap flex-shrink-0">{timeStr}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Equivalency Consistency Check — shown when equivalencies upload type is selected */}
