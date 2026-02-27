@@ -453,6 +453,22 @@ class ApiService {
         method: 'DELETE'
       });
     }
+
+    async bulkRemoveCoursesFromPlan(planId, planCourseIds) {
+      return this.request(`/plans/${planId}/courses/bulk-delete`, {
+        method: 'POST',
+        body: JSON.stringify({ plan_course_ids: planCourseIds })
+      });
+    }
+
+    async importTranscript(planId, file) {
+      const formData = new FormData();
+      formData.append('file', file);
+      return this.request(`/plans/${planId}/import-transcript`, {
+        method: 'POST',
+        body: formData,
+      });
+    }
   
     async getEquivalencies(params = {}) {
       const queryString = new URLSearchParams(params).toString();

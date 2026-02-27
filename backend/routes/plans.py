@@ -12,6 +12,9 @@ from auth import require_admin
 from models import db, Plan, PlanCourse, Program, Course
 import secrets
 import time
+import re
+import io
+import csv
 from datetime import datetime
 from functools import wraps
 from services.progress_service import ProgressService
@@ -703,6 +706,31 @@ def remove_course_from_plan(plan_id, plan_course_id):
         db.session.rollback()
         return jsonify({'error': 'Failed to remove course'}), 500
 
+
+@bp.route('/<int:plan_id>/courses/bulk-delete', methods=['POST'])
+def bulk_remove_courses_from_plan(plan_id):
+    """Remove multiple courses from plan in one request."""
+    if not check_plan_access(plan_id):
+        return jsonify({'error': 'Access denied. Use plan code to access this plan.'}), 403
+
+    data = request.get_json()
+    course_ids = data.get('plan_course_ids', [])
+    if not course_ids or not isinstance(course_ids, list):
+        return jsonify({'error': 'plan_course_ids array is required'}), 400
+
+    try:
+        deleted = 0
+        for pcid in course_ids:
+            pc = PlanCourse.query.filter_by(id=pcid, plan_id=plan_id).first()
+            if pc:
+                db.session.delete(pc)
+                deleted += 1
+        db.session.commit()
+        return jsonify({'message': f'{deleted} course(s) removed from plan', 'deleted': deleted})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to remove courses: {str(e)}'}), 500
+
 @bp.route('/<int:plan_id>/audit', methods=['GET'])
 def get_degree_audit(plan_id):
     """
@@ -872,6 +900,383 @@ def clear_session():
     session.pop('accessed_plan_id', None)
     session.pop('access_time', None)
     return jsonify({'message': 'Session cleared'})
+
+
+# ---------------------------------------------------------------------------
+# Transcript import  (CSV academic-record export  +  PDF fallback)
+# ---------------------------------------------------------------------------
+
+# Course-code pattern for column-1 values like "CSCI 6454 - Parallel & Sci Computing"
+_CSV_COURSE_RE = re.compile(
+    r'^(?P<subj>[A-Z]{2,5})\s+(?P<num>\d{3,5}[A-Z]{0,2})\s*-\s*(?P<title>.+)$',
+    re.IGNORECASE,
+)
+
+# Academic-period value: "2025 Fall", "2023 Summer", etc.
+_PERIOD_RE = re.compile(
+    r'(?P<year>20\d{2})\s+(?P<semester>Fall|Spring|Summer)',
+    re.IGNORECASE,
+)
+
+
+def _parse_academic_record_csv(text: str):
+    """
+    Parse a Workday-style "View My Academic Record" CSV export.
+
+    Returns a list of dicts:
+    {
+        'code': 'CSCI 6454',
+        'subject_code': 'CSCI',
+        'course_number': '6454',
+        'title': 'Parallel & Sci Computing',
+        'credits': 3,
+        'grade': 'A',
+        'semester': 'Fall',
+        'year': 2025,
+        'status': 'completed',
+        'transfer': False,
+        'originating': None,        # populated for transfer rows
+    }
+    """
+    reader = csv.reader(io.StringIO(text))
+    rows = list(reader)
+
+    courses = []
+    current_semester = None
+    current_year = None
+    section = None  # 'enrollments' | 'transfer' | None
+
+    for row in rows:
+        # Pad short rows so index access is safe
+        while len(row) < 6:
+            row.append('')
+
+        col0 = row[0].strip()
+        col1 = row[1].strip()
+
+        # --- Track academic period ---
+        if col0 == 'Academic Period' and col1:
+            m = _PERIOD_RE.search(col1)
+            if m:
+                current_year = int(m.group('year'))
+                current_semester = m.group('semester').capitalize()
+            section = None
+            continue
+
+        # --- Section markers ---
+        if col0 == 'Enrollments':
+            section = 'enrollments'
+            continue
+        if col0.startswith('Transfer Credit from Coursework'):
+            section = 'transfer'
+            continue
+        # End-of-section markers
+        if col0 in (
+            'Academic Period Totals', 'Cumulative Totals', 'Student Standings',
+            'Specialized Totals', 'Cumulative Transfer Totals',
+        ) or col0.startswith('Units ') or col0.startswith('Cumulative '):
+            section = None
+            continue
+
+        # --- Enrollment rows ---
+        if section == 'enrollments' and col1:
+            m = _CSV_COURSE_RE.match(col1)
+            if m:
+                subj = m.group('subj').upper()
+                num = m.group('num').upper()
+                title = m.group('title').strip()
+                grade = row[2].strip().upper() or None
+                try:
+                    credits = int(float(row[4].strip())) if row[4].strip() else 0
+                except ValueError:
+                    credits = 0
+
+                status = 'completed'
+                if grade in ('W', 'WP', 'WF'):
+                    status = 'planned'
+                elif grade in ('IP', 'I', None, ''):
+                    status = 'in_progress'
+
+                courses.append({
+                    'code': f'{subj} {num}',
+                    'subject_code': subj,
+                    'course_number': num,
+                    'title': title,
+                    'credits': credits,
+                    'grade': grade or '',
+                    'semester': current_semester,
+                    'year': current_year,
+                    'status': status,
+                    'transfer': False,
+                    'originating': None,
+                })
+
+        # --- Transfer-credit rows ---
+        if section == 'transfer' and col1:
+            m = _CSV_COURSE_RE.match(col1)
+            if m:
+                subj = m.group('subj').upper()
+                num = m.group('num').upper()
+                title = m.group('title').strip()
+                grade = row[3].strip().upper() or None
+                try:
+                    credits = int(float(row[2].strip())) if row[2].strip() else 0
+                except ValueError:
+                    credits = 0
+
+                originating = row[4].strip() if row[4].strip() else None
+
+                status = 'completed'
+                if grade in ('W', 'WP', 'WF'):
+                    status = 'planned'
+
+                courses.append({
+                    'code': f'{subj} {num}',
+                    'subject_code': subj,
+                    'course_number': num,
+                    'title': title,
+                    'credits': credits,
+                    'grade': grade or '',
+                    'semester': current_semester,
+                    'year': current_year,
+                    'status': status,
+                    'transfer': True,
+                    'originating': originating,
+                })
+
+    return courses
+
+
+# Legacy PDF text parser (kept as fallback) -----------------------------------
+
+_COURSE_LINE_RE = re.compile(
+    r'(?P<subj>[A-Z]{2,5})\s+'
+    r'(?P<num>\d{3,5}[A-Z]?(?:L)?)\s+'
+    r'(?P<title>.+?)\s+'
+    r'(?P<credits>\d{1,2}(?:\.\d{1,2})?)\s+'
+    r'(?P<grade>[A-DF][+\-]?|W|WP|WF|P|S|U|I|IP|AU|CR|NC)'
+    r'(?:\s|$)',
+    re.IGNORECASE,
+)
+
+_SEMESTER_RE = re.compile(
+    r'(?P<semester>Fall|Spring|Summer)\s+(?P<year>20\d{2})',
+    re.IGNORECASE,
+)
+
+
+def _parse_transcript_text(text):
+    """Parse free-form transcript text (from a text-based PDF)."""
+    courses = []
+    current_semester = None
+    current_year = None
+
+    for line in text.split('\n'):
+        line = line.strip()
+        if not line:
+            continue
+        sem_match = _SEMESTER_RE.search(line)
+        if sem_match:
+            current_semester = sem_match.group('semester').capitalize()
+            current_year = int(sem_match.group('year'))
+            continue
+        course_match = _COURSE_LINE_RE.search(line)
+        if course_match:
+            subj = course_match.group('subj').upper()
+            num = course_match.group('num').upper()
+            title = course_match.group('title').strip()
+            title = re.sub(r'\s+\d+\.?\d*$', '', title).strip()
+            credits = int(float(course_match.group('credits')))
+            grade = course_match.group('grade').upper()
+            status = 'completed'
+            if grade in ('W', 'WP', 'WF'):
+                status = 'planned'
+            elif grade in ('IP', 'I'):
+                status = 'in_progress'
+            courses.append({
+                'code': f'{subj} {num}',
+                'subject_code': subj,
+                'course_number': num,
+                'title': title,
+                'credits': credits,
+                'grade': grade,
+                'semester': current_semester,
+                'year': current_year,
+                'status': status,
+                'transfer': False,
+                'originating': None,
+            })
+    return courses
+
+
+def _match_and_add_courses(plan, parsed_courses):
+    """
+    Match a list of parsed course dicts against the Course database and add
+    them to the given plan.  Returns (added, skipped, not_found) lists.
+    """
+    added = []
+    skipped = []
+    not_found = []
+    existing_course_ids = {pc.course_id for pc in plan.courses}
+
+    for parsed in parsed_courses:
+        # Try matching by subject_code + course_number first
+        course = Course.query.filter(
+            db.func.upper(Course.subject_code) == parsed['subject_code'],
+            db.func.upper(Course.course_number) == parsed['course_number'],
+        ).first()
+
+        # Fallback: match by code variants
+        if not course:
+            for variant in [
+                parsed['code'],
+                parsed['code'].replace(' ', ''),
+                f"{parsed['subject_code']}-{parsed['course_number']}",
+            ]:
+                course = Course.query.filter(
+                    db.func.upper(Course.code) == variant.upper()
+                ).first()
+                if course:
+                    break
+
+        if not course:
+            not_found.append({
+                'code': parsed['code'],
+                'title': parsed['title'],
+                'credits': parsed['credits'],
+                'grade': parsed.get('grade', ''),
+                'reason': 'Course not found in database',
+                'transfer': parsed.get('transfer', False),
+                'originating': parsed.get('originating'),
+            })
+            continue
+
+        if course.id in existing_course_ids:
+            skipped.append({
+                'code': course.code,
+                'title': course.title,
+                'reason': 'Already in plan',
+            })
+            continue
+
+        plan_course = PlanCourse(
+            plan_id=plan.id,
+            course_id=course.id,
+            semester=parsed.get('semester'),
+            year=parsed.get('year'),
+            status=parsed['status'],
+            grade=parsed['grade'] if parsed['status'] == 'completed' else None,
+            credits=parsed['credits'],
+            notes='Imported from transcript',
+        )
+
+        try:
+            if Config.AUTO_ASSIGN_REQUIREMENT_GROUPS and plan.target_program and plan_course.course:
+                _assign_requirement_group(plan, plan_course)
+        except Exception:
+            pass
+
+        db.session.add(plan_course)
+        existing_course_ids.add(course.id)
+        added.append({
+            'code': course.code,
+            'title': course.title,
+            'credits': course.credits,
+            'grade': parsed.get('grade', ''),
+            'status': parsed['status'],
+            'semester': parsed.get('semester'),
+            'year': parsed.get('year'),
+            'transfer': parsed.get('transfer', False),
+        })
+
+    return added, skipped, not_found
+
+
+@bp.route('/<int:plan_id>/import-transcript', methods=['POST'])
+def import_transcript(plan_id):
+    """
+    Upload a transcript file (CSV or PDF), parse courses, match against the
+    database, and add matched courses to the plan.
+
+    Accepted formats:
+    - CSV: Workday "View My Academic Record" export
+    - PDF: text-based transcript (scanned / image PDFs are not supported)
+    """
+    if not check_plan_access(plan_id):
+        return jsonify({'error': 'Access denied.'}), 403
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    filename = (file.filename or '').lower()
+
+    if not (filename.endswith('.csv') or filename.endswith('.pdf')):
+        return jsonify({'error': 'File must be a CSV or PDF'}), 400
+
+    plan = Plan.query.get_or_404(plan_id)
+
+    # ---- CSV path ----
+    if filename.endswith('.csv'):
+        try:
+            raw = file.read()
+            # Try UTF-8 first, fall back to latin-1
+            try:
+                text = raw.decode('utf-8')
+            except UnicodeDecodeError:
+                text = raw.decode('latin-1')
+            parsed_courses = _parse_academic_record_csv(text)
+        except Exception as e:
+            return jsonify({'error': f'Failed to parse CSV: {str(e)}'}), 400
+
+    # ---- PDF path ----
+    else:
+        try:
+            import pdfplumber
+        except ImportError:
+            return jsonify({'error': 'PDF parsing library not available on server.'}), 500
+        try:
+            pdf_bytes = file.read()
+            full_text = ''
+            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        full_text += page_text + '\n'
+        except Exception as e:
+            return jsonify({'error': f'Failed to read PDF: {str(e)}'}), 400
+
+        if not full_text.strip():
+            return jsonify({
+                'error': 'Could not extract text from the PDF. '
+                         'Try exporting your academic record as a CSV instead.',
+            }), 400
+
+        parsed_courses = _parse_transcript_text(full_text)
+
+    if not parsed_courses:
+        return jsonify({
+            'error': 'No courses could be identified in the file. '
+                     'Make sure you are uploading a Workday "View My Academic Record" CSV export '
+                     'or a text-based transcript PDF.',
+        }), 400
+
+    # Match & add
+    added, skipped, not_found = _match_and_add_courses(plan, parsed_courses)
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to save courses: {str(e)}'}), 500
+
+    return jsonify({
+        'message': f'{len(added)} course(s) added to plan',
+        'added': added,
+        'skipped': skipped,
+        'not_found': not_found,
+        'total_parsed': len(parsed_courses),
+    })
 
 @bp.route('/session/status', methods=['GET'])
 def session_status():
