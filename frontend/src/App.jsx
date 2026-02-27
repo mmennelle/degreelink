@@ -24,7 +24,6 @@ import AdvisorAuthModal from './components/AdvisorAuthModal';
 import SearchPage from './pages/SearchPage';
 import PlansPage from './pages/PlansPage';
 import LookupPage from './pages/LookupPage';
-import ArticulationPage from './pages/ArticulationPage';
 import ProgramManagementPage from './pages/ProgramManagementPage';
 import AdvisorCenterPage from './pages/AdvisorCenterPage';
 import AppManagementPage from './pages/AppManagementPage';
@@ -180,7 +179,7 @@ export default function App() {
               />
             } />
 
-            <Route path="/articulation" element={<ArticulationPage />} />
+            {/* CCN lookup is now a sub-tab within SearchPage */}
 
             <Route path="/lookup" element={
               <LookupPage

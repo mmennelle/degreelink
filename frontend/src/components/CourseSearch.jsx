@@ -148,7 +148,9 @@ const CourseSearch = ({
     }
     
     // Build search params
-    const params = {};
+    const params = {
+      exclude_bor: true  // Hide Board of Regents courses from general search
+    };
     
     // Handle level filter
     if (levelFilter) {

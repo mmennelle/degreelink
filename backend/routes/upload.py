@@ -288,7 +288,9 @@ def preview_equivalencies():
                     'from_course': f"{from_code} ({from_institution})",
                     'to_course': f"{to_code} ({to_institution})",
                     'equivalency_type': row.get('equivalency_type', 'direct').strip(),
-                    'notes': row.get('notes', '').strip()
+                    'notes': row.get('notes', '').strip(),
+                    'from_course_id': from_course.id,
+                    'to_course_id': to_course.id,
                 }
                 
                 # Check if equivalency already exists
@@ -314,7 +316,31 @@ def preview_equivalencies():
                     
             except Exception as e:
                 preview['errors'].append(f"Row {row_num}: {str(e)}")
-        
+
+        # Cross-check all equivalency rows against the articulation matrix
+        try:
+            from services.articulation_service import validate_equivalencies_against_matrix
+            all_rows = []
+            for category in ('new', 'updated', 'unchanged'):
+                for item in preview['equivalencies'].get(category, []):
+                    all_rows.append({
+                        'from_course_id': item.get('from_course_id'),
+                        'to_course_id': item.get('to_course_id'),
+                        'equivalency_type': item.get('equivalency_type', 'direct'),
+                        'row_num': item.get('from_course', '?'),
+                    })
+            matrix_warnings = validate_equivalencies_against_matrix(all_rows)
+            for w in matrix_warnings:
+                preview['warnings'].append(w['message'])
+        except Exception:
+            pass  # Matrix validation is advisory — never block upload
+
+        # Strip internal IDs from response (not needed by frontend)
+        for category in ('new', 'updated', 'unchanged'):
+            for item in preview['equivalencies'].get(category, []):
+                item.pop('from_course_id', None)
+                item.pop('to_course_id', None)
+
         return jsonify(preview)
         
     except Exception as e:
@@ -818,6 +844,9 @@ def upload_requirements():
                 tag_value = row.get('tag_value', '').strip()
                 scope_subjects = row.get('scope_subject_codes', '').strip()
                 
+                # Parse abbreviation for progress bar display
+                abbreviation = (row.get('abbreviation') or '').strip()[:10] or None
+                
                 # Determine requirement credits (for backward compatibility)
                 try:
                     req_credits = int(row.get('credits_required') or min_credits or 0)
@@ -845,6 +874,7 @@ def upload_requirements():
                         current_requirement = ProgramRequirement(
                             program_id=program.id,
                             category=category,
+                            abbreviation=abbreviation,
                             credits_required=req_credits,
                             requirement_type=requirement_type,
                             description=(row.get('description') or '').strip() or None,
@@ -871,6 +901,10 @@ def upload_requirements():
                         
                         if current_requirement.description != new_description:
                             current_requirement.description = new_description
+                            has_changes = True
+                        
+                        if abbreviation and current_requirement.abbreviation != abbreviation:
+                            current_requirement.abbreviation = abbreviation
                             has_changes = True
                         
                         if has_changes:

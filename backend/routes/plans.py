@@ -15,9 +15,26 @@ import time
 from datetime import datetime
 from functools import wraps
 from services.progress_service import ProgressService
+from services.articulation_service import enrich_plan_courses_batch
 from config import Config
 
 bp = Blueprint('plans', __name__, url_prefix='/api/plans')
+
+
+def _attach_ccn_info(plan_data: dict) -> dict:
+    """Attach CCN transfer info to each course in a plan response."""
+    courses = plan_data.get('courses', [])
+    if not courses:
+        return plan_data
+    course_ids = [c['course_id'] for c in courses if c.get('course_id')]
+    if not course_ids:
+        return plan_data
+    ccn_map = enrich_plan_courses_batch(course_ids)
+    for course_entry in courses:
+        cid = course_entry.get('course_id')
+        if cid and cid in ccn_map:
+            course_entry['ccn_info'] = ccn_map[cid]
+    return plan_data
 
 # Security decorator for plan access
 def require_plan_access(f):
@@ -115,6 +132,7 @@ def get_plan_by_code(plan_code):
     # No session needed - plan code is the security mechanism
     # Return full plan data
     plan_data = plan.to_dict()
+    _attach_ccn_info(plan_data)
     svc = ProgressService(plan)
     try:
         plan_data['progress'] = svc.full_progress()
@@ -279,6 +297,7 @@ def get_plan(plan_id):
     plan = Plan.query.get_or_404(plan_id)
     
     plan_data = plan.to_dict()
+    _attach_ccn_info(plan_data)
     plan_data['progress'] = plan.calculate_progress()
     plan_data['unmet_requirements'] = plan.get_unmet_requirements()
     plan_data['course_suggestions'] = plan.suggest_courses_for_requirements()

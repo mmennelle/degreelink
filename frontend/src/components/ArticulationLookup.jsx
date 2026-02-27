@@ -133,11 +133,6 @@ export default function ArticulationLookup() {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
 
-  // Admin validation panel
-  const [validation, setValidation]       = useState(null);
-  const [validating, setValidating]       = useState(false);
-  const [showValidation, setShowValidation] = useState(false);
-
   // ---- Load institutions list on mount ----
   useEffect(() => {
     api.getArticulationInstitutions()
@@ -179,20 +174,6 @@ export default function ArticulationLookup() {
       setLoading(false);
     }
   }, [searchMode, courseCode, institution, ccnInput]);
-
-  // ---- Validation handler (advisor) ----
-  const handleValidate = useCallback(async () => {
-    setValidating(true);
-    try {
-      const data = await api.validateArticulation();
-      setValidation(data);
-      setShowValidation(true);
-    } catch (err) {
-      setError(err.message || 'Validation failed.');
-    } finally {
-      setValidating(false);
-    }
-  }, []);
 
   // ---- Resolved institution key for highlight ----
   const resolvedInstKey = institutions.find(
@@ -437,72 +418,6 @@ export default function ArticulationLookup() {
           ))}
         </div>
       )}
-
-      {/* Advisor: Full DB Validation Panel */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-            Equivalency Consistency Check
-          </h3>
-          <button
-            onClick={handleValidate}
-            disabled={validating}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors disabled:opacity-60"
-          >
-            <CheckCircle size={14} />
-            {validating ? 'Checking…' : 'Check All Equivalencies'}
-          </button>
-        </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          Cross-references every manual equivalency in the database against the CCN mapping to detect potential mismatches.
-        </p>
-
-        {showValidation && validation && (
-          <div className="mt-4 space-y-3">
-            {/* Summary row */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
-                { label: 'Total Checked', value: validation.summary.total_manual, color: 'text-gray-900 dark:text-white' },
-                { label: 'Consistent',    value: validation.summary.consistent,   color: 'text-green-600 dark:text-green-400' },
-                { label: 'Mismatches',    value: validation.summary.mismatches,   color: validation.summary.mismatches > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400' },
-                { label: 'No CCN Data',   value: validation.summary.no_ccn_data,  color: 'text-yellow-600 dark:text-yellow-400' },
-              ].map(s => (
-                <div key={s.label} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center">
-                  <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.label}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Mismatches list */}
-            {validation.mismatches.length > 0 && (
-              <div>
-                <p className="text-sm font-semibold text-red-600 dark:text-red-400 mb-2">
-                  Potential Mis-mapped Equivalencies
-                </p>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {validation.mismatches.map(m => (
-                    <div key={m.equiv_id} className="text-xs p-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
-                      <p className="font-semibold">Equiv #{m.equiv_id}: {m.from_course} ({m.from_institution}) ↔ {m.to_course} ({m.to_institution})</p>
-                      <p className="text-red-500 mt-0.5">
-                        From maps to CCN: <strong>{(m.from_ccns || []).join(', ') || '—'}</strong>{' '}
-                        | To maps to CCN: <strong>{(m.to_ccns || []).join(', ') || '—'}</strong>
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {validation.summary.mismatches === 0 && (
-              <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1.5">
-                <CheckCircle size={14} />
-                All manual equivalencies are consistent with the CCN mapping.
-              </p>
-            )}
-          </div>
-        )}
-      </div>
 
     </div>
   );

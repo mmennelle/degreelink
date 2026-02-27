@@ -7,11 +7,34 @@
  * Licensed under the MIT License. See LICENSE file in the project root.
  */
 
-import React, { useState, useEffect } from 'react';
-import { Upload, FileText, AlertCircle, CheckCircle, Download, Settings, ArrowRightLeft } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Upload, FileText, AlertCircle, CheckCircle, Download, Settings, ArrowRightLeft, Trash2, RefreshCw } from 'lucide-react';
 import api from '../services/api';
 import UploadConfirmationModal from './UploadConfirmationModal';
 import ProgramRequirementsEditModal from './ProgramRequirementsEditModal';
+
+const UPLOAD_HISTORY_KEY = 'degreelink_upload_history';
+const MAX_HISTORY_ENTRIES = 50;
+
+const loadUploadHistory = () => {
+  try {
+    const raw = localStorage.getItem(UPLOAD_HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+};
+
+const saveUploadHistory = (history) => {
+  try {
+    localStorage.setItem(UPLOAD_HISTORY_KEY, JSON.stringify(history.slice(0, MAX_HISTORY_ENTRIES)));
+  } catch { /* localStorage full or unavailable */ }
+};
+
+const UPLOAD_TYPE_LABELS = {
+  courses: 'Course Information',
+  equivalencies: 'Course Equivalencies',
+  requirements: 'Program Requirements',
+  articulation: 'Articulation Matrix',
+};
 
 const CSVUpload = () => {
   const [uploadType, setUploadType] = useState('courses');
@@ -23,6 +46,15 @@ const CSVUpload = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [previewData, setPreviewData] = useState(null);
   const [pendingFile, setPendingFile] = useState(null);
+
+  // Upload history state
+  const [uploadHistory, setUploadHistory] = useState(() => loadUploadHistory());
+
+  // Equivalency consistency check state
+  const [validation, setValidation] = useState(null);
+  const [validating, setValidating] = useState(false);
+  const [showValidation, setShowValidation] = useState(false);
+  const [deletingEquivId, setDeletingEquivId] = useState(null);
 
   // Edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
@@ -52,6 +84,46 @@ const CSVUpload = () => {
       console.error('Failed to load program versions', e);
     }
   };
+
+  // ---- Equivalency Consistency Check ----
+  const handleValidate = useCallback(async () => {
+    setValidating(true);
+    try {
+      const data = await api.validateArticulation();
+      setValidation(data);
+      setShowValidation(true);
+    } catch (err) {
+      console.error('Validation failed:', err);
+    } finally {
+      setValidating(false);
+    }
+  }, []);
+
+  const handleDeleteMismatch = useCallback(async (equivId) => {
+    if (!window.confirm(`Delete equivalency #${equivId}? This cannot be undone.`)) return;
+    setDeletingEquivId(equivId);
+    try {
+      await api.deleteEquivalency(equivId);
+      // Remove from local state
+      setValidation(prev => {
+        if (!prev) return prev;
+        const updatedMismatches = prev.mismatches.filter(m => m.equiv_id !== equivId);
+        return {
+          ...prev,
+          mismatches: updatedMismatches,
+          summary: {
+            ...prev.summary,
+            total_manual: prev.summary.total_manual - 1,
+            mismatches: updatedMismatches.length,
+          },
+        };
+      });
+    } catch (err) {
+      alert('Failed to delete equivalency: ' + err.message);
+    } finally {
+      setDeletingEquivId(null);
+    }
+  }, []);
 
   const handleFileUpload = async (file) => {
     if (!file) return;
@@ -137,6 +209,21 @@ const CSVUpload = () => {
       }
       
       setUploadResult(result);
+
+      // Record to upload history
+      if (!result.error) {
+        const historyEntry = {
+          id: Date.now(),
+          type: uploadType,
+          typeLabel: UPLOAD_TYPE_LABELS[uploadType] || uploadType,
+          fileName: pendingFile.name,
+          timestamp: new Date().toISOString(),
+          result: { ...result },
+        };
+        const updated = [historyEntry, ...uploadHistory].slice(0, MAX_HISTORY_ENTRIES);
+        setUploadHistory(updated);
+        saveUploadHistory(updated);
+      }
     } catch (error) {
       console.error('Upload failed:', error);
       setUploadResult({ error: error.message });
@@ -225,22 +312,22 @@ const CSVUpload = () => {
       filename = 'sample_equivalencies.csv';
     } else if (type === 'requirements') {
       // Updated unified format with new requirement type semantics
-      csvContent = `program_name,category,requirement_type,semester,year,is_current,group_name,course_code,institution,is_preferred,constraint_type,description,min_credits,max_credits,min_level,min_courses,max_courses,tag,tag_value,scope_subject_codes
-"Biology B.S.","Biology Electives",simple,Fall,2025,true,"Elective Options",BIOS 301,"State University",false,credits,"Simple: Choose any 15 credits from this pool",15,,,,,,,
-"Biology B.S.","Biology Electives",simple,Fall,2025,true,"Elective Options",BIOS 302,"State University",false,,,,,,,,,,
-"Biology B.S.","Biology Electives",simple,Fall,2025,true,"Elective Options",BIOS 303,"State University",true,,,,,,,,,,
-"Biology B.S.","Biology Electives",simple,Fall,2025,true,"Elective Options",BIOS 401,"State University",false,,,,,,,,,,
-"Biology B.S.","Biology Electives",simple,Fall,2025,true,"Elective Options",BIOS 402,"State University",false,,,,,,,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Required Theory",BIOS 101,"State University",false,courses,"Grouped: Must complete ALL groups - 2 courses from Theory",,,,,2,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Required Theory",BIOS 201,"State University",true,,,,,,,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Required Theory",BIOS 301,"State University",false,,,,,,,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Required Labs",BIOS 102L,"State University",false,courses,"Grouped: AND 2 lab courses from Labs",,,,,2,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Required Labs",BIOS 202L,"State University",false,,,,,,,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Required Labs",BIOS 302L,"State University",true,,,,,,,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Advanced Courses",BIOS 401,"State University",false,min_courses_at_level,"Grouped: AND 3 courses at 4000 level",,,4000,3,,,,"BIOS"
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Advanced Courses",BIOS 402,"State University",true,,,,,,,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Advanced Courses",BIOS 405,"State University",false,,,,,,,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Advanced Courses",BIOS 410,"State University",false,,,,,,,,,,`;
+      csvContent = `program_name,category,abbreviation,requirement_type,semester,year,is_current,group_name,course_code,institution,is_preferred,constraint_type,description,min_credits,max_credits,min_level,min_courses,max_courses,tag,tag_value,scope_subject_codes
+"Biology B.S.","Biology Electives",BIO-ELEC,simple,Fall,2025,true,"Elective Options",BIOS 301,"State University",false,credits,"Simple: Choose any 15 credits from this pool",15,,,,,,,
+"Biology B.S.","Biology Electives",BIO-ELEC,simple,Fall,2025,true,"Elective Options",BIOS 302,"State University",false,,,,,,,,,,
+"Biology B.S.","Biology Electives",BIO-ELEC,simple,Fall,2025,true,"Elective Options",BIOS 303,"State University",true,,,,,,,,,,
+"Biology B.S.","Biology Electives",BIO-ELEC,simple,Fall,2025,true,"Elective Options",BIOS 401,"State University",false,,,,,,,,,,
+"Biology B.S.","Biology Electives",BIO-ELEC,simple,Fall,2025,true,"Elective Options",BIOS 402,"State University",false,,,,,,,,,,
+"Biology B.S.","Core Major Requirements",CORE-MAJ,grouped,Fall,2025,true,"Required Theory",BIOS 101,"State University",false,courses,"Grouped: Must complete ALL groups - 2 courses from Theory",,,,,2,,,,
+"Biology B.S.","Core Major Requirements",CORE-MAJ,grouped,Fall,2025,true,"Required Theory",BIOS 201,"State University",true,,,,,,,,,,
+"Biology B.S.","Core Major Requirements",CORE-MAJ,grouped,Fall,2025,true,"Required Theory",BIOS 301,"State University",false,,,,,,,,,,
+"Biology B.S.","Core Major Requirements",CORE-MAJ,grouped,Fall,2025,true,"Required Labs",BIOS 102L,"State University",false,courses,"Grouped: AND 2 lab courses from Labs",,,,,2,,,,
+"Biology B.S.","Core Major Requirements",CORE-MAJ,grouped,Fall,2025,true,"Required Labs",BIOS 202L,"State University",false,,,,,,,,,,
+"Biology B.S.","Core Major Requirements",CORE-MAJ,grouped,Fall,2025,true,"Required Labs",BIOS 302L,"State University",true,,,,,,,,,,
+"Biology B.S.","Core Major Requirements",CORE-MAJ,grouped,Fall,2025,true,"Advanced Courses",BIOS 401,"State University",false,min_courses_at_level,"Grouped: AND 3 courses at 4000 level",,,4000,3,,,,"BIOS"
+"Biology B.S.","Core Major Requirements",CORE-MAJ,grouped,Fall,2025,true,"Advanced Courses",BIOS 402,"State University",true,,,,,,,,,,
+"Biology B.S.","Core Major Requirements",CORE-MAJ,grouped,Fall,2025,true,"Advanced Courses",BIOS 405,"State University",false,,,,,,,,,,
+"Biology B.S.","Core Major Requirements",CORE-MAJ,grouped,Fall,2025,true,"Advanced Courses",BIOS 410,"State University",false,,,,,,,,,,`;
       filename = 'sample_program_requirements.csv';
 
     } else if (type === 'articulation') {
@@ -301,6 +388,7 @@ CECN 2213,Macroeconomics,BADM 201,ECON 2213,GSOC 3,ECON 201,ECON 2010,ECON 201,E
         columns: [
           { name: 'program_name', description: 'Name of the program (e.g., "Biology B.S.")', required: true },
           { name: 'category', description: 'Requirement category (e.g., "Biology Electives")', required: true },
+          { name: 'abbreviation', description: 'Short label for progress bar (max 10 chars, e.g., "BIO-ELEC", "CORE-MAJ")', required: false },
           { name: 'requirement_type', description: 'Type: simple (pool) or grouped (all groups required)', required: true },
           { name: 'semester', description: 'Academic semester (Fall, Spring, Summer)', required: true },
           { name: 'year', description: 'Academic year (e.g., 2025)', required: true },
@@ -493,7 +581,7 @@ CECN 2213,Macroeconomics,BADM 201,ECON 2213,GSOC 3,ECON 201,ECON 2010,ECON 201,E
             className="flex items-center px-4 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
           >
             <Download className="mr-2" size={16} />
-            Download Sample {
+            Download Template {
               uploadType === 'courses' ? 'Courses' :
               uploadType === 'equivalencies' ? 'Equivalencies' :
               uploadType === 'articulation' ? 'Articulation Matrix' :
@@ -814,14 +902,207 @@ CECN 2213,Macroeconomics,BADM 201,ECON 2213,GSOC 3,ECON 201,ECON 2010,ECON 201,E
       </div>
 
       {/* Recent Upload History */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h3 className="text-lg font-semibold mb-4">Recent Upload Activity</h3>
-        <div className="text-center py-8 text-gray-500">
-          <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-          <p>Upload history will appear here after successful uploads</p>
-          <p className="text-sm mt-1">Track your bulk import operations and results</p>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold dark:text-white">Recent Upload Activity</h3>
+          {uploadHistory.length > 0 && (
+            <button
+              onClick={() => {
+                if (window.confirm('Clear all upload history?')) {
+                  setUploadHistory([]);
+                  saveUploadHistory([]);
+                }
+              }}
+              className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+            >
+              Clear History
+            </button>
+          )}
         </div>
+        {uploadHistory.length === 0 ? (
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            <FileText className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
+            <p>Upload history will appear here after successful uploads</p>
+            <p className="text-sm mt-1">Track your bulk import operations and results</p>
+          </div>
+        ) : (
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {uploadHistory.map((entry) => {
+              const date = new Date(entry.timestamp);
+              const timeStr = date.toLocaleString();
+              const r = entry.result || {};
+              // Build a compact summary string based on upload type
+              let summary = '';
+              if (entry.type === 'courses') {
+                const parts = [];
+                if (r.courses_created) parts.push(`${r.courses_created} created`);
+                if (r.courses_updated) parts.push(`${r.courses_updated} updated`);
+                summary = parts.join(', ') || 'No changes';
+              } else if (entry.type === 'equivalencies') {
+                const parts = [];
+                if (r.equivalencies_created) parts.push(`${r.equivalencies_created} created`);
+                if (r.equivalencies_updated) parts.push(`${r.equivalencies_updated} updated`);
+                summary = parts.join(', ') || 'No changes';
+              } else if (entry.type === 'requirements') {
+                const parts = [];
+                if (r.requirements_created) parts.push(`${r.requirements_created} req`);
+                if (r.groups_created) parts.push(`${r.groups_created} groups`);
+                if (r.options_created) parts.push(`${r.options_created} options`);
+                if (r.constraints_created) parts.push(`${r.constraints_created} constraints`);
+                summary = parts.join(', ') || 'No changes';
+              } else if (entry.type === 'articulation') {
+                const parts = [];
+                if (r.ccn_created) parts.push(`${r.ccn_created} CCN`);
+                if (r.equivalencies_created) parts.push(`${r.equivalencies_created} equiv`);
+                if (r.local_courses_created) parts.push(`${r.local_courses_created} courses`);
+                summary = parts.join(', ') || 'No changes';
+              }
+              const hasErrors = r.errors && r.errors.length > 0;
+              return (
+                <div key={entry.id} className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                  <div className={`flex-shrink-0 w-2 h-2 mt-2 rounded-full ${hasErrors ? 'bg-yellow-500' : 'bg-green-500'}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">{entry.typeLabel}</span>
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 font-mono truncate max-w-[200px]">
+                        {entry.fileName}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{summary}</p>
+                    {hasErrors && (
+                      <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-0.5">
+                        {r.errors.length} error{r.errors.length !== 1 ? 's' : ''} encountered
+                      </p>
+                    )}
+                  </div>
+                  <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap flex-shrink-0">{timeStr}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
+
+      {/* Equivalency Consistency Check — shown when equivalencies upload type is selected */}
+      {(uploadType === 'equivalencies' || uploadType === 'articulation') && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+              <CheckCircle size={18} className="text-indigo-500" />
+              Equivalency Consistency Check
+            </h3>
+            <button
+              onClick={handleValidate}
+              disabled={validating}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-lg font-medium transition-colors"
+            >
+              <RefreshCw size={14} className={validating ? 'animate-spin' : ''} />
+              {validating ? 'Checking…' : 'Check All Equivalencies'}
+            </button>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Cross-references every manual equivalency in the database against the CCN mapping to detect potential mismatches.
+            Mismatched equivalencies can be removed or reviewed below.
+          </p>
+
+          {showValidation && validation && (
+            <div className="space-y-4">
+              {/* Summary row */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: 'Total Checked', value: validation.summary.total_manual, color: 'text-gray-900 dark:text-white' },
+                  { label: 'Consistent',    value: validation.summary.consistent,   color: 'text-green-600 dark:text-green-400' },
+                  { label: 'Mismatches',    value: validation.summary.mismatches,   color: validation.summary.mismatches > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400' },
+                  { label: 'No CCN Data',   value: validation.summary.no_ccn_data,  color: 'text-yellow-600 dark:text-yellow-400' },
+                ].map(s => (
+                  <div key={s.label} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center">
+                    <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Mismatches list with remediation actions */}
+              {validation.mismatches.length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold text-red-600 dark:text-red-400 mb-3">
+                    Potential Mis-mapped Equivalencies
+                  </p>
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {validation.mismatches.map(m => (
+                      <div key={m.equiv_id} className="p-4 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                              Equiv #{m.equiv_id}
+                            </p>
+                            <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                              <span className="font-mono font-bold">{m.from_course}</span>
+                              <span className="text-gray-500 dark:text-gray-400 text-xs ml-1">({m.from_institution})</span>
+                              <span className="mx-2">↔</span>
+                              <span className="font-mono font-bold">{m.to_course}</span>
+                              <span className="text-gray-500 dark:text-gray-400 text-xs ml-1">({m.to_institution})</span>
+                            </p>
+                            <div className="mt-2 text-xs text-red-600 dark:text-red-400 space-y-0.5">
+                              <p>From maps to CCN: <strong>{(m.from_ccns || []).join(', ') || '—'}</strong></p>
+                              <p>To maps to CCN: <strong>{(m.to_ccns || []).join(', ') || '—'}</strong></p>
+                            </div>
+
+                            {/* Remediation guidance */}
+                            <div className="mt-3 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
+                              <p className="text-xs font-semibold text-yellow-800 dark:text-yellow-300 mb-1">How to fix:</p>
+                              <ul className="text-xs text-yellow-700 dark:text-yellow-400 space-y-0.5 list-disc list-inside">
+                                {(m.from_ccns || []).length > 0 && (m.to_ccns || []).length > 0 && (
+                                  <li>The two courses map to different CCNs, meaning they may not be true equivalents.</li>
+                                )}
+                                <li>Delete this equivalency if it was imported in error.</li>
+                                <li>Re-upload a corrected Equivalencies CSV with the correct course mapping.</li>
+                                <li>If the CCN matrix itself is wrong, re-upload a corrected Articulation Matrix CSV.</li>
+                              </ul>
+                            </div>
+                          </div>
+
+                          {/* Action buttons */}
+                          <div className="flex flex-col gap-2 flex-shrink-0">
+                            <button
+                              onClick={() => handleDeleteMismatch(m.equiv_id)}
+                              disabled={deletingEquivId === m.equiv_id}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white rounded-lg font-medium transition-colors"
+                              title="Delete this equivalency"
+                            >
+                              <Trash2 size={12} />
+                              {deletingEquivId === m.equiv_id ? 'Deleting…' : 'Delete'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {validation.summary.mismatches === 0 && (
+                <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1.5">
+                  <CheckCircle size={14} />
+                  All manual equivalencies are consistent with the CCN mapping.
+                </p>
+              )}
+
+              {/* No CCN Data summary */}
+              {validation.summary.no_ccn_data > 0 && (
+                <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                  <p className="text-sm font-semibold text-yellow-700 dark:text-yellow-300 mb-1">
+                    {validation.summary.no_ccn_data} equivalencies could not be checked
+                  </p>
+                  <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                    These equivalencies involve courses that aren't mapped to any CCN. Upload an Articulation Matrix CSV to add CCN mappings for these courses.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Confirmation Modal */}
       {showConfirmModal && (
