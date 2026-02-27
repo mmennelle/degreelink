@@ -5,9 +5,8 @@ Author: Mitchell Mennelle
 
 This file is part of Degree Link.
 Licensed under the MIT License. See LICENSE file in the project root.
-"""
 
-"""Articulation matrix validation service.
+Articulation matrix validation service.
 
 Provides helpers that cross-reference equivalency operations against the
 Louisiana Articulation Matrix data stored in the database.  All functions
