@@ -32,6 +32,7 @@ def get_courses():
     department = request.args.get('department', '')
     subject = request.args.get('subject', '')
     level = request.args.get('level', type=int)
+    exclude_bor = request.args.get('exclude_bor', 'false').lower() in ('true', '1', 'yes')
     page = request.args.get('page', 1, type=int)
     
     # Allow admins to request up to 10000 courses, regular users limited to 100
@@ -72,6 +73,10 @@ def get_courses():
         if level < 0:
             return jsonify({'error': 'Level must be non‑negative'}), 400
         query = query.filter(Course.course_level == level)
+
+    # Exclude Board of Regents (CCN) courses from general search results
+    if exclude_bor:
+        query = query.filter(Course.institution != 'Louisiana Board of Regents')
 
     # Order by relevance when search term is provided, otherwise by subject/number.
     # Always push articulation-imported placeholder courses (wildcards, generics)

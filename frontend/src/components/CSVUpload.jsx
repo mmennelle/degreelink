@@ -7,8 +7,8 @@
  * Licensed under the MIT License. See LICENSE file in the project root.
  */
 
-import React, { useState, useEffect } from 'react';
-import { Upload, FileText, AlertCircle, CheckCircle, Download, Settings, ArrowRightLeft } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Upload, FileText, AlertCircle, CheckCircle, Download, Settings, ArrowRightLeft, Trash2, ExternalLink, RefreshCw } from 'lucide-react';
 import api from '../services/api';
 import UploadConfirmationModal from './UploadConfirmationModal';
 import ProgramRequirementsEditModal from './ProgramRequirementsEditModal';
@@ -23,6 +23,12 @@ const CSVUpload = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [previewData, setPreviewData] = useState(null);
   const [pendingFile, setPendingFile] = useState(null);
+
+  // Equivalency consistency check state
+  const [validation, setValidation] = useState(null);
+  const [validating, setValidating] = useState(false);
+  const [showValidation, setShowValidation] = useState(false);
+  const [deletingEquivId, setDeletingEquivId] = useState(null);
 
   // Edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
@@ -52,6 +58,46 @@ const CSVUpload = () => {
       console.error('Failed to load program versions', e);
     }
   };
+
+  // ---- Equivalency Consistency Check ----
+  const handleValidate = useCallback(async () => {
+    setValidating(true);
+    try {
+      const data = await api.validateArticulation();
+      setValidation(data);
+      setShowValidation(true);
+    } catch (err) {
+      console.error('Validation failed:', err);
+    } finally {
+      setValidating(false);
+    }
+  }, []);
+
+  const handleDeleteMismatch = useCallback(async (equivId) => {
+    if (!window.confirm(`Delete equivalency #${equivId}? This cannot be undone.`)) return;
+    setDeletingEquivId(equivId);
+    try {
+      await api.deleteEquivalency(equivId);
+      // Remove from local state
+      setValidation(prev => {
+        if (!prev) return prev;
+        const updatedMismatches = prev.mismatches.filter(m => m.equiv_id !== equivId);
+        return {
+          ...prev,
+          mismatches: updatedMismatches,
+          summary: {
+            ...prev.summary,
+            total_manual: prev.summary.total_manual - 1,
+            mismatches: updatedMismatches.length,
+          },
+        };
+      });
+    } catch (err) {
+      alert('Failed to delete equivalency: ' + err.message);
+    } finally {
+      setDeletingEquivId(null);
+    }
+  }, []);
 
   const handleFileUpload = async (file) => {
     if (!file) return;
@@ -822,6 +868,127 @@ CECN 2213,Macroeconomics,BADM 201,ECON 2213,GSOC 3,ECON 201,ECON 2010,ECON 201,E
           <p className="text-sm mt-1">Track your bulk import operations and results</p>
         </div>
       </div>
+
+      {/* Equivalency Consistency Check — shown when equivalencies upload type is selected */}
+      {(uploadType === 'equivalencies' || uploadType === 'articulation') && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+              <CheckCircle size={18} className="text-indigo-500" />
+              Equivalency Consistency Check
+            </h3>
+            <button
+              onClick={handleValidate}
+              disabled={validating}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-lg font-medium transition-colors"
+            >
+              <RefreshCw size={14} className={validating ? 'animate-spin' : ''} />
+              {validating ? 'Checking…' : 'Check All Equivalencies'}
+            </button>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Cross-references every manual equivalency in the database against the CCN mapping to detect potential mismatches.
+            Mismatched equivalencies can be removed or reviewed below.
+          </p>
+
+          {showValidation && validation && (
+            <div className="space-y-4">
+              {/* Summary row */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: 'Total Checked', value: validation.summary.total_manual, color: 'text-gray-900 dark:text-white' },
+                  { label: 'Consistent',    value: validation.summary.consistent,   color: 'text-green-600 dark:text-green-400' },
+                  { label: 'Mismatches',    value: validation.summary.mismatches,   color: validation.summary.mismatches > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400' },
+                  { label: 'No CCN Data',   value: validation.summary.no_ccn_data,  color: 'text-yellow-600 dark:text-yellow-400' },
+                ].map(s => (
+                  <div key={s.label} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center">
+                    <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Mismatches list with remediation actions */}
+              {validation.mismatches.length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold text-red-600 dark:text-red-400 mb-3">
+                    Potential Mis-mapped Equivalencies
+                  </p>
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {validation.mismatches.map(m => (
+                      <div key={m.equiv_id} className="p-4 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                              Equiv #{m.equiv_id}
+                            </p>
+                            <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                              <span className="font-mono font-bold">{m.from_course}</span>
+                              <span className="text-gray-500 dark:text-gray-400 text-xs ml-1">({m.from_institution})</span>
+                              <span className="mx-2">↔</span>
+                              <span className="font-mono font-bold">{m.to_course}</span>
+                              <span className="text-gray-500 dark:text-gray-400 text-xs ml-1">({m.to_institution})</span>
+                            </p>
+                            <div className="mt-2 text-xs text-red-600 dark:text-red-400 space-y-0.5">
+                              <p>From maps to CCN: <strong>{(m.from_ccns || []).join(', ') || '—'}</strong></p>
+                              <p>To maps to CCN: <strong>{(m.to_ccns || []).join(', ') || '—'}</strong></p>
+                            </div>
+
+                            {/* Remediation guidance */}
+                            <div className="mt-3 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
+                              <p className="text-xs font-semibold text-yellow-800 dark:text-yellow-300 mb-1">How to fix:</p>
+                              <ul className="text-xs text-yellow-700 dark:text-yellow-400 space-y-0.5 list-disc list-inside">
+                                {(m.from_ccns || []).length > 0 && (m.to_ccns || []).length > 0 && (
+                                  <li>The two courses map to different CCNs, meaning they may not be true equivalents.</li>
+                                )}
+                                <li>Delete this equivalency if it was imported in error.</li>
+                                <li>Re-upload a corrected Equivalencies CSV with the correct course mapping.</li>
+                                <li>If the CCN matrix itself is wrong, re-upload a corrected Articulation Matrix CSV.</li>
+                              </ul>
+                            </div>
+                          </div>
+
+                          {/* Action buttons */}
+                          <div className="flex flex-col gap-2 flex-shrink-0">
+                            <button
+                              onClick={() => handleDeleteMismatch(m.equiv_id)}
+                              disabled={deletingEquivId === m.equiv_id}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white rounded-lg font-medium transition-colors"
+                              title="Delete this equivalency"
+                            >
+                              <Trash2 size={12} />
+                              {deletingEquivId === m.equiv_id ? 'Deleting…' : 'Delete'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {validation.summary.mismatches === 0 && (
+                <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1.5">
+                  <CheckCircle size={14} />
+                  All manual equivalencies are consistent with the CCN mapping.
+                </p>
+              )}
+
+              {/* No CCN Data summary */}
+              {validation.summary.no_ccn_data > 0 && (
+                <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                  <p className="text-sm font-semibold text-yellow-700 dark:text-yellow-300 mb-1">
+                    {validation.summary.no_ccn_data} equivalencies could not be checked
+                  </p>
+                  <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                    These equivalencies involve courses that aren't mapped to any CCN. Upload an Articulation Matrix CSV to add CCN mappings for these courses.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Confirmation Modal */}
       {showConfirmModal && (
