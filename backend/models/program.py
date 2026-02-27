@@ -50,6 +50,7 @@ class ProgramRequirement(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     program_id = db.Column(db.Integer, db.ForeignKey('programs.id'), nullable=False, index=True)
     category = db.Column(db.String(100), nullable=False, index=True)  
+    abbreviation = db.Column(db.String(10))  # Short label for progress bar (e.g. MATH, BIO-ELEC)
     credits_required = db.Column(db.Integer, nullable=False)
     description = db.Column(db.Text)
     requirement_type = db.Column(db.String(50), default='simple')  
@@ -74,6 +75,7 @@ class ProgramRequirement(db.Model):
             'id': self.id,
             'program_id': self.program_id,
             'category': self.category,
+            'abbreviation': self.abbreviation,
             'credits_required': self.credits_required,
             'description': self.description,
             'requirement_type': self.requirement_type,

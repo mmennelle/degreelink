@@ -108,7 +108,7 @@ export default function AppShell({
             <p>
               Developed by Mitchell Mennelle under a joint grant between Delgado Community College and The University of New Orleans
             </p>
-            <p className="mt-1">© 2025 All rights reserved</p>
+            <p className="mt-1">© 2026 All rights reserved</p>
           </div>
         </footer>
       </div>

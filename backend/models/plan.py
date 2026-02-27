@@ -393,6 +393,7 @@ class Plan(db.Model):
             'id': getattr(req, 'id', None),
             'program_id': prog_id,  # Add program_id so frontend knows which program this belongs to
             'name': getattr(req, 'category', ''),
+            'abbreviation': getattr(req, 'abbreviation', None),
             'category': getattr(req, 'category', ''),
             'status': req_status,
             'completedCredits': clamped,
@@ -501,6 +502,7 @@ class Plan(db.Model):
             'id': getattr(req, 'id', None),
             'program_id': prog_id,  # Add program_id so frontend knows which program this belongs to
             'name': getattr(req, 'category', ''),
+            'abbreviation': getattr(req, 'abbreviation', None),
             'category': getattr(req, 'category', ''),
             'status': req_status,
             'completedCredits': clamped,

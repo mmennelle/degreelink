@@ -312,22 +312,22 @@ const CSVUpload = () => {
       filename = 'sample_equivalencies.csv';
     } else if (type === 'requirements') {
       // Updated unified format with new requirement type semantics
-      csvContent = `program_name,category,requirement_type,semester,year,is_current,group_name,course_code,institution,is_preferred,constraint_type,description,min_credits,max_credits,min_level,min_courses,max_courses,tag,tag_value,scope_subject_codes
-"Biology B.S.","Biology Electives",simple,Fall,2025,true,"Elective Options",BIOS 301,"State University",false,credits,"Simple: Choose any 15 credits from this pool",15,,,,,,,
-"Biology B.S.","Biology Electives",simple,Fall,2025,true,"Elective Options",BIOS 302,"State University",false,,,,,,,,,,
-"Biology B.S.","Biology Electives",simple,Fall,2025,true,"Elective Options",BIOS 303,"State University",true,,,,,,,,,,
-"Biology B.S.","Biology Electives",simple,Fall,2025,true,"Elective Options",BIOS 401,"State University",false,,,,,,,,,,
-"Biology B.S.","Biology Electives",simple,Fall,2025,true,"Elective Options",BIOS 402,"State University",false,,,,,,,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Required Theory",BIOS 101,"State University",false,courses,"Grouped: Must complete ALL groups - 2 courses from Theory",,,,,2,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Required Theory",BIOS 201,"State University",true,,,,,,,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Required Theory",BIOS 301,"State University",false,,,,,,,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Required Labs",BIOS 102L,"State University",false,courses,"Grouped: AND 2 lab courses from Labs",,,,,2,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Required Labs",BIOS 202L,"State University",false,,,,,,,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Required Labs",BIOS 302L,"State University",true,,,,,,,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Advanced Courses",BIOS 401,"State University",false,min_courses_at_level,"Grouped: AND 3 courses at 4000 level",,,4000,3,,,,"BIOS"
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Advanced Courses",BIOS 402,"State University",true,,,,,,,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Advanced Courses",BIOS 405,"State University",false,,,,,,,,,,
-"Biology B.S.","Core Major Requirements",grouped,Fall,2025,true,"Advanced Courses",BIOS 410,"State University",false,,,,,,,,,,`;
+      csvContent = `program_name,category,abbreviation,requirement_type,semester,year,is_current,group_name,course_code,institution,is_preferred,constraint_type,description,min_credits,max_credits,min_level,min_courses,max_courses,tag,tag_value,scope_subject_codes
+"Biology B.S.","Biology Electives",BIO-ELEC,simple,Fall,2025,true,"Elective Options",BIOS 301,"State University",false,credits,"Simple: Choose any 15 credits from this pool",15,,,,,,,
+"Biology B.S.","Biology Electives",BIO-ELEC,simple,Fall,2025,true,"Elective Options",BIOS 302,"State University",false,,,,,,,,,,
+"Biology B.S.","Biology Electives",BIO-ELEC,simple,Fall,2025,true,"Elective Options",BIOS 303,"State University",true,,,,,,,,,,
+"Biology B.S.","Biology Electives",BIO-ELEC,simple,Fall,2025,true,"Elective Options",BIOS 401,"State University",false,,,,,,,,,,
+"Biology B.S.","Biology Electives",BIO-ELEC,simple,Fall,2025,true,"Elective Options",BIOS 402,"State University",false,,,,,,,,,,
+"Biology B.S.","Core Major Requirements",CORE-MAJ,grouped,Fall,2025,true,"Required Theory",BIOS 101,"State University",false,courses,"Grouped: Must complete ALL groups - 2 courses from Theory",,,,,2,,,,
+"Biology B.S.","Core Major Requirements",CORE-MAJ,grouped,Fall,2025,true,"Required Theory",BIOS 201,"State University",true,,,,,,,,,,
+"Biology B.S.","Core Major Requirements",CORE-MAJ,grouped,Fall,2025,true,"Required Theory",BIOS 301,"State University",false,,,,,,,,,,
+"Biology B.S.","Core Major Requirements",CORE-MAJ,grouped,Fall,2025,true,"Required Labs",BIOS 102L,"State University",false,courses,"Grouped: AND 2 lab courses from Labs",,,,,2,,,,
+"Biology B.S.","Core Major Requirements",CORE-MAJ,grouped,Fall,2025,true,"Required Labs",BIOS 202L,"State University",false,,,,,,,,,,
+"Biology B.S.","Core Major Requirements",CORE-MAJ,grouped,Fall,2025,true,"Required Labs",BIOS 302L,"State University",true,,,,,,,,,,
+"Biology B.S.","Core Major Requirements",CORE-MAJ,grouped,Fall,2025,true,"Advanced Courses",BIOS 401,"State University",false,min_courses_at_level,"Grouped: AND 3 courses at 4000 level",,,4000,3,,,,"BIOS"
+"Biology B.S.","Core Major Requirements",CORE-MAJ,grouped,Fall,2025,true,"Advanced Courses",BIOS 402,"State University",true,,,,,,,,,,
+"Biology B.S.","Core Major Requirements",CORE-MAJ,grouped,Fall,2025,true,"Advanced Courses",BIOS 405,"State University",false,,,,,,,,,,
+"Biology B.S.","Core Major Requirements",CORE-MAJ,grouped,Fall,2025,true,"Advanced Courses",BIOS 410,"State University",false,,,,,,,,,,`;
       filename = 'sample_program_requirements.csv';
 
     } else if (type === 'articulation') {
@@ -388,6 +388,7 @@ CECN 2213,Macroeconomics,BADM 201,ECON 2213,GSOC 3,ECON 201,ECON 2010,ECON 201,E
         columns: [
           { name: 'program_name', description: 'Name of the program (e.g., "Biology B.S.")', required: true },
           { name: 'category', description: 'Requirement category (e.g., "Biology Electives")', required: true },
+          { name: 'abbreviation', description: 'Short label for progress bar (max 10 chars, e.g., "BIO-ELEC", "CORE-MAJ")', required: false },
           { name: 'requirement_type', description: 'Type: simple (pool) or grouped (all groups required)', required: true },
           { name: 'semester', description: 'Academic semester (Fall, Spring, Summer)', required: true },
           { name: 'year', description: 'Academic year (e.g., 2025)', required: true },

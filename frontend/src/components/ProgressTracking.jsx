@@ -87,23 +87,100 @@ export default function ProgressTracking({
 
 	const displayPercent = useMemo(() => percent || 0, [percent, title]);
 
-	function getRequirementInitials(name) {
-		if (!name) return 'XX';
-		const abbreviations = {
-			'mathematics': 'MATH', 'math': 'MATH', 'english': 'ENGL', 'composition': 'ENG-COMP',
-			'literature': 'LIT', 'humanities': 'HUMS', 'biology': 'BIO', 'chemistry': 'CHEM',
-			'physics': 'PHYS', 'history': 'HIST', 'science': 'SCI', 'social science': 'SOC-SCI',
-			'social sciences': 'SOC-SCI', 'liberal arts': 'LIB-ART', 'fine arts': 'FA', 'core': 'CORE',
-			'elective': 'ELEC', 'free elective': 'FR-ELEC', 'general education': 'GEN-ED'
+	// Stop-words to skip when building abbreviations from category names
+	const STOP_WORDS = new Set(['of', 'and', 'the', 'in', 'for', 'to', 'a', 'an', 'at', 'by', 'or', 'with']);
+
+	function getRequirementInitials(name, backendAbbreviation) {
+		// 1. Use advisor-defined abbreviation from the database if available
+		if (backendAbbreviation) return backendAbbreviation;
+
+		if (!name) return '??';
+
+		// 2. Exact match on full lowercased name
+		const knownAbbreviations = {
+			'mathematics': 'MATH', 'math': 'MATH',
+			'english': 'ENGL', 'english composition': 'ENGL-CMP',
+			'composition': 'COMP',
+			'literature': 'LIT',
+			'humanities': 'HUM',
+			'biology': 'BIOL', 'biological sciences': 'BIOL',
+			'chemistry': 'CHEM',
+			'physics': 'PHYS', 'physical science': 'PHYS-SCI',
+			'history': 'HIST',
+			'science': 'SCI', 'natural sciences': 'NAT-SCI', 'natural science': 'NAT-SCI',
+			'social science': 'SOC-SCI', 'social sciences': 'SOC-SCI',
+			'behavioral science': 'BEH-SCI', 'behavioral sciences': 'BEH-SCI',
+			'liberal arts': 'LIB-ART',
+			'fine arts': 'FINE-ART', 'arts': 'ARTS',
+			'core': 'CORE', 'core courses': 'CORE', 'core requirements': 'CORE-REQ',
+			'elective': 'ELEC', 'electives': 'ELEC',
+			'free elective': 'FREE-ELC', 'free electives': 'FREE-ELC',
+			'general education': 'GEN-ED',
+			'computer science': 'CSCI',
+			'foreign language': 'FRGN-LNG', 'world languages': 'WLD-LNG',
+			'communications': 'COMM', 'communication': 'COMM',
+			'quantitative reasoning': 'QNT-RSN',
+			'writing intensive': 'WRIT-INT',
+			'capstone': 'CAPST',
 		};
-		const nameLower = name.toLowerCase();
-		if (abbreviations[nameLower]) return abbreviations[nameLower];
-		for (const [key, abbrev] of Object.entries(abbreviations)) {
-			if (nameLower.includes(key)) return abbrev;
+		const nameLower = name.toLowerCase().trim();
+		if (knownAbbreviations[nameLower]) return knownAbbreviations[nameLower];
+
+		// 3. Smart abbreviation: take significant words, build from first letters/syllables
+		//    e.g. "Biology Electives" → "BIOL-ELC", "Upper-Level BIOS" → "UPR-BIOS"
+		const words = name.trim().split(/[\s\-]+/).filter(w => w.length > 0);
+		const significantWords = words.filter(w => !STOP_WORDS.has(w.toLowerCase()));
+		const parts = significantWords.length > 0 ? significantWords : words;
+
+		if (parts.length === 1) {
+			// Single word: take up to 4 characters
+			return parts[0].substring(0, 4).toUpperCase();
 		}
-		const words = name.trim().split(/\s+/);
-		if (words.length === 1) return words[0].substring(0, 2).toUpperCase();
-		return words.slice(0, 2).map(w => w.charAt(0)).join('').toUpperCase();
+
+		// Multiple words: abbreviate each word intelligently
+		const abbreviateWord = (word) => {
+			const w = word.toUpperCase();
+			// Check if word itself matches a known subject prefix
+			const wordLower = word.toLowerCase();
+			const subjectPrefixes = {
+				'biology': 'BIO', 'biological': 'BIO', 'bios': 'BIOS',
+				'chemistry': 'CHEM', 'chemical': 'CHEM',
+				'physics': 'PHYS', 'physical': 'PHYS',
+				'mathematics': 'MATH', 'mathematical': 'MATH',
+				'english': 'ENGL', 'computer': 'COMP',
+				'history': 'HIST', 'historical': 'HIST',
+				'science': 'SCI', 'sciences': 'SCI',
+				'elective': 'ELC', 'electives': 'ELC',
+				'core': 'CORE', 'general': 'GEN',
+				'education': 'ED', 'advanced': 'ADV',
+				'upper': 'UPR', 'lower': 'LWR',
+				'level': 'LVL', 'required': 'REQ',
+				'requirements': 'REQ', 'major': 'MAJ',
+				'minor': 'MNR', 'social': 'SOC',
+				'liberal': 'LIB', 'natural': 'NAT',
+				'humanities': 'HUM', 'behavioral': 'BEH',
+				'laboratory': 'LAB', 'labs': 'LAB', 'lab': 'LAB',
+				'courses': 'CRS', 'writing': 'WRIT',
+				'communication': 'COMM', 'communications': 'COMM',
+			};
+			if (subjectPrefixes[wordLower]) return subjectPrefixes[wordLower];
+			// Already short (like "BIOS", "CSCI") — keep as-is
+			if (w.length <= 4) return w;
+			// Truncate to 3-4 meaningful characters
+			return w.substring(0, 3);
+		};
+
+		const abbreviated = parts.map(abbreviateWord);
+		// Join with hyphen, cap total length at 10
+		let result = abbreviated.join('-');
+		if (result.length > 10) {
+			// Trim individual parts to fit
+			result = abbreviated.map(a => a.substring(0, 3)).join('-');
+		}
+		if (result.length > 10) {
+			result = result.substring(0, 10);
+		}
+		return result;
 	}
 
 	const buildSegments = useCallback((reqList) => {
@@ -171,7 +248,7 @@ export default function ProgressTracking({
 				const green = Math.round(255 * (normalizedPercent / 100));
 				return { backgroundColor: `rgb(${red}, ${green}, 0)` };
 			};
-			const initials = getRequirementInitials(req.name || req.category || '');
+			const initials = getRequirementInitials(req.name || req.category || '', req.abbreviation);
 			const side = index % 2 === 0 ? 'left' : 'right';
 			const segHeight = heights[index];
 			const start = cumulative;

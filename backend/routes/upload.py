@@ -844,6 +844,9 @@ def upload_requirements():
                 tag_value = row.get('tag_value', '').strip()
                 scope_subjects = row.get('scope_subject_codes', '').strip()
                 
+                # Parse abbreviation for progress bar display
+                abbreviation = (row.get('abbreviation') or '').strip()[:10] or None
+                
                 # Determine requirement credits (for backward compatibility)
                 try:
                     req_credits = int(row.get('credits_required') or min_credits or 0)
@@ -871,6 +874,7 @@ def upload_requirements():
                         current_requirement = ProgramRequirement(
                             program_id=program.id,
                             category=category,
+                            abbreviation=abbreviation,
                             credits_required=req_credits,
                             requirement_type=requirement_type,
                             description=(row.get('description') or '').strip() or None,
@@ -897,6 +901,10 @@ def upload_requirements():
                         
                         if current_requirement.description != new_description:
                             current_requirement.description = new_description
+                            has_changes = True
+                        
+                        if abbreviation and current_requirement.abbreviation != abbreviation:
+                            current_requirement.abbreviation = abbreviation
                             has_changes = True
                         
                         if has_changes:
