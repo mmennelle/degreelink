@@ -726,6 +726,38 @@ class Plan(db.Model):
         except Exception:
             pass
 
+        # CCN-mediated equivalency: course → CCN → target_course
+        # Both institutions map their local course to a shared CCN (Common Course Number)
+        # at "Louisiana Board of Regents".  If both map to the same CCN, they are equivalent.
+        try:
+            # Step 1: Find all CCN courses this course maps to
+            ccn_eqs = (Equivalency.query
+                       .filter(
+                           Equivalency.from_course_id == course_id,
+                           Equivalency.equivalency_type.in_(['articulation', 'subject_area'])
+                       )
+                       .all())
+            ccn_ids = [eq.to_course_id for eq in ccn_eqs]
+            
+            if ccn_ids:
+                # Step 2: Find courses at the target institution that map to the same CCN(s)
+                TargetC = aliased(Course)
+                target_eq = (Equivalency.query
+                             .join(TargetC, Equivalency.from_course_id == TargetC.id)
+                             .filter(
+                                 Equivalency.to_course_id.in_(ccn_ids),
+                                 Equivalency.equivalency_type.in_(['articulation', 'subject_area']),
+                                 TargetC.institution == target_institution,
+                                 Equivalency.from_course_id != course_id,  # not self
+                             )
+                             .first())
+                if target_eq:
+                    target_course = Course.query.get(target_eq.from_course_id)
+                    if target_course:
+                        return target_course
+        except Exception:
+            pass
+
         return None
     
     def check_course_constraint_violations(self, course_id, requirement_category, requirement_group_id=None):
