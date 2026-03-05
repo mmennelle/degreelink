@@ -203,6 +203,11 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
       const createdPlan = await api.createPlan(formData);
       const plan = createdPlan?.plan ?? createdPlan;
 
+      // Set the plan code so subsequent requests include the X-Plan-Code header
+      if (plan?.plan_code) {
+        api.setPlanCode(plan.plan_code);
+      }
+
       // If transcript file was selected, import it into the new plan
       let transcriptResult = null;
       if (transcriptEnabled && transcriptFile && plan?.id) {

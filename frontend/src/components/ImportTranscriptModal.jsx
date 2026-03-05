@@ -46,6 +46,10 @@ const ImportTranscriptModal = ({ isOpen, onClose, plan, onImported }) => {
     setError(null);
     setResult(null);
     try {
+      // Ensure plan code is set for authorization
+      if (plan?.plan_code) {
+        api.setPlanCode(plan.plan_code);
+      }
       const res = await api.importTranscript(plan.id, file);
       setResult(res);
       onImported?.();
