@@ -489,9 +489,66 @@ class Plan(db.Model):
             
             applied.append(ci)
         
+        # --- Phase 2: Evaluate constraints if present ---
+        constraint_results = []
+        all_constraints_satisfied = True
+        
+        if hasattr(req, 'constraints') and req.constraints:
+            import logging
+            logging.info(f"Evaluating {len(req.constraints)} constraint(s) for simple requirement {req.id} ({req.category})")
+            
+            for constraint in req.constraints:
+                try:
+                    # Filter out courses marked as constraint violations before evaluating
+                    valid_courses = [c for c in relevant_courses if not getattr(c, 'constraint_violation', False)]
+                    constraint_eval = constraint.evaluate(valid_courses)
+                    constraint_results.append({
+                        **constraint_eval,
+                        'constraint_type': constraint.constraint_type,
+                        'constraint_id': constraint.id,
+                        'description': constraint.description,
+                        'params': constraint.get_params(),
+                        'scope_filter': constraint.get_scope_filter()
+                    })
+                    
+                    if not constraint_eval.get('satisfied', False):
+                        all_constraints_satisfied = False
+                        logging.info(f"Constraint {constraint.constraint_type} NOT satisfied: {constraint_eval.get('reason', '')}")
+                    else:
+                        logging.info(f"Constraint {constraint.constraint_type} satisfied")
+                        
+                except Exception as e:
+                    import logging
+                    logging.warning(f"Constraint evaluation failed for constraint {constraint.id} ({constraint.constraint_type}): {e}")
+                    constraint_results.append({
+                        'satisfied': False,
+                        'reason': f'Evaluation error: {str(e)}',
+                        'constraint_type': constraint.constraint_type,
+                        'constraint_id': getattr(constraint, 'id', None),
+                        'description': getattr(constraint, 'description', '')
+                    })
+                    all_constraints_satisfied = False
+        
+        # Recalculate credits excluding constraint-violating courses
+        valid_completed = 0
+        for pc in relevant_courses:
+            course_canon = canon(getattr(pc, 'requirement_category', ''))
+            cat_match = (course_canon == req_canon)
+            group_match = False
+            if group_ids:
+                group_match = getattr(pc, 'requirement_group_id', None) in group_ids
+            if (cat_match or group_match) and not getattr(pc, 'constraint_violation', False):
+                valid_completed += (pc.credits or (pc.course.credits if pc.course else 0) or 0)
+        
+        # Use valid_completed if we filtered any violating courses
+        if valid_completed != completed:
+            completed = valid_completed
+        
         # Calculate final status
         clamped = min(completed, req_total) if req_total else completed
-        if req_total > 0 and clamped >= req_total:
+        
+        # Overall satisfaction requires BOTH base satisfaction AND all constraints satisfied
+        if req_total > 0 and clamped >= req_total and all_constraints_satisfied:
             req_status = 'met'
         elif clamped > 0:
             req_status = 'part'
@@ -510,6 +567,8 @@ class Plan(db.Model):
             'courses': applied,
             'description': getattr(req, 'description', ''),
             'requirement_type': req_type,
+            'constraint_results': constraint_results if constraint_results else [],
+            'constraints_satisfied': all_constraints_satisfied,
         }
 
     

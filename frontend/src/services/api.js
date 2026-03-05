@@ -422,7 +422,9 @@ class ApiService {
             requirement_group_id: courseData.requirement_group_id, 
             credits: courseData.credits, 
             grade: courseData.grade, 
-            notes: courseData.notes
+            notes: courseData.notes,
+            constraint_violation: courseData.constraint_violation,
+            constraint_violation_reason: courseData.constraint_violation_reason
           })
         });
       } catch (error) {

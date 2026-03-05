@@ -272,7 +272,15 @@ export default function App() {
               })()}
               onClose={() => c.setAddToPlanModal({isOpen:false, courses:[]})}
               onCoursesAdded={async (courseDataArray) => {
-                // Reload the plan after courses are added
+                // Actually add each course to the plan via API, then reload
+                const selectedPlan = Array.isArray(c.plans) ? c.plans.find(p => p.id === c.selectedPlanId) : null;
+                if (!selectedPlan) {
+                  console.error('No selected plan found for adding courses');
+                  return;
+                }
+                for (const courseData of courseDataArray) {
+                  await api.addCourseToPlan(selectedPlan.id, courseData);
+                }
                 await c.loadPlansAndPrograms();
                 c.setAddToPlanModal({isOpen:false, courses:[]});
               }}
