@@ -32,9 +32,9 @@
 
 **What to say:**
 
-> "Every semester, thousands of Louisiana community college students want to transfer to UNO. Right now, figuring out which courses transfer — and whether they actually satisfy degree requirements — involves digging through PDF articulation matrices, emailing advisors, and hoping nothing falls through the cracks.
+> "This project is personal to me. When I transferred from Delgado Community College to UNO, I lost 18 credit hours in the process — courses I'd already paid for and passed. That happened because the transfer process relied on digging through PDF articulation matrices, emailing back and forth with advisors, and hoping nothing fell through the cracks. There was no single place to see what would count and what wouldn't before it was too late.
 >
-> Degree Link solves this. It's a web app built here at UNO that lets students create a personalized degree plan, see their transfer credits mapped in real time, and track exactly how close they are to graduating — automatically."
+> I'm not the only one. Every semester, thousands of Louisiana community college students go through the same thing. Degree Link is the tool I wish I'd had. It's a web app built here at UNO that lets students create a personalized degree plan, see their transfer credits mapped in real time, and track exactly how close they are to graduating — automatically — so no one else has to lose credits the way I did."
 
 *(Open dlink.cs.uno.edu on the projector)*
 
