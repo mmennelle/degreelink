@@ -126,6 +126,9 @@ export default function useAppController() {
         setSelectedPlanId(newPlan.id);
         // Store plan code so subsequent ID-based API calls can authenticate
         if (newPlan.plan_code) api.setPlanCode(newPlan.plan_code);
+        // Trigger a refresh so progress bars + plan details re-fetch from API
+        // (the plan object here may be stale if transcript import added courses)
+        setPlanRefreshTrigger(x => x + 1);
         // open copy-code modal immediately if available
         if (newPlan.plan_code) {
           setPlanCreatedModal({ isOpen: true, planData: newPlan });
