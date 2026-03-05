@@ -238,15 +238,19 @@ def create_plan():
     
     # Validate advisor email (if provided)
     advisor_email = data.get('advisor_email')
-    if advisor_email:
+    if advisor_email and advisor_email.strip():
         # Normalize email to lowercase
         advisor_email = advisor_email.strip().lower()
-        # Check if advisor is whitelisted (optional - they can be added later)
+        # Check if advisor is whitelisted — FK constraint requires the email to exist
         from models.advisor_auth import AdvisorAuth
         advisor = AdvisorAuth.query.filter_by(email=advisor_email).first()
         if not advisor:
-            # Advisor not whitelisted yet - that's okay, just log it
+            # Advisor not in whitelist; clear FK value to avoid constraint violation
             print(f"[INFO] Plan created with non-whitelisted advisor email: {advisor_email}")
+            advisor_email = None
+    else:
+        # Empty string or missing — must be None for nullable FK
+        advisor_email = None
     
     try:
         plan = Plan(
@@ -279,11 +283,12 @@ def create_plan():
         
     except Exception as e:
         db.session.rollback()
+        print(f"[ERROR] Failed to create plan: {e}")
         
         if "Unable to generate unique plan code" in str(e):
             return jsonify({'error': 'Unable to generate unique plan code. Please try again.'}), 500
         
-        return jsonify({'error': 'Failed to create plan'}), 500
+        return jsonify({'error': f'Failed to create plan: {str(e)}'}), 500
 
 @bp.route('/<int:plan_id>', methods=['GET'])
 def get_plan(plan_id):
