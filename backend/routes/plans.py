@@ -201,7 +201,6 @@ def check_plan_access(plan_id):
     return False
 
 @bp.route('', methods=['POST'])
-@require_admin
 def create_plan():
     """Create a new plan - returns plan with secure code"""
     data = request.get_json()
