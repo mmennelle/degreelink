@@ -461,6 +461,28 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 	
 	const requirementCourses = React.useMemo(() => {
 		if (!plan?.courses) return [];
+		
+		// Use the backend's authoritative courses array if available.
+		// The backend already does proper equivalency-based, subject-code, and
+		// group matching — so use its course IDs to look up full plan course data.
+		const backendCourses = requirement.courses || [];
+		if (backendCourses.length > 0) {
+			const matchedCourseIds = new Set(backendCourses.map(c => c.id).filter(Boolean));
+			// Also build a set of course codes for fallback matching (some courses may have
+			// different IDs across programs but same code via equivalency)
+			const matchedCodes = new Set(backendCourses.map(c => (c.code || '').toUpperCase()).filter(Boolean));
+			const equivCodes = new Set(backendCourses
+				.filter(c => c.equivalent_code)
+				.map(c => c.equivalent_code.toUpperCase()));
+			
+			return plan.courses.filter(pc => {
+				const courseId = pc.course?.id || pc.course_id;
+				const courseCode = (pc.course?.code || '').toUpperCase();
+				return matchedCourseIds.has(courseId) || matchedCodes.has(courseCode) || equivCodes.has(courseCode);
+			});
+		}
+		
+		// Fallback: fuzzy category matching for when backend courses array is empty
 		const normalizeCategory = (category) => (category || '').toLowerCase().replace(/[\/\-\s]+/g, ' ').replace(/\s+/g, ' ').trim();
 		const categoriesMatch = (reqCategory, courseCategory) => {
 			const reqNorm = normalizeCategory(reqCategory);
@@ -476,7 +498,7 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 			return false;
 		};
 		return plan.courses.filter(pc => categoriesMatch(name, pc.requirement_category || 'Uncategorized'));
-	}, [plan?.courses, name]);
+	}, [plan?.courses, name, requirement.courses]);
 	
 	// Extract constraint information from requirement
 	const constraints = requirement.constraint_results || [];

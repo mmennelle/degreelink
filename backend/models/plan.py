@@ -25,13 +25,17 @@ _CATEGORY_SUBJECT_MAP = {
     'literature': ['ENGL', 'LIT'],
     'mathematics': ['MATH', 'STAT'],
     'math': ['MATH', 'STAT'],
+    'math/analytical reasoning': ['MATH', 'STAT', 'PHIL', 'OMAT'],
     'analytical reasoning': ['MATH', 'STAT', 'PHIL'],
     'reasoning': ['PHIL', 'MATH'],
     'biology': ['BIOL', 'BIO'],
+    'biological sciences': ['BIOL', 'BIO'],
+    'biological sciences - major requirements': ['BIOL', 'BIO'],
     'chemistry': ['CHEM'],
     'physics': ['PHYS'],
     'history': ['HIST'],
     'science': ['BIOL', 'CHEM', 'PHYS'],
+    'natural sciences': ['BIOL', 'CHEM', 'PHYS', 'GEOL', 'ENVS'],
     'social sciences': ['SOC', 'PSY', 'POLI'],
     'social science': ['SOC', 'PSY', 'POLI'],
     'humanities': ['ENGL', 'HIST', 'PHIL', 'ART', 'MUSC', 'THEA'],
@@ -39,6 +43,28 @@ _CATEGORY_SUBJECT_MAP = {
     'fine arts': ['ART', 'MUSC', 'THEA'],
     'liberal arts': ['ENGL', 'HIST', 'PHIL', 'ART', 'MUSC', 'THEA', 'SOC', 'PSY', 'POLI'],
 }
+
+def _get_expected_subjects(category_name):
+    """Look up expected subject codes for a category name.
+    
+    Handles compound names like 'Math/Analytical Reasoning' by checking
+    the full name first, then splitting on '/' and checking each part.
+    """
+    name_lower = (category_name or '').lower().strip()
+    # Direct lookup first
+    subjects = _CATEGORY_SUBJECT_MAP.get(name_lower)
+    if subjects:
+        return subjects
+    # Split on '/' and union all matches
+    if '/' in name_lower:
+        combined = set()
+        for part in name_lower.split('/'):
+            part = part.strip()
+            found = _CATEGORY_SUBJECT_MAP.get(part, [])
+            combined.update(found)
+        if combined:
+            return list(combined)
+    return []
 
 class Plan(db.Model):
     __tablename__ = 'plans'
@@ -495,8 +521,7 @@ class Plan(db.Model):
                         # Also check subject_code based matching
                         if not cat_match:
                             eq_subj = (getattr(eq_course, 'subject_code', '') or '').upper().strip()
-                            req_name_lower = (getattr(req, 'category', '') or '').lower()
-                            expected_subjects = _CATEGORY_SUBJECT_MAP.get(req_name_lower, [])
+                            expected_subjects = _get_expected_subjects(getattr(req, 'category', ''))
                             if eq_subj and eq_subj in expected_subjects:
                                 cat_match = True
                     # Direct institution match: course is from this program's institution
@@ -507,8 +532,7 @@ class Plan(db.Model):
                             if own_dept and canon(own_dept) == req_canon:
                                 cat_match = True
                             elif own_subj:
-                                req_name_lower = (getattr(req, 'category', '') or '').lower()
-                                expected_subjects = _CATEGORY_SUBJECT_MAP.get(req_name_lower, [])
+                                expected_subjects = _get_expected_subjects(getattr(req, 'category', ''))
                                 if own_subj in expected_subjects:
                                     cat_match = True
                 except Exception:
