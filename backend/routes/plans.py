@@ -1363,6 +1363,9 @@ def _assign_requirement_group(plan: Plan, plan_course: PlanCourse):
     
     chosen_req, chosen_group, chosen_opt = candidates[0]
     plan_course.requirement_group_id = chosen_group.id
+    # Also set requirement_category so category-based matching works for both programs
+    if not plan_course.requirement_category:
+        plan_course.requirement_category = chosen_req.category
     
     logger.debug(
         f"Assigned course {code_norm} to group '{chosen_group.group_name}' "

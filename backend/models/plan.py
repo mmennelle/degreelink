@@ -17,6 +17,29 @@ import json
 import secrets
 import string
 
+# Subject-code mappings for matching courses to requirement categories
+_CATEGORY_SUBJECT_MAP = {
+    'english composition': ['ENGL', 'ENG'],
+    'composition': ['ENGL', 'ENG'],
+    'english': ['ENGL', 'ENG'],
+    'literature': ['ENGL', 'LIT'],
+    'mathematics': ['MATH', 'STAT'],
+    'math': ['MATH', 'STAT'],
+    'analytical reasoning': ['MATH', 'STAT', 'PHIL'],
+    'reasoning': ['PHIL', 'MATH'],
+    'biology': ['BIOL', 'BIO'],
+    'chemistry': ['CHEM'],
+    'physics': ['PHYS'],
+    'history': ['HIST'],
+    'science': ['BIOL', 'CHEM', 'PHYS'],
+    'social sciences': ['SOC', 'PSY', 'POLI'],
+    'social science': ['SOC', 'PSY', 'POLI'],
+    'humanities': ['ENGL', 'HIST', 'PHIL', 'ART', 'MUSC', 'THEA'],
+    'arts': ['ART', 'MUSC', 'THEA'],
+    'fine arts': ['ART', 'MUSC', 'THEA'],
+    'liberal arts': ['ENGL', 'HIST', 'PHIL', 'ART', 'MUSC', 'THEA', 'SOC', 'PSY', 'POLI'],
+}
+
 class Plan(db.Model):
     __tablename__ = 'plans'
     
@@ -428,6 +451,7 @@ class Plan(db.Model):
         # Accumulate matching courses
         completed = 0
         applied = []
+        matched_pc_ids = set()  # Track which PlanCourse IDs matched this requirement
         
         for pc in relevant_courses:
             course_canon = canon(getattr(pc, 'requirement_category', ''))
@@ -456,10 +480,45 @@ class Plan(db.Model):
                         except Exception:
                             pass
             
+            # For simple requirements: if category doesn't match directly,
+            # try matching via equivalency — a course from the other institution
+            # should count if its equivalent at this program's institution would
+            # satisfy this requirement category.
+            if not cat_match and not group_match and req_type != 'grouped':
+                try:
+                    eq_course = self._get_equivalent_course(pc, program)
+                    if eq_course:
+                        # Check if the equivalent course's natural category matches
+                        eq_dept = (getattr(eq_course, 'department', '') or '').strip()
+                        if eq_dept and canon(eq_dept) == req_canon:
+                            cat_match = True
+                        # Also check subject_code based matching
+                        if not cat_match:
+                            eq_subj = (getattr(eq_course, 'subject_code', '') or '').upper().strip()
+                            req_name_lower = (getattr(req, 'category', '') or '').lower()
+                            expected_subjects = _CATEGORY_SUBJECT_MAP.get(req_name_lower, [])
+                            if eq_subj and eq_subj in expected_subjects:
+                                cat_match = True
+                    # Direct institution match: course is from this program's institution
+                    if not cat_match and getattr(pc, 'course', None):
+                        if getattr(pc.course, 'institution', None) == program.institution:
+                            own_subj = (getattr(pc.course, 'subject_code', '') or '').upper().strip()
+                            own_dept = (getattr(pc.course, 'department', '') or '').strip()
+                            if own_dept and canon(own_dept) == req_canon:
+                                cat_match = True
+                            elif own_subj:
+                                req_name_lower = (getattr(req, 'category', '') or '').lower()
+                                expected_subjects = _CATEGORY_SUBJECT_MAP.get(req_name_lower, [])
+                                if own_subj in expected_subjects:
+                                    cat_match = True
+                except Exception:
+                    pass
+            
             if not (cat_match or group_match):
                 continue
             
             # Course matches - add its credits
+            matched_pc_ids.add(pc.id)
             credits = (pc.credits or (pc.course.credits if pc.course else 0) or 0)
             completed += credits
             
@@ -532,12 +591,9 @@ class Plan(db.Model):
         # Recalculate credits excluding constraint-violating courses
         valid_completed = 0
         for pc in relevant_courses:
-            course_canon = canon(getattr(pc, 'requirement_category', ''))
-            cat_match = (course_canon == req_canon)
-            group_match = False
-            if group_ids:
-                group_match = getattr(pc, 'requirement_group_id', None) in group_ids
-            if (cat_match or group_match) and not getattr(pc, 'constraint_violation', False):
+            if pc.id not in matched_pc_ids:
+                continue
+            if not getattr(pc, 'constraint_violation', False):
                 valid_completed += (pc.credits or (pc.course.credits if pc.course else 0) or 0)
         
         # Use valid_completed if we filtered any violating courses
