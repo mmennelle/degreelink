@@ -19,6 +19,7 @@ from datetime import datetime
 from functools import wraps
 from services.progress_service import ProgressService
 from services.articulation_service import enrich_plan_courses_batch
+from services.prerequisite_service import PrerequisiteService
 from config import Config
 
 bp = Blueprint('plans', __name__, url_prefix='/api/plans')
@@ -649,6 +650,78 @@ def validate_course_constraints_by_code(plan_code):
         return jsonify(result), 200
     except Exception as e:
         return jsonify({'error': f'Failed to validate constraints: {str(e)}'}), 500
+
+@bp.route('/by-code/<plan_code>/validate-prerequisites', methods=['POST'])
+@require_plan_access
+def validate_prerequisites_by_code(plan_code):
+    """Validate if adding a course would have unmet prerequisites using plan code.
+
+    Checks the course's prerequisites text against courses already in the plan
+    (completed or in-progress), including transitive equivalencies.
+
+    Expects JSON body: { "course_id": int }
+    Returns: { "has_warnings": bool, "warnings": [...], "can_take": bool, ... }
+    """
+    if not plan_code or len(plan_code.strip()) != 8:
+        return jsonify({'error': 'Invalid plan code format'}), 400
+
+    clean_code = ''.join(c for c in plan_code.upper().strip() if c.isalnum())
+    plan = Plan.find_by_code(clean_code)
+
+    if not plan:
+        return jsonify({'error': 'Plan not found or access denied'}), 404
+
+    data = request.get_json()
+    course_id = data.get('course_id')
+    if not course_id:
+        return jsonify({'error': 'course_id is required'}), 400
+
+    course = Course.query.get(course_id)
+    if not course:
+        return jsonify({'error': 'Course not found'}), 404
+
+    # If course has no prerequisites, short-circuit
+    if not course.prerequisites or not course.prerequisites.strip():
+        return jsonify({
+            'has_warnings': False,
+            'warnings': [],
+            'can_take': True,
+            'missing_prerequisites': [],
+            'satisfied_prerequisites': [],
+            'all_prerequisites': []
+        }), 200
+
+    try:
+        # Gather completed / in-progress courses already in the plan
+        completed_courses = [
+            pc for pc in plan.courses
+            if pc.status in ('completed', 'in_progress')
+        ]
+
+        result = PrerequisiteService.validate_prerequisites(
+            course.code, completed_courses
+        )
+
+        # Build human-readable warnings for the frontend
+        warnings = []
+        for prereq_code in result.get('missing_prerequisites', []):
+            equivalents = PrerequisiteService.get_all_transitive_equivalents(prereq_code)
+            equiv_list = sorted(equivalents - {prereq_code})
+            desc = f"Missing prerequisite: {prereq_code}"
+            if equiv_list:
+                desc += f" (or equivalent: {', '.join(equiv_list)})"
+            warnings.append({
+                'type': 'missing_prerequisite',
+                'prerequisite_code': prereq_code,
+                'equivalent_codes': equiv_list,
+                'description': desc
+            })
+
+        result['has_warnings'] = len(warnings) > 0
+        result['warnings'] = warnings
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({'error': f'Failed to validate prerequisites: {str(e)}'}), 500
 
 @bp.route('/<int:plan_id>/courses/<int:plan_course_id>', methods=['PUT'])
 def update_plan_course(plan_id, plan_course_id):
