@@ -17,31 +17,35 @@ import json
 import secrets
 import string
 
-# Subject-code mappings for matching courses to requirement categories
+# Subject-code mappings for matching courses to requirement categories.
+# Include ALL common variants:  e.g. PSYC *and* PSY, BIOS *and* BIOL, MUS *and* MUSC.
 _CATEGORY_SUBJECT_MAP = {
     'english composition': ['ENGL', 'ENG'],
     'composition': ['ENGL', 'ENG'],
     'english': ['ENGL', 'ENG'],
     'literature': ['ENGL', 'LIT'],
-    'mathematics': ['MATH', 'STAT'],
-    'math': ['MATH', 'STAT'],
-    'math/analytical reasoning': ['MATH', 'STAT', 'PHIL', 'OMAT'],
+    'mathematics': ['MATH', 'STAT', 'AMTH', 'GMAT', 'OMAT'],
+    'math': ['MATH', 'STAT', 'AMTH', 'GMAT', 'OMAT'],
+    'math/analytical reasoning': ['MATH', 'STAT', 'PHIL', 'OMAT', 'AMTH', 'GMAT'],
     'analytical reasoning': ['MATH', 'STAT', 'PHIL'],
     'reasoning': ['PHIL', 'MATH'],
-    'biology': ['BIOL', 'BIO'],
-    'biological sciences': ['BIOL', 'BIO'],
-    'biological sciences - major requirements': ['BIOL', 'BIO'],
+    'biology': ['BIOL', 'BIO', 'BIOS', 'BTEC'],
+    'biology electives': ['BIOL', 'BIO', 'BIOS', 'BTEC'],
+    'biological sciences': ['BIOL', 'BIO', 'BIOS', 'BTEC'],
+    'biological sciences major reqs': ['BIOL', 'BIO', 'BIOS', 'BTEC'],
+    'biological sciences - major requirements': ['BIOL', 'BIO', 'BIOS', 'BTEC'],
     'chemistry': ['CHEM'],
     'physics': ['PHYS'],
     'history': ['HIST'],
-    'science': ['BIOL', 'CHEM', 'PHYS'],
-    'natural sciences': ['BIOL', 'CHEM', 'PHYS', 'GEOL', 'ENVS'],
-    'social sciences': ['SOC', 'PSY', 'POLI'],
-    'social science': ['SOC', 'PSY', 'POLI'],
-    'humanities': ['ENGL', 'HIST', 'PHIL', 'ART', 'MUSC', 'THEA'],
-    'arts': ['ART', 'MUSC', 'THEA'],
-    'fine arts': ['ART', 'MUSC', 'THEA'],
-    'liberal arts': ['ENGL', 'HIST', 'PHIL', 'ART', 'MUSC', 'THEA', 'SOC', 'PSY', 'POLI'],
+    'science': ['BIOL', 'BIO', 'BIOS', 'CHEM', 'PHYS', 'SCIE', 'SCI', 'GEOL', 'EES'],
+    'natural sciences': ['BIOL', 'BIO', 'BIOS', 'CHEM', 'PHYS', 'GEOL', 'ENVS', 'EES', 'SCIE'],
+    'social sciences': ['SOC', 'SOCI', 'PSY', 'PSYC', 'POLI', 'ANTH', 'ECON', 'GEOG', 'CRJU', 'JUST', 'GSOC'],
+    'social science': ['SOC', 'SOCI', 'PSY', 'PSYC', 'POLI', 'ANTH', 'ECON', 'GEOG', 'CRJU', 'JUST', 'GSOC'],
+    'social/behavioral sciences': ['SOC', 'SOCI', 'PSY', 'PSYC', 'POLI', 'ANTH', 'ECON', 'GEOG', 'CRJU', 'JUST', 'GSOC'],
+    'humanities': ['ENGL', 'HIST', 'PHIL', 'ART', 'ARTS', 'MUSC', 'MUS', 'THEA', 'HUMA', 'HUMS', 'GHUM', 'FREN', 'SPAN', 'LIT'],
+    'arts': ['ART', 'ARTS', 'MUSC', 'MUS', 'THEA', 'FNAR', 'FA', 'FTA', 'GFAR'],
+    'fine arts': ['ART', 'ARTS', 'MUSC', 'MUS', 'THEA', 'FNAR', 'FA', 'FTA', 'GFAR'],
+    'liberal arts': ['ENGL', 'HIST', 'PHIL', 'ART', 'ARTS', 'MUSC', 'MUS', 'THEA', 'SOC', 'SOCI', 'PSY', 'PSYC', 'POLI'],
 }
 
 def _get_expected_subjects(category_name):
@@ -184,12 +188,17 @@ class Plan(db.Model):
             'science': 'Science',
             'sciences': 'Science',
             'biology': 'Science',
+            'biology electives': 'Science',
+            'biological sciences major reqs': 'Science',
+            'biological sciences': 'Science',
             'chemistry': 'Science',
             'physics': 'Physics',
             'physical science': 'Physics',
             'humanities': 'Humanities',
             'social sciences': 'Social Sciences',
             'social science': 'Social Sciences',
+            'social/behavioral sciences': 'Social Sciences',
+            'behavioral sciences': 'Social Sciences',
             'arts': 'Arts',
             'fine arts': 'Arts'
         }

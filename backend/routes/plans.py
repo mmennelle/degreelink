@@ -1340,6 +1340,10 @@ def _assign_requirement_group(plan: Plan, plan_course: PlanCourse):
     
     if not matches:
         logger.info(f"No group match for course {code_norm} (institution: {course_inst}) in plan {plan.id}")
+        # Fall back: try to assign requirement_category for simple requirements
+        # based on subject code matching (so imported courses aren't left NULL).
+        if not plan_course.requirement_category:
+            _assign_simple_requirement_category(plan, plan_course, logger)
         return
     
     # Log ambiguity if multiple matches
@@ -1371,6 +1375,50 @@ def _assign_requirement_group(plan: Plan, plan_course: PlanCourse):
         f"Assigned course {code_norm} to group '{chosen_group.group_name}' "
         f"(id: {chosen_group.id}) in requirement '{chosen_req.category}' for plan {plan.id}"
     )
+
+
+def _assign_simple_requirement_category(plan, plan_course, logger=None):
+    """For courses that didn't match any grouped requirement, try to assign a
+    requirement_category for simple requirements by matching subject_code against
+    the known _CATEGORY_SUBJECT_MAP.
+
+    Checks BOTH the target program and the current program requirements so that
+    the course is categorised for whichever bar it naturally fits.
+    """
+    if not plan_course.course:
+        return
+
+    from models.plan import _get_expected_subjects
+
+    subj = (getattr(plan_course.course, 'subject_code', '') or '').upper().strip()
+    if not subj:
+        return
+
+    # Gather requirements from both programs
+    candidates = []
+    for prog in (plan.target_program, plan.current_program):
+        if not prog:
+            continue
+        for req in (prog.requirements or []):
+            if getattr(req, 'requirement_type', '') == 'grouped':
+                continue  # grouped handled elsewhere
+            expected = _get_expected_subjects(getattr(req, 'category', ''))
+            if subj in expected:
+                candidates.append(req)
+
+    if not candidates:
+        if logger:
+            logger.info(f"No simple-requirement subject match for {subj} in plan {plan.id}")
+        return
+
+    # Pick the first matching requirement (stable by query order)
+    chosen = candidates[0]
+    plan_course.requirement_category = chosen.category
+    if logger:
+        logger.debug(
+            f"Assigned course {plan_course.course.code} to simple requirement "
+            f"'{chosen.category}' via subject code '{subj}' for plan {plan.id}"
+        )
 
 # For advisor access - could be expanded with proper authentication
 @bp.route('/advisor/plans', methods=['GET'])
