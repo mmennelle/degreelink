@@ -205,7 +205,25 @@ def check_plan_access(plan_id):
 def create_plan():
     """Create a new plan - returns plan with secure code"""
     data = request.get_json()
-    
+    if data is None:
+        return jsonify({'error': 'No data provided'}), 400
+
+    # Validate required fields and collect all missing ones
+    missing = []
+    if not data.get('student_name', '').strip():
+        missing.append('Student Name')
+    if not data.get('student_email', '').strip():
+        missing.append('Student Email')
+    if not data.get('plan_name', '').strip():
+        missing.append('Plan Name')
+    if not data.get('program_id'):
+        missing.append('Target Program')
+    if missing:
+        return jsonify({
+            'error': f'Missing required fields: {", ".join(missing)}',
+            'missing_fields': missing
+        }), 400
+
     # Validate target program exists
     target_program = Program.query.get(data.get('program_id'))
     if not target_program:

@@ -302,6 +302,78 @@ class TestPlanCreationWithPrograms:
             assert resp.status_code == 404
 
 
+# ─── Backend required-field validation ───────────────────────────────────────
+
+class TestCreatePlanValidation:
+    """Tests that POST /api/plans returns 400 with specific missing fields."""
+
+    def test_missing_all_required_fields(self, client, app):
+        """Submitting empty body returns 400 with all missing field names."""
+        with app.app_context():
+            resp = client.post('/api/plans', json={})
+            assert resp.status_code == 400
+            data = resp.get_json()
+            assert 'missing_fields' in data
+            assert 'Student Name' in data['missing_fields']
+            assert 'Student Email' in data['missing_fields']
+            assert 'Plan Name' in data['missing_fields']
+            assert 'Target Program' in data['missing_fields']
+
+    def test_missing_student_email_only(self, client, session, app):
+        """Omitting only student_email returns 400 naming that field."""
+        with app.app_context():
+            prog = Program(name='ValTest', degree_type='BS', institution='UNO',
+                           total_credits_required=120, description='')
+            session.add(prog)
+            session.commit()
+
+            resp = client.post('/api/plans', json={
+                'student_name': 'Has Name',
+                'program_id': prog.id,
+                'plan_name': 'Has Plan',
+            })
+            assert resp.status_code == 400
+            data = resp.get_json()
+            assert 'Student Email' in data['missing_fields']
+            assert len(data['missing_fields']) == 1
+
+    def test_missing_student_name_only(self, client, session, app):
+        """Omitting only student_name returns 400 naming that field."""
+        with app.app_context():
+            prog = Program(name='ValTest2', degree_type='BS', institution='UNO',
+                           total_credits_required=120, description='')
+            session.add(prog)
+            session.commit()
+
+            resp = client.post('/api/plans', json={
+                'student_email': 'test@test.com',
+                'program_id': prog.id,
+                'plan_name': 'Has Plan',
+            })
+            assert resp.status_code == 400
+            data = resp.get_json()
+            assert 'Student Name' in data['missing_fields']
+            assert len(data['missing_fields']) == 1
+
+    def test_whitespace_only_name_rejected(self, client, session, app):
+        """A name with only spaces is treated as missing."""
+        with app.app_context():
+            prog = Program(name='ValTest3', degree_type='BS', institution='UNO',
+                           total_credits_required=120, description='')
+            session.add(prog)
+            session.commit()
+
+            resp = client.post('/api/plans', json={
+                'student_name': '   ',
+                'student_email': 'test@test.com',
+                'program_id': prog.id,
+                'plan_name': 'Has Plan',
+            })
+            assert resp.status_code == 400
+            data = resp.get_json()
+            assert 'Student Name' in data['missing_fields']
+
+
 # ─── Prerequisites validation ────────────────────────────────────────────────
 
 class TestPrerequisites:

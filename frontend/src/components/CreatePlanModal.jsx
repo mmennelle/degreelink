@@ -171,21 +171,43 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
     if (!formData.student_name.trim()) {
       newErrors.student_name = 'Student name is required';
     }
+
+    if (!formData.student_email || !formData.student_email.trim()) {
+      newErrors.student_email = 'Email is required';
+    } else if (!isValidEmail(formData.student_email)) {
+      newErrors.student_email = 'Please enter a valid email address';
+    }
     
     if (!formData.plan_name.trim()) {
       newErrors.plan_name = 'Plan name is required';
     }
 
-    if (!formData.program_id) {
-      newErrors.program_id = 'Please select a program';
+    if (!formData.current_institution) {
+      newErrors.current_institution = 'Please select your current institution';
     }
-    
-    if (formData.student_email && !isValidEmail(formData.student_email)) {
-      newErrors.student_email = 'Please enter a valid email address';
+
+    if (!formData.target_institution) {
+      newErrors.target_institution = 'Please select the transfer target institution';
+    }
+
+    if (!formData.program_id) {
+      newErrors.program_id = 'Please select a target program';
     }
     
     if (formData.advisor_email && !isValidEmail(formData.advisor_email)) {
       newErrors.advisor_email = 'Please enter a valid advisor email address';
+    }
+
+    // Build a summary of missing required fields for the submit error banner
+    const missingFields = [];
+    if (newErrors.student_name) missingFields.push('Name');
+    if (newErrors.student_email) missingFields.push('Email');
+    if (newErrors.plan_name) missingFields.push('Plan Name');
+    if (newErrors.current_institution) missingFields.push('Current Institution');
+    if (newErrors.target_institution) missingFields.push('Target Institution');
+    if (newErrors.program_id) missingFields.push('Target Program');
+    if (missingFields.length > 0) {
+      newErrors.submit = `Please fill in the required fields: ${missingFields.join(', ')}`;
     }
 
     setErrors(newErrors);
@@ -370,16 +392,18 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
           <div>
             <label htmlFor="student-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               <Mail className="inline mr-1" size={16} aria-hidden="true" />
-              {userMode === 'advisor' ? "Student Email" : "Your Email"}
+              {userMode === 'advisor' ? "Student Email *" : "Your Email *"}
             </label>
             <input
               id="student-email"
               type="email"
+              required
+              aria-required="true"
               aria-invalid={errors.student_email ? "true" : "false"}
               aria-describedby={errors.student_email ? "student-email-error" : "student-email-desc"}
               value={formData.student_email}
               onChange={(e) => handleInputChange('student_email', e.target.value)}
-              placeholder={userMode === 'advisor' ? "student@example.com (optional)" : "your@example.com (optional)"}
+              placeholder={userMode === 'advisor' ? "student@example.com" : "your@example.com"}
               className={`w-full px-3 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors ${
                 errors.student_email ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
               }`}
@@ -388,7 +412,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
               <p id="student-email-error" className="mt-1 text-xs text-red-600 dark:text-red-400" role="alert">{errors.student_email}</p>
             )}
             <p id="student-email-desc" className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Optional: Used for notifications and plan sharing
+              Used for notifications and plan sharing
             </p>
           </div>
 
@@ -458,20 +482,29 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
           {/* Current Institution Selection */}
           <div>
             <label htmlFor="current-institution" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Current Institution
+              Current Institution *
             </label>
             <select
               id="current-institution"
+              required
+              aria-required="true"
+              aria-invalid={errors.current_institution ? "true" : "false"}
+              aria-describedby={errors.current_institution ? "current-institution-error" : undefined}
               value={formData.current_institution}
               onChange={(e) => handleInputChange('current_institution', e.target.value)}
               disabled={loadingPrograms}
-              className="w-full px-3 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-gray-300 dark:border-gray-600"
+              className={`w-full px-3 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                errors.current_institution ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
+              }`}
             >
-              <option value="">Select institution (optional)</option>
+              <option value="">Select your current institution</option>
               {institutions.map(inst => (
                 <option key={inst} value={inst}>{inst}</option>
               ))}
             </select>
+            {errors.current_institution && (
+              <p id="current-institution-error" className="mt-1 text-xs text-red-600 dark:text-red-400" role="alert">{errors.current_institution}</p>
+            )}
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Select your current school to filter programs
             </p>
@@ -523,16 +556,25 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
             </label>
             <select
               id="target-institution"
+              required
+              aria-required="true"
+              aria-invalid={errors.target_institution ? "true" : "false"}
+              aria-describedby={errors.target_institution ? "target-institution-error" : undefined}
               value={formData.target_institution}
               onChange={(e) => handleInputChange('target_institution', e.target.value)}
               disabled={loadingPrograms}
-              className="w-full px-3 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-gray-300 dark:border-gray-600"
+              className={`w-full px-3 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                errors.target_institution ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
+              }`}
             >
               <option value="">Select target institution</option>
               {institutions.map(inst => (
                 <option key={inst} value={inst}>{inst}</option>
               ))}
             </select>
+            {errors.target_institution && (
+              <p id="target-institution-error" className="mt-1 text-xs text-red-600 dark:text-red-400" role="alert">{errors.target_institution}</p>
+            )}
           </div>
 
           {/* Program Selection */}
