@@ -419,11 +419,12 @@ useEffect(() => {
   };
 
   const addCoursesToPlan = async (courses, overrideConstraints = false) => {
-    const newErrors = [];
-    
+    // Build ALL courseToAdd objects first, then send them in a single batch
+    // to avoid the modal closing mid-loop (onCoursesAdded closes the modal)
+    const allCoursesToAdd = [];
+
     for (let i = 0; i < courses.length; i++) {
       const data = courses[i];
-      // Prepare course data with constraint violation info if overriding
       const courseToAdd = {
         course_id: data.course.id,
         semester: data.semester,
@@ -436,32 +437,25 @@ useEffect(() => {
         notes: data.notes || undefined
       };
 
-      // If overriding constraints, mark the course as a constraint violation
       if (overrideConstraints && constraintWarnings[i]) {
         courseToAdd.constraint_violation = true;
         courseToAdd.constraint_violation_reason = constraintWarnings[i].map(v => v.description).join('; ');
       }
 
-      try {
-        await onCoursesAdded([courseToAdd]);
-      } catch (error) {
-        newErrors.push({
-          course: data.course,
-          error: error.message || 'Failed to add course'
-        });
-      }
+      allCoursesToAdd.push(courseToAdd);
     }
 
-    setLoading(false);
-
-    if (newErrors.length > 0) {
-      setErrors(newErrors);
-    } else {
+    try {
+      await onCoursesAdded(allCoursesToAdd);
+      setLoading(false);
       setConstraintWarnings({});
       setShowConstraintWarning(null);
       setPrerequisiteWarnings({});
       setShowPrerequisiteWarning(null);
       onClose();
+    } catch (error) {
+      setLoading(false);
+      setErrors([{ course: null, error: error.message || 'Failed to add courses' }]);
     }
   };
 
