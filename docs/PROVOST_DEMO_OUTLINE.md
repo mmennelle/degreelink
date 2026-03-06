@@ -32,9 +32,9 @@
 
 **What to say:**
 
-> "This project is personal to me. When I transferred from Delgado Community College to UNO, I lost 18 credit hours in the process — courses I'd already paid for and passed. That happened because the transfer process relied on digging through PDF articulation matrices, emailing back and forth with advisors, and hoping nothing fell through the cracks. There was no single place to see what would count and what wouldn't before it was too late.
+>Every semester, thousands of Louisiana community college students transfer to a four-year university and lose credits in the process — courses they already paid for and passed. I was one of them. When I transferred from Delgado to UNO, I lost 18 credit hours because the process depended on digging through PDF articulation matrices, emailing advisors back and forth, and hoping nothing fell through the cracks. There was no single place to see what would count before it was too late.
+Degree Link is the tool I wish I'd had...
 >
-> I'm not the only one. Every semester, thousands of Louisiana community college students go through the same thing. Degree Link is the tool I wish I'd had. It's a web app built here at UNO that lets students create a personalized degree plan, see their transfer credits mapped in real time, and track exactly how close they are to graduating — automatically — so no one else has to lose credits the way I did."
 
 *(Open dlink.cs.uno.edu on the projector)*
 
@@ -72,7 +72,7 @@
 4. Add it to the plan
 5. **Point out:** the progress bar moves, credits tick up
 
-> "Jordan took Bio I at Delgado. The system already knows that's equivalent to BIOS 1053 at UNO — it maps automatically from the statewide articulation matrix."
+> "Jordan took Bio I at Delgado. The system already knows that's equivalent to BIOS 1053 at UNO — it maps automatically from the statewide articulation matrix and via the imported program data from each institution."
 
 **Step 2 — Add College Algebra (Delgado: MATH 130)**
 1. Add the math course
@@ -135,7 +135,7 @@
 
 ### ACT 5 — The Statewide Data (1 min)
 
-> "The equivalency data in Degree Link comes from the Louisiana Board of Regents statewide articulation matrix — over 300 course rows across 27 institutions. That means this system isn't just Delgado-to-UNO. It's any Louisiana community college to UNO, and it could expand to any institution pair in the state."
+> "The equivalency data in Degree Link comes from two places: Each institution and subsequently each department can upload data using the downloadable spreadsheet templates. and the Louisiana Board of Regents statewide articulation matrix — Currently there are over 8,000 courses across 27 institutions in the database. That means this system isn't just Delgado-to-UNO. It's any Louisiana community college to UNO, and it could expand to any institution pair in the state and potentially beyond"
 
 *(If time: do a quick course search showing equivalencies across multiple institutions)*
 

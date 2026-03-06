@@ -30,7 +30,7 @@ export function PlanHeader({ selectedPlan, onBack, canEdit = false, onEditPlan, 
         {onDownload && (
           <button
             onClick={onDownload}
-            className="flex items-center text-xs sm:text-sm text-white bg-blue-600 dark:bg-blue-700 px-2 sm:px-3 py-1 sm:py-1.5 rounded hover:bg-blue-700 dark:hover:bg-blue-800 transition-colors"
+            className="flex items-center text-xs sm:text-sm text-white bg-blue-600 dark:bg-blue-700 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 px-2 sm:px-3 py-1.5 rounded hover:bg-blue-700 dark:hover:bg-blue-800 transition-colors justify-center"
             title="Download plan as HTML"
           >
             <Download size={14} className="sm:mr-1" />
@@ -40,20 +40,21 @@ export function PlanHeader({ selectedPlan, onBack, canEdit = false, onEditPlan, 
         {onPrint && (
           <button
             onClick={onPrint}
-            className="hidden sm:flex items-center text-xs sm:text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 sm:px-3 py-1 sm:py-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+            className="flex items-center text-xs sm:text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 px-2 sm:px-3 py-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors justify-center"
             title="Print plan"
           >
-            <Printer size={14} className="mr-1" />
-            Print
+            <Printer size={14} className="sm:mr-1" />
+            <span className="hidden sm:inline">Print</span>
           </button>
         )}
         {canEdit && (
           <button
             onClick={onEditPlan}
-            className="hidden sm:inline-flex items-center text-xs sm:text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+            className="inline-flex items-center text-xs sm:text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 px-2 py-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors justify-center"
             title="Edit plan settings"
           >
-            <Pencil size={14} className="mr-1" /> Edit Plan
+            <Pencil size={14} className="sm:mr-1" />
+            <span className="hidden sm:inline">Edit Plan</span>
           </button>
         )}
         {selectedPlan?.plan_code && (
@@ -63,7 +64,7 @@ export function PlanHeader({ selectedPlan, onBack, canEdit = false, onEditPlan, 
                 navigator.clipboard.writeText(selectedPlan.plan_code).then(() => alert('Plan code copied'));
               }
             }}
-            className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+            className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 min-h-[44px] sm:min-h-0 px-2 py-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center"
             title="Click to copy plan code"
           >
             {selectedPlan.plan_code}

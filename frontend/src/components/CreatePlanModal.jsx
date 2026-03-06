@@ -19,11 +19,22 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
     plan_name: '',
     current_program_id: '',
     program_id: '', 
+    current_institution: '',
+    target_institution: '',
   });
 
   // Add state for programs
   const [programs, setPrograms] = useState([]);
   const [loadingPrograms, setLoadingPrograms] = useState(false);
+
+  // Derive distinct institution list and filtered programs from the full list
+  const institutions = [...new Set(programs.map(p => p.institution).filter(Boolean))].sort();
+  const currentPrograms = formData.current_institution
+    ? programs.filter(p => p.institution === formData.current_institution)
+    : programs;
+  const targetPrograms = formData.target_institution
+    ? programs.filter(p => p.institution === formData.target_institution)
+    : programs;
 
   // Add state for viewport height to handle iOS keyboard
   const [viewportHeight, setViewportHeight] = useState(() => 
@@ -49,11 +60,6 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
       const response = await api.getPrograms(); // This needs to be implemented in your api service
       const programsList = response.programs || [];
       setPrograms(programsList);
-      
-      // Set default program_id to the first program if available
-      if (programsList.length > 0 && !formData.program_id) {
-        setFormData(prev => ({ ...prev, program_id: programsList[0].id }));
-      }
     } catch (error) {
       console.error('Failed to fetch programs:', error);
       // You might want to show an error message to the user here
@@ -138,14 +144,16 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
         student_name: '', 
         plan_name: '', 
         student_email: '',
-        current_program_id: programs.length > 0 ? programs[0].id : '',
-        program_id: programs.length > 0 ? programs[0].id : ''
+        current_institution: '',
+        target_institution: '',
+        current_program_id: '',
+        program_id: ''
       }));
       setTranscriptEnabled(false);
       setTranscriptFile(null);
       setImportResult(null);
     }
-  }, [userMode, isOpen, programs]);
+  }, [userMode, isOpen]);
 
   const [creating, setCreating] = useState(false);
   const [errors, setErrors] = useState({});
@@ -229,8 +237,10 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
         student_email: '',
         advisor_email: '',
         plan_name: '',
-        current_program_id: programs.length > 0 ? programs[0].id : '',
-        program_id: programs.length > 0 ? programs[0].id : '',
+        current_institution: '',
+        target_institution: '',
+        current_program_id: '',
+        program_id: '',
       });
       setTranscriptFile(null);
       setTranscriptEnabled(false);
@@ -262,7 +272,13 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
   };
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => {
+      const next = { ...prev, [field]: value };
+      // Clear dependent program selection when institution changes
+      if (field === 'current_institution') next.current_program_id = '';
+      if (field === 'target_institution') next.program_id = '';
+      return next;
+    });
     
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
@@ -439,6 +455,28 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
             )}
           </div>
 
+          {/* Current Institution Selection */}
+          <div>
+            <label htmlFor="current-institution" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Current Institution
+            </label>
+            <select
+              id="current-institution"
+              value={formData.current_institution}
+              onChange={(e) => handleInputChange('current_institution', e.target.value)}
+              disabled={loadingPrograms}
+              className="w-full px-3 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-gray-300 dark:border-gray-600"
+            >
+              <option value="">Select institution (optional)</option>
+              {institutions.map(inst => (
+                <option key={inst} value={inst}>{inst}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Select your current school to filter programs
+            </p>
+          </div>
+
           {/* Current Program Selection */}
           <div>
             <label htmlFor="current-program" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -450,19 +488,19 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
               aria-describedby={errors.current_program_id ? "current-program-error" : "current-program-desc"}
               value={formData.current_program_id}
               onChange={(e) => handleInputChange('current_program_id', parseInt(e.target.value))}
-              disabled={loadingPrograms || programs.length === 0}
+              disabled={loadingPrograms || currentPrograms.length === 0}
               className={`w-full px-3 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                 errors.current_program_id ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
               }`}
             >
               {loadingPrograms ? (
                 <option value="">Loading programs...</option>
-              ) : programs.length === 0 ? (
+              ) : currentPrograms.length === 0 ? (
                 <option value="">No programs available</option>
               ) : (
                 <>
                   <option value="">Select current program (optional)</option>
-                  {programs.map(program => (
+                  {currentPrograms.map(program => (
                     <option key={program.id} value={program.id}>
                       {program.name} ({program.degree_type})
                     </option>
@@ -478,6 +516,25 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
             </p>
           </div>
 
+          {/* Target Institution Selection */}
+          <div>
+            <label htmlFor="target-institution" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Transfer Target Institution *
+            </label>
+            <select
+              id="target-institution"
+              value={formData.target_institution}
+              onChange={(e) => handleInputChange('target_institution', e.target.value)}
+              disabled={loadingPrograms}
+              className="w-full px-3 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-gray-300 dark:border-gray-600"
+            >
+              <option value="">Select target institution</option>
+              {institutions.map(inst => (
+                <option key={inst} value={inst}>{inst}</option>
+              ))}
+            </select>
+          </div>
+
           {/* Program Selection */}
           <div>
             <label htmlFor="target-program" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -490,19 +547,19 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
               aria-describedby={errors.program_id ? "target-program-error" : "target-program-desc"}
               value={formData.program_id}
               onChange={(e) => handleInputChange('program_id', parseInt(e.target.value))}
-              disabled={loadingPrograms || programs.length === 0}
+              disabled={loadingPrograms || targetPrograms.length === 0}
               className={`w-full px-3 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                 errors.program_id ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
               }`}
             >
               {loadingPrograms ? (
                 <option value="">Loading programs...</option>
-              ) : programs.length === 0 ? (
+              ) : targetPrograms.length === 0 ? (
                 <option value="">No programs available</option>
               ) : (
                 <>
                   <option value="">Select a program</option>
-                  {programs.map(program => (
+                  {targetPrograms.map(program => (
                     <option key={program.id} value={program.id}>
                       {program.name} ({program.degree_type})
                     </option>

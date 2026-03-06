@@ -27,3 +27,6 @@ frontend/dist/
 Thumbs.db
 docs/archive/
 docs/equic-csvs/
+
+# Local-only ops documentation (contains credentials)
+LOCAL_OPS_PROCEDURAL.md

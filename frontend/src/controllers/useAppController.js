@@ -62,42 +62,33 @@ export default function useAppController() {
 
   const loadPlansAndPrograms = useCallback(async () => {
     try {
-      const sessionStatus = await api.getSessionStatus();
-      if (sessionStatus.has_access) {
-        const [planData, prog] = await Promise.all([
-          api.getPlan(sessionStatus.plan_id),
-          // Advisors should see all program versions; students get only current requirements
-          api.getPrograms({ include_all: userMode === 'advisor' })
-        ]);
-        setPlans([planData]);
-        setSelectedPlanId(planData.id);
-        if (planData.plan_code) api.setPlanCode(planData.plan_code);
-        setPrograms(prog || []);
-      } else {
-        // If we have a plan loaded with a plan_code, refresh it by code
-        // Use functional update to access current state without dependency
-        setPlans(currentPlans => {
-          setSelectedPlanId(currentSelectedId => {
-            const currentPlan = currentPlans.find(p => p.id === currentSelectedId);
-            if (currentPlan?.plan_code) {
-              // Refresh plan asynchronously
-              api.getPlanByCode(currentPlan.plan_code)
-                .then(refreshedPlan => {
-                  if (refreshedPlan) {
-                    setPlans([refreshedPlan]);
-                    setSelectedPlanId(refreshedPlan.id);
-                    if (refreshedPlan.plan_code) api.setPlanCode(refreshedPlan.plan_code);
-                  }
-                })
-                .catch(e => console.error('Failed to refresh plan by code:', e));
-            }
-            return currentSelectedId; // Don't change selectedPlanId synchronously
-          });
-          return currentPlans; // Don't change plans synchronously
-        });
-        const prog = await api.getPrograms({ include_all: userMode === 'advisor' });
-        setPrograms(prog || []);
+      // Try restoring the plan from the persisted plan code in localStorage.
+      // This survives page refreshes whereas React state does not.
+      const savedCode = api.currentPlanCode;
+
+      if (savedCode) {
+        try {
+          const [planData, prog] = await Promise.all([
+            api.getPlanByCode(savedCode),
+            api.getPrograms({ include_all: userMode === 'advisor' })
+          ]);
+          if (planData && planData.id) {
+            setPlans([planData]);
+            setSelectedPlanId(planData.id);
+            if (planData.plan_code) api.setPlanCode(planData.plan_code);
+            setPrograms(prog || []);
+            return; // Successfully restored — done
+          }
+        } catch (e) {
+          // Plan code no longer valid — clear it and fall through
+          console.warn('Saved plan code invalid, clearing:', e.message);
+          api.setPlanCode(null);
+        }
       }
+
+      // No saved plan code (or it was invalid) — just load programs
+      const prog = await api.getPrograms({ include_all: userMode === 'advisor' });
+      setPrograms(prog || []);
     } catch (e) {
       console.error(e);
     }
@@ -136,22 +127,11 @@ export default function useAppController() {
         return;
       }
 
-      // fallback: existing session-based reload
+      // fallback: reload plans from API
       try {
-        const sessionStatus = await api.getSessionStatus();
-        if (sessionStatus.has_access) {
-          const planData = await api.getPlan(sessionStatus.plan_id);
-          setPlans([planData]);
-          setSelectedPlanId(planData.id);
-          if (planData.plan_code) {
-            setPlanCreatedModal({ isOpen: true, planData: planData });
-          }
-        } else {
-          await loadPlansAndPrograms();
-        }
+        await loadPlansAndPrograms();
       } catch (e) {
         console.error('Failed to load created plan:', e);
-        await loadPlansAndPrograms();
       }
     };
 
@@ -213,21 +193,8 @@ export default function useAppController() {
     }
   }, [location.pathname, activeTab]);
 
-  // Validate session on mount if not onboarding
-  useEffect(() => {
-    if (!showOnboarding) {
-      (async () => {
-        try {
-          const s = await api.getSessionStatus();
-          if (s?.has_access) {
-            setSelectedPlanId(s.plan_id ?? null);
-          }
-        } catch {
-          // Handle error silently or redirect to onboarding if needed
-        }
-      })();
-    }
-  }, [showOnboarding]);
+  // Plan is now restored via loadPlansAndPrograms reading api.currentPlanCode,
+  // so no separate session validation is needed on mount.
 
   //const Check = () =>{ return <Check />};
   const tabs = useMemo(() => ([
