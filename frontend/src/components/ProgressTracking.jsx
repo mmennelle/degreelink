@@ -11,7 +11,7 @@
 import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import { createPortal } from 'react-dom';
-import { X, Plus, BookOpen, ChevronDown, ChevronUp, AlertCircle, CheckCircle, Info } from 'lucide-react';
+import { X, Plus, BookOpen, ChevronDown, ChevronUp, AlertCircle, CheckCircle } from 'lucide-react';
 
 // Static class map for consistent styling
 const COLOR = {
@@ -516,22 +516,7 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 	// Extract constraint information from requirement
 	const constraints = requirement.constraint_results || [];
 	const hasCourses = requirementCourses.length > 0;
-
-	// Detect ceiling-only constraints (max without min) - these are informational limits, not completion goals
-	const isCeilingConstraint = (c) => {
-		const params = c.params || {};
-		if (c.constraint_type === 'credits') return params.credits_max != null && params.credits_min == null;
-		if (c.constraint_type === 'courses') return params.courses_max != null && params.courses_min == null;
-		if (c.constraint_type === 'max_tag_credits') return true;
-		return false;
-	};
-
-	// For satisfaction badge, only consider non-ceiling constraints (min or min+max)
-	const goalConstraints = constraints.filter(c => !isCeilingConstraint(c));
-	const constraintsSatisfied = hasCourses && goalConstraints.length > 0
-		? goalConstraints.every(c => c.satisfied)
-		: hasCourses && (requirement.constraints_satisfied !== false);
-	// Always show constraints section when constraints exist
+	const constraintsSatisfied = hasCourses ? (requirement.constraints_satisfied !== false) : false;
 	const hasConstraints = constraints.length > 0;
 
 	const generateSuggestions = useCallback(async () => {
@@ -1004,8 +989,8 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 					<button onClick={() => { if (!showSuggestions && suggestions.length === 0 && Object.keys(groupedSuggestions).length === 0) generateSuggestions(); setShowSuggestions(v => !v); }} className="w-full flex items-center justify-between text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
 						<span className="flex items-center">
 							<Plus size={14} className="mr-1" />Course Suggestions
-							{hasConstraints && goalConstraints.length > 0 && !constraintsSatisfied && <span className="ml-2 px-1.5 py-0.5 text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded">Constraints Not Met</span>}
-							{hasConstraints && goalConstraints.length > 0 && constraintsSatisfied && <span className="ml-2 px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">✓</span>}
+							{hasConstraints && !constraintsSatisfied && <span className="ml-2 px-1.5 py-0.5 text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded">Constraints Not Met</span>}
+							{hasConstraints && constraintsSatisfied && <span className="ml-2 px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">✓</span>}
 						</span>
 						{showSuggestions ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
 					</button>
@@ -1014,36 +999,18 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 							{/* Constraint status cards */}
 							{hasConstraints && (
 								<div className="space-y-2 mb-3">
-									{constraints.map((constraint, idx) => {
-										const isCeiling = isCeilingConstraint(constraint);
-										// Ceiling constraints (max-only): blue/neutral when within limit, red when exceeded
-										// Goal constraints (min or min+max): green when met, red when not
-										const cardStyle = isCeiling
-											? (constraint.satisfied
-												? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700'
-												: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700')
-											: (constraint.satisfied
-												? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700'
-												: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700');
-										const textStyle = isCeiling
-											? (constraint.satisfied ? 'text-blue-800 dark:text-blue-300' : 'text-red-800 dark:text-red-300')
-											: (constraint.satisfied ? 'text-green-800 dark:text-green-300' : 'text-red-800 dark:text-red-300');
-										return (
-										<div key={idx} className={`rounded-lg p-2 sm:p-3 border ${cardStyle}`}>
+									{constraints.map((constraint, idx) => (
+										<div key={idx} className={`rounded-lg p-2 sm:p-3 border ${constraint.satisfied ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700'}`}>
 											<div className="flex items-start gap-2">
 												<div className="flex-shrink-0 mt-0.5">
-													{isCeiling ? (
-														constraint.satisfied
-															? <Info size={16} className="text-blue-600 dark:text-blue-400" />
-															: <AlertCircle size={16} className="text-red-600 dark:text-red-400" />
+													{constraint.satisfied ? (
+														<CheckCircle size={16} className="text-green-600 dark:text-green-400" />
 													) : (
-														constraint.satisfied
-															? <CheckCircle size={16} className="text-green-600 dark:text-green-400" />
-															: <AlertCircle size={16} className="text-red-600 dark:text-red-400" />
+														<AlertCircle size={16} className="text-red-600 dark:text-red-400" />
 													)}
 												</div>
 												<div className="flex-1 min-w-0">
-													<p className={`text-xs font-medium break-words ${textStyle}`}>
+													<p className={`text-xs font-medium break-words ${constraint.satisfied ? 'text-green-800 dark:text-green-300' : 'text-red-800 dark:text-red-300'}`}>
 														{getConstraintDescription(constraint)}
 													</p>
 													{!constraint.satisfied && constraint.reason && (
@@ -1059,7 +1026,7 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 												</div>
 											</div>
 										</div>
-									);})}
+									))}
 								</div>
 							)}
 							{loadingSuggestions ? (
