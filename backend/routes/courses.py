@@ -9,7 +9,7 @@ Licensed under the MIT License. See LICENSE file in the project root.
 
 from flask import Blueprint, request, jsonify, session
 from auth import require_admin
-from models import db, Course, Equivalency
+from models import db, Course, Equivalency, PlanCourse
 from sqlalchemy import or_, case, func
 import os
 from hmac import compare_digest
@@ -325,9 +325,14 @@ def delete_course(course_id):
     course = Course.query.get_or_404(course_id)
     
     try:
+        # Remove referencing equivalencies and plan_courses first
+        Equivalency.query.filter(
+            (Equivalency.from_course_id == course_id) | (Equivalency.to_course_id == course_id)
+        ).delete(synchronize_session=False)
+        PlanCourse.query.filter_by(course_id=course_id).delete(synchronize_session=False)
         db.session.delete(course)
         db.session.commit()
         return jsonify({'message': 'Course deleted successfully'})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': 'Failed to delete course'}), 500
+        return jsonify({'error': f'Failed to delete course: {str(e)}'}), 500
