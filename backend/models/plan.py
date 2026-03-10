@@ -835,6 +835,24 @@ class Plan(db.Model):
         violations = []
         for constraint in requirement.constraints:
             try:
+                # Only check constraints that could be EXCEEDED by adding a course.
+                # Minimum constraints (credits_min, min_level_credits, min_tag_courses,
+                # min_courses_at_level, courses_min) can never be violated by adding —
+                # they can only be helped.  Skip them entirely.
+                ctype = constraint.constraint_type
+                params = constraint.get_params()
+
+                is_max_constraint = False
+                if ctype == 'credits' and params.get('credits_max') is not None:
+                    is_max_constraint = True
+                elif ctype == 'max_tag_credits':
+                    is_max_constraint = True
+                elif ctype == 'courses' and params.get('courses_max') is not None:
+                    is_max_constraint = True
+
+                if not is_max_constraint:
+                    continue  # minimum-only — adding never violates
+
                 # Check if constraint applies to this specific course based on scope
                 scope = constraint.get_scope_filter()
                 
