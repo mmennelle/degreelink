@@ -88,16 +88,16 @@ class ProgramRequirement(db.Model):
             'constraints': [constraint.to_dict() for constraint in self.constraints]
         }
     
-    def evaluate_completion(self, student_courses):
+    def evaluate_completion(self, student_courses, equivalency_map=None):
         
         if self.requirement_type == 'simple':
-            return self._evaluate_simple_requirement(student_courses)
+            return self._evaluate_simple_requirement(student_courses, equivalency_map=equivalency_map)
         elif self.requirement_type == 'grouped':
-            return self._evaluate_grouped_requirement(student_courses)
+            return self._evaluate_grouped_requirement(student_courses, equivalency_map=equivalency_map)
         else:
             return {'satisfied': False, 'error': 'Unknown requirement type'}
     
-    def _evaluate_simple_requirement(self, student_courses):
+    def _evaluate_simple_requirement(self, student_courses, equivalency_map=None):
         """
         SIMPLE = Pool of courses with a credit goal.
         Student can choose ANY courses from the pool to meet the credit requirement.
@@ -129,8 +129,11 @@ class ProgramRequirement(db.Model):
                 option_codes.add(option.course_code)
         
         for course in student_courses:
-            if (course.status == 'completed' and 
-                course.course.code in option_codes):
+            raw_code = (course.course.code or '').upper().replace('-', ' ').strip()
+            eq_code = (equivalency_map.get(course.course_id, '') if equivalency_map else '').upper().replace('-', ' ').strip()
+            normalized_options = {(c or '').upper().replace('-', ' ').strip() for c in option_codes}
+            matched = raw_code in normalized_options or (eq_code and eq_code in normalized_options)
+            if course.status == 'completed' and matched:
                 all_matching_courses.append(course)
         
         # Sort by credits (highest first) to maximize credit accumulation
@@ -146,7 +149,7 @@ class ProgramRequirement(db.Model):
             'remaining_credits': max(0, self.credits_required - total_credits)
         }
     
-    def _evaluate_grouped_requirement(self, student_courses):
+    def _evaluate_grouped_requirement(self, student_courses, equivalency_map=None):
         """
         GROUPED = Subdivided pool with multiple mandatory groups.
         Student must satisfy ALL groups (each group has its own requirements).
@@ -157,7 +160,7 @@ class ProgramRequirement(db.Model):
         all_groups_satisfied = True
         
         for group in self.groups:
-            group_result = group.evaluate_completion(student_courses)
+            group_result = group.evaluate_completion(student_courses, equivalency_map=equivalency_map)
             group_results.append(group_result)
             
             # For grouped requirements, each group must be satisfied
@@ -207,7 +210,7 @@ class RequirementGroup(db.Model):
             'course_options': [option.to_dict() for option in self.course_options]
         }
     
-    def evaluate_completion(self, student_courses):
+    def evaluate_completion(self, student_courses, equivalency_map=None):
         
         # Trivial satisfaction: if this group requires zero courses or explicitly zero credits,
         # consider it satisfied without consuming any student courses.
@@ -225,11 +228,15 @@ class RequirementGroup(db.Model):
             }
 
         option_codes = [opt.course_code for opt in self.course_options]
+        normalized_options = {(c or '').upper().replace('-', ' ').strip() for c in option_codes}
         
         matching_courses = []
         for course in student_courses:
+            raw_code = (course.course.code or '').upper().replace('-', ' ').strip()
+            eq_code = (equivalency_map.get(course.course_id, '') if equivalency_map else '').upper().replace('-', ' ').strip()
+            matched = raw_code in normalized_options or (eq_code and eq_code in normalized_options)
             if (course.status == 'completed' and 
-                course.course.code in option_codes and
+                matched and
                 self._meets_credit_requirements(course)):
                 matching_courses.append(course)
         

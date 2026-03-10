@@ -119,7 +119,7 @@ def test_completed_view_uses_strict_group_eval(session, app):
     session.add(plan)
     session.flush()
 
-    # Completed mapping of a SOURCE course should NOT satisfy grouped evaluator in strict mode
+    # Completed SOURCE course should satisfy grouped evaluator via equivalency map
     pc = PlanCourse(plan_id=plan.id, course_id=s1.id, status='completed')
     session.add(pc)
     session.commit()
@@ -128,10 +128,10 @@ def test_completed_view_uses_strict_group_eval(session, app):
     reqs = prog_result.get('requirements') or []
     found = next((r for r in reqs if (r.get('category') == 'Test Grouped' or r.get('name') == 'Test Grouped')), None)
     assert found is not None
-    assert (found.get('completedCredits') or 0) == 0
-    assert found.get('status') in ('none', 'part')
+    assert (found.get('completedCredits') or 0) >= 3
+    assert found.get('status') in ('met', 'part')
 
-    # Now add the direct TARGET course and verify strict grouped evaluation counts it
+    # Adding the direct TARGET course as well should still work
     pc2 = PlanCourse(plan_id=plan.id, course_id=t1.id, status='completed')
     session.add(pc2)
     session.commit()

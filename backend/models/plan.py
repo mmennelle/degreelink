@@ -364,8 +364,18 @@ class Plan(db.Model):
 
     def _evaluate_grouped_requirement(self, req, relevant_courses, req_total, program, prog_id):
         """Evaluate a grouped requirement using the proper group evaluator."""
+        # Build equivalency map: course_id -> equivalent course code at this program's institution
+        equivalency_map = {}
+        for pc in relevant_courses:
+            try:
+                eq = self._get_equivalent_course(pc, program)
+                if eq:
+                    equivalency_map[pc.course_id] = eq.code
+            except Exception:
+                pass
+        
         try:
-            eval_result = req.evaluate_completion(relevant_courses)
+            eval_result = req.evaluate_completion(relevant_courses, equivalency_map=equivalency_map)
         except Exception as e:
             # Log error and return empty result
             import logging
@@ -846,15 +856,19 @@ class Plan(db.Model):
             'violations': violations
         }
     
-    def get_unmet_requirements(self):
+    def get_unmet_requirements(self, program=None):
+        program = program or self.target_program
         unmet = []
-        if not self.target_program:
+        if not program:
             return unmet
             
         canon = self.normalize_category
-        # Compare plan's completed credits against the TARGET program's locked requirements
-        locked_requirements = self.get_locked_requirements()
-        for requirement in locked_requirements:
+        # Compare plan's completed credits against the program's requirements
+        if program == self.target_program:
+            requirements_list = self.get_locked_requirements()
+        else:
+            requirements_list = program.requirements or []
+        for requirement in requirements_list:
             completed_credits = sum(
                 (pc.credits or (pc.course.credits if pc.course else 0) or 0)
                 for pc in self.courses
@@ -870,14 +884,21 @@ class Plan(db.Model):
         return unmet
 
 
-    def suggest_courses_for_requirements(self):
+    def suggest_courses_for_requirements(self, program=None):
+        program = program or self.target_program
+        if not program:
+            return []
+        
         suggestions = []
         # Exclude any course already on the plan (planned, in_progress, completed)
         excluded_course_ids = [course.course_id for course in (self.courses or [])]
-        unmet_requirements = self.get_unmet_requirements()
+        unmet_requirements = self.get_unmet_requirements(program=program)
 
-        # Get locked requirements for this plan
-        locked_requirements = self.get_locked_requirements()
+        # Get locked requirements for target program, or program's own requirements for current
+        if program == self.target_program:
+            locked_requirements = self.get_locked_requirements()
+        else:
+            locked_requirements = program.requirements or []
 
         for unmet_req in unmet_requirements:
             category = unmet_req['category']
@@ -900,12 +921,12 @@ class Plan(db.Model):
             
             if program_requirement.requirement_type == 'grouped':
                 category_suggestions['course_options'] = self._get_grouped_requirement_suggestions(
-                    program_requirement, excluded_course_ids
+                    program_requirement, excluded_course_ids, program=program
                 )
             else:
                 # Only propose courses that would actually count for this requirement
                 category_suggestions['course_options'] = self._get_simple_requirement_suggestions(
-                    category, excluded_course_ids, credits_needed, program_requirement
+                    category, excluded_course_ids, credits_needed, program_requirement, program=program
                 )
             
             if any(course.course and course.course.institution for course in (self.courses or [])):
@@ -917,16 +938,17 @@ class Plan(db.Model):
         
         return suggestions
 
-    def _get_grouped_requirement_suggestions(self, requirement, excluded_course_ids):
+    def _get_grouped_requirement_suggestions(self, requirement, excluded_course_ids, program=None):
         from .course import Course
         
+        program = program or self.target_program
         suggestions = []
         
         for group in requirement.groups:
             for course_option in group.course_options:
                 course = Course.query.filter_by(
                     code=course_option.course_code,
-                    institution=course_option.institution or self.target_program.institution
+                    institution=course_option.institution or program.institution
                 ).first()
                 
                 if course and course.id not in excluded_course_ids:
@@ -945,8 +967,8 @@ class Plan(db.Model):
         
         return suggestions
 
-    def _get_simple_requirement_suggestions(self, category, excluded_course_ids, credits_needed, program_requirement=None):
-        """Suggest only courses at the target institution that would satisfy the given simple requirement.
+    def _get_simple_requirement_suggestions(self, category, excluded_course_ids, credits_needed, program_requirement=None, program=None):
+        """Suggest only courses at the program's institution that would satisfy the given simple requirement.
 
         This uses subject-code based mappings rather than broad department matches, and excludes
         courses already completed in the plan. If a mapping isn't found, it falls back to the
@@ -980,8 +1002,9 @@ class Plan(db.Model):
         norm = (category or '').strip().lower()
         subjects = subject_mappings.get(norm, [])
 
+        target_institution = (program or self.target_program).institution
         query = Course.query.filter(
-            Course.institution == self.target_program.institution,
+            Course.institution == target_institution,
             ~Course.id.in_(excluded_course_ids)
         )
         if subjects:
@@ -1028,7 +1051,7 @@ class Plan(db.Model):
         # We can't ensure exact credit matching here; leave selection to the user with clear options
         return valid[:12]
 
-    def _will_course_satisfy_requirement(self, course, requirement, category_hint: str | None = None) -> bool:
+    def _will_course_satisfy_requirement(self, course, requirement, category_hint: str | None = None, program=None) -> bool:
         """Return True if the candidate course would count toward the requirement.
 
         Grouped requirements: course code must appear in at least one group's options (respecting
@@ -1041,6 +1064,8 @@ class Plan(db.Model):
         from .program import ProgramRequirement
         if not course:
             return False
+
+        target_institution = (program or self.target_program).institution
 
         if isinstance(requirement, ProgramRequirement) and requirement.requirement_type == 'grouped':
             # Check if the course code appears in any allowed option in any group
@@ -1077,15 +1102,19 @@ class Plan(db.Model):
         }
         subjects = subject_mappings.get(norm, [])
         if subjects:
-            return (course.subject_code or '').upper() in subjects and course.institution == self.target_program.institution
+            return (course.subject_code or '').upper() in subjects and course.institution == target_institution
         # Fallback to department contains category keyword
         if norm:
             dept = (course.department or '').lower()
-            return (norm in dept) and course.institution == self.target_program.institution
+            return (norm in dept) and course.institution == target_institution
         return False
 
     def _get_transfer_suggestions(self, course_options):
         from .equivalency import Equivalency
+        
+        current_institution = self.current_program.institution if self.current_program else None
+        if not current_institution:
+            return []
         
         transfer_options = []
         
@@ -1093,9 +1122,9 @@ class Plan(db.Model):
             equivalencies = Equivalency.query.filter_by(to_course_id=course_option['id']).all()
             
             for equiv in equivalencies:
-                if equiv.from_course.institution == 'Delgado Community College':
+                if equiv.from_course.institution == current_institution:
                     transfer_options.append({
-                        'dcc_course': {
+                        'transfer_course': {
                             'id': equiv.from_course.id,
                             'code': equiv.from_course.code,
                             'title': equiv.from_course.title,
@@ -1103,7 +1132,7 @@ class Plan(db.Model):
                             'description': equiv.from_course.description,
                             'prerequisites': equiv.from_course.prerequisites
                         },
-                        'uno_equivalent': {
+                        'target_equivalent': {
                             'id': equiv.to_course.id,
                             'code': equiv.to_course.code,
                             'title': equiv.to_course.title,
