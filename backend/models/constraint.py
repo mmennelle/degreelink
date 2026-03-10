@@ -214,8 +214,16 @@ class RequirementConstraint(db.Model):
             
             # Group name filtering (for group-level constraints)
             if 'group_name' in scope:
-                # PlanCourse should have group_name attribute from the requirement_group assignment
-                pc_group_name = getattr(pc, 'group_name', None)
+                pc_group_name = getattr(pc, '_resolved_group_name', None)
+                # Fallback: resolve from requirement_group_id
+                if pc_group_name is None and getattr(pc, 'requirement_group_id', None):
+                    try:
+                        from .program import RequirementGroup
+                        grp = RequirementGroup.query.get(pc.requirement_group_id)
+                        if grp:
+                            pc_group_name = grp.group_name
+                    except Exception:
+                        pass
                 if pc_group_name != scope['group_name']:
                     match = False
             

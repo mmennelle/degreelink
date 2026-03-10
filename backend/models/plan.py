@@ -389,11 +389,19 @@ class Plan(db.Model):
         
         # Extract courses from group_results for constraint evaluation
         applied = []
+        matched_pc_ids = set()
+        pc_group_names = {}  # pc_id → group_name from evaluator results
         group_results = (eval_result or {}).get('group_results', [])
         for gr in group_results:
+            gname = gr.get('group_name')
             for course_dict in gr.get('courses_used', []):
                 # course_dict is already a dict from PlanCourse.to_dict()
                 applied.append(course_dict)
+                cid = course_dict.get('id') or course_dict.get('plan_course_id')
+                if cid:
+                    matched_pc_ids.add(cid)
+                    if gname:
+                        pc_group_names[cid] = gname
         
         # --- Phase 2: Evaluate constraints if present ---
         constraint_results = []
@@ -403,10 +411,17 @@ class Plan(db.Model):
             import logging
             logging.info(f"Evaluating {len(req.constraints)} constraint(s) for requirement {req.id} ({req.category})")
             
+            # Annotate matched PlanCourses with resolved group names for scope filtering
+            valid_courses = []
+            for c in relevant_courses:
+                if c.id not in matched_pc_ids or getattr(c, 'constraint_violation', False):
+                    continue
+                if c.id in pc_group_names:
+                    c._resolved_group_name = pc_group_names[c.id]
+                valid_courses.append(c)
+            
             for constraint in req.constraints:
                 try:
-                    # Only evaluate courses that actually matched this requirement
-                    valid_courses = [c for c in relevant_courses if c.id in matched_pc_ids and not getattr(c, 'constraint_violation', False)]
                     constraint_eval = constraint.evaluate(valid_courses)
                     constraint_results.append({
                         **constraint_eval,
@@ -479,17 +494,24 @@ class Plan(db.Model):
         req_canon = canon(getattr(req, 'category', ''))
         req_type = getattr(req, 'requirement_type', 'simple')
         
-        # Collect group IDs and allowed codes for both grouped and simple requirements
+        # Collect group IDs, allowed codes, and code→group_name mapping
         # (simple requirements can also have groups representing course pools)
         group_ids = []
         allowed_codes = set()
+        code_to_group_name = {}  # course_code → group_name for scope resolution
+        group_id_to_name = {}   # group_id → group_name
         try:
             for g in (req.groups or []):
                 group_ids.append(g.id)
+                gname = getattr(g, 'group_name', None)
+                if gname:
+                    group_id_to_name[g.id] = gname
                 for opt in (g.course_options or []):
                     code_norm = (getattr(opt, 'course_code', '') or '').upper().replace('-', ' ').strip()
                     if code_norm:
                         allowed_codes.add(code_norm)
+                        if gname:
+                            code_to_group_name[code_norm] = gname
         except Exception:
             pass
         
@@ -612,10 +634,23 @@ class Plan(db.Model):
             import logging
             logging.info(f"Evaluating {len(req.constraints)} constraint(s) for simple requirement {req.id} ({req.category})")
             
+            # Annotate matched courses with resolved group_name for scope filtering
+            valid_courses = []
+            for c in relevant_courses:
+                if c.id not in matched_pc_ids or getattr(c, 'constraint_violation', False):
+                    continue
+                # Resolve group name: explicit group_id → name, or course code → group name
+                if not getattr(c, '_resolved_group_name', None):
+                    gid = getattr(c, 'requirement_group_id', None)
+                    if gid and gid in group_id_to_name:
+                        c._resolved_group_name = group_id_to_name[gid]
+                    elif hasattr(c, 'course') and c.course:
+                        cc = (c.course.code or '').upper().replace('-', ' ').strip()
+                        c._resolved_group_name = code_to_group_name.get(cc)
+                valid_courses.append(c)
+            
             for constraint in req.constraints:
                 try:
-                    # Only evaluate courses that actually matched this requirement
-                    valid_courses = [c for c in relevant_courses if c.id in matched_pc_ids and not getattr(c, 'constraint_violation', False)]
                     constraint_eval = constraint.evaluate(valid_courses)
                     constraint_results.append({
                         **constraint_eval,
