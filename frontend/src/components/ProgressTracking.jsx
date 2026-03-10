@@ -419,6 +419,14 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 		const type = constraint.constraint_type;
 		
 		switch (type) {
+			case 'credits': {
+				const min = params.credits_min;
+				const max = params.credits_max;
+				if (min != null && max != null) return `Between ${min} and ${max} credits required`;
+				if (min != null) return `At least ${min} credits required`;
+				if (max != null) return `At most ${max} credits allowed`;
+				return 'Credits';
+			}
 			case 'min_level_credits':
 				return `Need at least ${params.credits || 0} credits from ${params.level_min || 0}-level or higher courses`;
 			case 'max_tag_credits':

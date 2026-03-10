@@ -119,7 +119,9 @@ class RequirementConstraint(db.Model):
         scoped_courses = self._apply_scope_filter(courses, scope)
         
         # Delegate to specific evaluator
-        if constraint_type == 'min_level_credits':
+        if constraint_type == 'credits':
+            return self._evaluate_credits(scoped_courses, params)
+        elif constraint_type == 'min_level_credits':
             return self._evaluate_min_level_credits(scoped_courses, params)
         elif constraint_type == 'min_tag_courses':
             return self._evaluate_min_tag_courses(scoped_courses, params)
@@ -127,12 +129,74 @@ class RequirementConstraint(db.Model):
             return self._evaluate_max_tag_credits(scoped_courses, params)
         elif constraint_type == 'min_courses_at_level':
             return self._evaluate_min_courses_at_level(scoped_courses, params)
+        elif constraint_type == 'courses':
+            return self._evaluate_course_count(scoped_courses, params)
         else:
             return {
                 'satisfied': True,
                 'reason': f'Unknown constraint type: {constraint_type}',
                 'tally': {}
             }
+    
+    def _evaluate_credits(self, courses, params):
+        """Evaluate: Total credits within min/max bounds."""
+        credits_min = params.get('credits_min')
+        credits_max = params.get('credits_max')
+        
+        total_credits = 0
+        for pc in courses:
+            course = pc.course if hasattr(pc, 'course') else None
+            if course:
+                total_credits += (pc.credits or course.credits or 0)
+        
+        satisfied = True
+        reasons = []
+        if credits_min is not None and total_credits < credits_min:
+            satisfied = False
+            reasons.append(f'Need {credits_min}cr, have {total_credits}cr')
+        if credits_max is not None and total_credits > credits_max:
+            satisfied = False
+            reasons.append(f'Maximum {credits_max}cr allowed, have {total_credits}cr')
+        
+        tally = {'credits_earned': total_credits}
+        if credits_min is not None:
+            tally['credits_required'] = credits_min
+        if credits_max is not None:
+            tally['credits_max'] = credits_max
+        
+        return {
+            'satisfied': satisfied,
+            'reason': '; '.join(reasons) if reasons else None,
+            'tally': tally
+        }
+    
+    def _evaluate_course_count(self, courses, params):
+        """Evaluate: Total course count within min/max bounds."""
+        courses_min = params.get('courses_min')
+        courses_max = params.get('courses_max')
+        
+        total_courses = len(courses)
+        
+        satisfied = True
+        reasons = []
+        if courses_min is not None and total_courses < courses_min:
+            satisfied = False
+            reasons.append(f'Need {courses_min} courses, have {total_courses}')
+        if courses_max is not None and total_courses > courses_max:
+            satisfied = False
+            reasons.append(f'Maximum {courses_max} courses allowed, have {total_courses}')
+        
+        tally = {'courses_earned': total_courses}
+        if courses_min is not None:
+            tally['courses_required'] = courses_min
+        if courses_max is not None:
+            tally['courses_max'] = courses_max
+        
+        return {
+            'satisfied': satisfied,
+            'reason': '; '.join(reasons) if reasons else None,
+            'tally': tally
+        }
     
     def _apply_scope_filter(self, courses, scope):
         """Filter courses based on scope_filter criteria."""
@@ -253,7 +317,7 @@ class RequirementConstraint(db.Model):
     def _evaluate_min_courses_at_level(self, courses, params):
         """Evaluate: At least X courses at or above a specific level."""
         level = params.get('level', 0)
-        courses_required = params.get('courses', 0)
+        courses_required = params.get('courses', 1)
         
         matching_courses = 0
         for pc in courses:
