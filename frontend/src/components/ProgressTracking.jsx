@@ -408,7 +408,6 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 	const [groupedSuggestions, setGroupedSuggestions] = useState({}); // For grouped requirements, keyed by group_name
 	const [expandedGroups, setExpandedGroups] = useState({}); // Track which groups are expanded
 	const [loadingSuggestions, setLoadingSuggestions] = useState(false);
-	const [showConstraints, setShowConstraints] = useState(false);
 	const { name, status, completedCredits, totalCredits, description, programRequirement} = requirement;
 	
 	// Helper to generate human-readable constraint descriptions
@@ -959,17 +958,11 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 										<div className="flex-1 min-w-0">
 											<div className="flex items-center gap-1 flex-wrap">
 												<h6 className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">{pc.course?.code}: {pc.course?.title}</h6>
-												{pc.ccn_info && (
-													<span className="px-1.5 py-0.5 text-xs bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded flex-shrink-0" title={`Statewide transfer via CCN ${pc.ccn_info.ccn_course?.code || ''} ${pc.ccn_info.matrix_year || ''}`}>🔄 CCN</span>
-												)}
 												{pc.constraint_violation && (
 													<span className="px-1.5 py-0.5 text-xs bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200 rounded flex-shrink-0" title={pc.constraint_violation_reason}>⚠️</span>
 												)}
 											</div>
 											<p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{(pc.credits || pc.course?.credits) ?? 0} credits • {pc.course?.institution}</p>
-											{pc.ccn_info && (
-												<p className="text-xs text-purple-600 dark:text-purple-400 mt-0.5">🔄 Louisiana Statewide Transfer → {pc.ccn_info.ccn_course?.code} {pc.ccn_info.matrix_year ? `(${pc.ccn_info.matrix_year})` : ''}</p>
-											)}
 											{pc.constraint_violation && pc.constraint_violation_reason && (
 												<p className="text-xs text-orange-600 dark:text-orange-400 mt-1">⚠️ {pc.constraint_violation_reason}</p>
 											)}
@@ -994,60 +987,51 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 					)}
 				</div>
 			)}
-			{hasConstraints && (
-				<div className="mb-2">
-					<button onClick={() => setShowConstraints(v => !v)} className="w-full flex items-center justify-between text-sm font-medium text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 transition-colors p-1 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded">
-						<span className="flex items-center flex-wrap gap-1">
-							<span className="flex items-center">
-								<AlertCircle size={14} className="mr-1" />
-								Constraints ({constraints.length})
-							</span>
-							{!constraintsSatisfied && <span className="px-1.5 py-0.5 text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded">Not Met</span>}
-							{constraintsSatisfied && <span className="px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">✓</span>}
-						</span>
-						{showConstraints ? <ChevronUp size={14} className="flex-shrink-0 ml-2" /> : <ChevronDown size={14} className="flex-shrink-0 ml-2" />}
-					</button>
-					{showConstraints && (
-						<div className="mt-3 space-y-2">
-							{constraints.map((constraint, idx) => (
-								<div key={idx} className={`rounded-lg p-2 sm:p-3 border ${constraint.satisfied ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700'}`}>
-									<div className="flex items-start gap-2">
-										<div className="flex-shrink-0 mt-0.5">
-											{constraint.satisfied ? (
-												<CheckCircle size={16} className="text-green-600 dark:text-green-400" />
-											) : (
-												<AlertCircle size={16} className="text-red-600 dark:text-red-400" />
-											)}
-										</div>
-										<div className="flex-1 min-w-0">
-											<p className={`text-xs font-medium break-words ${constraint.satisfied ? 'text-green-800 dark:text-green-300' : 'text-red-800 dark:text-red-300'}`}>
-												{getConstraintDescription(constraint)}
-											</p>
-											{!constraint.satisfied && constraint.reason && (
-												<p className="text-xs text-red-600 dark:text-red-400 mt-1 break-words">{constraint.reason}</p>
-											)}
-											{constraint.tally && Object.keys(constraint.tally).length > 0 && (
-												<div className="text-xs text-gray-600 dark:text-gray-400 mt-1 flex flex-wrap gap-2">
-													{Object.entries(constraint.tally).map(([key, value]) => (
-														<span key={key} className="whitespace-nowrap">{humanizeTallyKey(key)}: {value}</span>
-													))}
-												</div>
-											)}
-										</div>
-									</div>
-								</div>
-							))}
-						</div>
-					)}
-				</div>
-			)}
 			{onAddCourse && (
 				<div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
 					<button onClick={() => { if (!showSuggestions && suggestions.length === 0 && Object.keys(groupedSuggestions).length === 0) generateSuggestions(); setShowSuggestions(v => !v); }} className="w-full flex items-center justify-between text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
-						<span className="flex items-center"><Plus size={14} className="mr-1" />Course Suggestions</span>{showSuggestions ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+						<span className="flex items-center">
+							<Plus size={14} className="mr-1" />Course Suggestions
+							{hasConstraints && !constraintsSatisfied && <span className="ml-2 px-1.5 py-0.5 text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded">Constraints Not Met</span>}
+							{hasConstraints && constraintsSatisfied && <span className="ml-2 px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">✓</span>}
+						</span>
+						{showSuggestions ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
 					</button>
 					{showSuggestions && (
 						<div className="mt-3 space-y-3">
+							{/* Constraint status cards */}
+							{hasConstraints && (
+								<div className="space-y-2 mb-3">
+									{constraints.map((constraint, idx) => (
+										<div key={idx} className={`rounded-lg p-2 sm:p-3 border ${constraint.satisfied ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700'}`}>
+											<div className="flex items-start gap-2">
+												<div className="flex-shrink-0 mt-0.5">
+													{constraint.satisfied ? (
+														<CheckCircle size={16} className="text-green-600 dark:text-green-400" />
+													) : (
+														<AlertCircle size={16} className="text-red-600 dark:text-red-400" />
+													)}
+												</div>
+												<div className="flex-1 min-w-0">
+													<p className={`text-xs font-medium break-words ${constraint.satisfied ? 'text-green-800 dark:text-green-300' : 'text-red-800 dark:text-red-300'}`}>
+														{getConstraintDescription(constraint)}
+													</p>
+													{!constraint.satisfied && constraint.reason && (
+														<p className="text-xs text-red-600 dark:text-red-400 mt-1 break-words">{constraint.reason}</p>
+													)}
+													{constraint.tally && Object.keys(constraint.tally).length > 0 && (
+														<div className="text-xs text-gray-600 dark:text-gray-400 mt-1 flex flex-wrap gap-2">
+															{Object.entries(constraint.tally).map(([key, value]) => (
+																<span key={key} className="whitespace-nowrap">{humanizeTallyKey(key)}: {value}</span>
+															))}
+														</div>
+													)}
+												</div>
+											</div>
+										</div>
+									))}
+								</div>
+							)}
 							{loadingSuggestions ? (
 								<div className="flex items-center justify-center py-4"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div><span className="ml-2 text-sm text-gray-600 dark:text-gray-400">Loading suggestions...</span></div>
 							) : Object.keys(groupedSuggestions).length > 0 ? (

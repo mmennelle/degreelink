@@ -405,8 +405,8 @@ class Plan(db.Model):
             
             for constraint in req.constraints:
                 try:
-                    # Filter out courses marked as constraint violations before evaluating
-                    valid_courses = [c for c in relevant_courses if not getattr(c, 'constraint_violation', False)]
+                    # Only evaluate courses that actually matched this requirement
+                    valid_courses = [c for c in relevant_courses if c.id in matched_pc_ids and not getattr(c, 'constraint_violation', False)]
                     constraint_eval = constraint.evaluate(valid_courses)
                     constraint_results.append({
                         **constraint_eval,
@@ -479,19 +479,21 @@ class Plan(db.Model):
         req_canon = canon(getattr(req, 'category', ''))
         req_type = getattr(req, 'requirement_type', 'simple')
         
-        # For grouped requirements in legacy mode, collect group IDs and allowed codes
+        # Collect group IDs and allowed codes for both grouped and simple requirements
+        # (simple requirements can also have groups representing course pools)
         group_ids = []
         allowed_codes = set()
-        if req_type == 'grouped':
-            try:
-                for g in (req.groups or []):
-                    group_ids.append(g.id)
-                    for opt in (g.course_options or []):
-                        code_norm = (getattr(opt, 'course_code', '') or '').upper().replace('-', ' ').strip()
-                        if code_norm:
-                            allowed_codes.add(code_norm)
-            except Exception:
-                pass
+        try:
+            for g in (req.groups or []):
+                group_ids.append(g.id)
+                for opt in (g.course_options or []):
+                    code_norm = (getattr(opt, 'course_code', '') or '').upper().replace('-', ' ').strip()
+                    if code_norm:
+                        allowed_codes.add(code_norm)
+        except Exception:
+            pass
+        
+        prog_institution = getattr(program, 'institution', None)
         
         # Accumulate matching courses
         completed = 0
@@ -499,8 +501,14 @@ class Plan(db.Model):
         matched_pc_ids = set()  # Track which PlanCourse IDs matched this requirement
         
         for pc in relevant_courses:
+            course_institution = getattr(pc.course, 'institution', None) if pc.course else None
+            is_cross_institution = (course_institution and prog_institution and
+                                    course_institution != prog_institution)
+            
             course_canon = canon(getattr(pc, 'requirement_category', ''))
-            cat_match = (course_canon == req_canon)
+            # Category name match is only valid for courses from this program's institution.
+            # Cross-institution courses must prove relevance via equivalency or group match.
+            cat_match = (course_canon == req_canon) and not is_cross_institution
             group_match = (group_ids and getattr(pc, 'requirement_group_id', None) in group_ids)
             
             # For grouped requirements without direct group assignment,
@@ -533,11 +541,16 @@ class Plan(db.Model):
                 try:
                     eq_course = self._get_equivalent_course(pc, program)
                     if eq_course:
-                        # Check if the equivalent course's natural category matches
-                        eq_dept = (getattr(eq_course, 'department', '') or '').strip()
-                        if eq_dept and canon(eq_dept) == req_canon:
-                            cat_match = True
-                        # Also check subject_code based matching
+                        # If the requirement has allowed_codes (from groups), check those first
+                        if allowed_codes:
+                            eq_code_norm = (eq_course.code or '').upper().replace('-', ' ').strip()
+                            if eq_code_norm in allowed_codes:
+                                cat_match = True
+                        # Otherwise fall back to department/subject matching
+                        if not cat_match:
+                            eq_dept = (getattr(eq_course, 'department', '') or '').strip()
+                            if eq_dept and canon(eq_dept) == req_canon:
+                                cat_match = True
                         if not cat_match:
                             eq_subj = (getattr(eq_course, 'subject_code', '') or '').upper().strip()
                             expected_subjects = _get_expected_subjects(getattr(req, 'category', ''))
@@ -601,8 +614,8 @@ class Plan(db.Model):
             
             for constraint in req.constraints:
                 try:
-                    # Filter out courses marked as constraint violations before evaluating
-                    valid_courses = [c for c in relevant_courses if not getattr(c, 'constraint_violation', False)]
+                    # Only evaluate courses that actually matched this requirement
+                    valid_courses = [c for c in relevant_courses if c.id in matched_pc_ids and not getattr(c, 'constraint_violation', False)]
                     constraint_eval = constraint.evaluate(valid_courses)
                     constraint_results.append({
                         **constraint_eval,
