@@ -1091,6 +1091,8 @@ def upload_requirements():
                 # min_courses is used here as min_courses_at_level
                 if constraint_data['min_courses']:
                     params['courses'] = int(constraint_data['min_courses'])
+                else:
+                    params['courses'] = 1  # Default to at least 1 course if not specified
                 
                 constraint = RequirementConstraint(
                     requirement_id=requirement.id,
@@ -1198,7 +1200,7 @@ def upload_constraints():
         errors = []
 
         # Valid constraint types
-        valid_types = ['min_level_credits', 'min_tag_courses', 'max_tag_credits', 'min_courses_at_level']
+        valid_types = ['credits', 'courses', 'min_level_credits', 'min_tag_courses', 'max_tag_credits', 'min_courses_at_level']
 
         for row_num, row in enumerate(csv_reader, start=2):
             try:
@@ -1233,16 +1235,33 @@ def upload_constraints():
                     errors.append(f"Row {row_num}: Requirement category '{category}' not found for program '{program_name}'")
                     continue
 
-                # Only allow constraints on grouped requirements
-                if requirement.requirement_type != 'grouped':
-                    errors.append(f"Row {row_num}: Constraints can only be applied to 'grouped' requirement types. '{category}' is '{requirement.requirement_type}'")
-                    continue
-
                 # Build params dict based on constraint type
                 params = {}
                 scope_filter = {}
 
-                if constraint_type == 'min_level_credits':
+                if constraint_type == 'credits':
+                    min_credits = row.get('min_credits', '').strip()
+                    max_credits = row.get('max_credits', '').strip()
+                    if not min_credits and not max_credits:
+                        errors.append(f"Row {row_num}: credits requires min_credits and/or max_credits")
+                        continue
+                    if min_credits:
+                        params['credits_min'] = int(min_credits)
+                    if max_credits:
+                        params['credits_max'] = int(max_credits)
+
+                elif constraint_type == 'courses':
+                    min_courses = row.get('min_courses', '').strip()
+                    max_courses = row.get('max_courses', '').strip()
+                    if not min_courses and not max_courses:
+                        errors.append(f"Row {row_num}: courses requires min_courses and/or max_courses")
+                        continue
+                    if min_courses:
+                        params['courses_min'] = int(min_courses)
+                    if max_courses:
+                        params['courses_max'] = int(max_courses)
+
+                elif constraint_type == 'min_level_credits':
                     min_credits = row.get('min_credits', '').strip()
                     min_level = row.get('min_level', '').strip()
                     if not min_credits or not min_level:
