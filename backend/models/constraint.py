@@ -251,21 +251,21 @@ class RequirementConstraint(db.Model):
         }
     
     def _evaluate_min_courses_at_level(self, courses, params):
-        """Evaluate: At least X courses at specific level."""
+        """Evaluate: At least X courses at or above a specific level."""
         level = params.get('level', 0)
         courses_required = params.get('courses', 0)
         
         matching_courses = 0
         for pc in courses:
             course = pc.course if hasattr(pc, 'course') else None
-            if course and course.course_level == level:
+            if course and course.course_level >= level:
                 matching_courses += 1
         
         return {
             'satisfied': matching_courses >= courses_required,
-            'reason': f'Need {courses_required} courses at {level} level, have {matching_courses}' if matching_courses < courses_required else None,
+            'reason': f'Need {courses_required} courses at {level}+ level, have {matching_courses}' if matching_courses < courses_required else None,
             'tally': {
-                f'courses_at_{level}': matching_courses,
-                f'courses_at_{level}_required': courses_required
+                f'courses_at_{level}+': matching_courses,
+                f'courses_at_{level}+_required': courses_required
             }
         }

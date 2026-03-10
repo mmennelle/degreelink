@@ -8,7 +8,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { User, Mail, BookOpen, X } from 'lucide-react';
+import { User, Mail, BookOpen, X, FileUp, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import api from '../services/api';
 
 const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' }) => {
@@ -19,11 +19,22 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
     plan_name: '',
     current_program_id: '',
     program_id: '', 
+    current_institution: '',
+    target_institution: '',
   });
 
   // Add state for programs
   const [programs, setPrograms] = useState([]);
   const [loadingPrograms, setLoadingPrograms] = useState(false);
+
+  // Derive distinct institution list and filtered programs from the full list
+  const institutions = [...new Set(programs.map(p => p.institution).filter(Boolean))].sort();
+  const currentPrograms = formData.current_institution
+    ? programs.filter(p => p.institution === formData.current_institution)
+    : programs;
+  const targetPrograms = formData.target_institution
+    ? programs.filter(p => p.institution === formData.target_institution)
+    : programs;
 
   // Add state for viewport height to handle iOS keyboard
   const [viewportHeight, setViewportHeight] = useState(() => 
@@ -49,11 +60,6 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
       const response = await api.getPrograms(); // This needs to be implemented in your api service
       const programsList = response.programs || [];
       setPrograms(programsList);
-      
-      // Set default program_id to the first program if available
-      if (programsList.length > 0 && !formData.program_id) {
-        setFormData(prev => ({ ...prev, program_id: programsList[0].id }));
-      }
     } catch (error) {
       console.error('Failed to fetch programs:', error);
       // You might want to show an error message to the user here
@@ -138,14 +144,26 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
         student_name: '', 
         plan_name: '', 
         student_email: '',
-        current_program_id: programs.length > 0 ? programs[0].id : '',
-        program_id: programs.length > 0 ? programs[0].id : ''
+        current_institution: '',
+        target_institution: '',
+        current_program_id: '',
+        program_id: ''
       }));
+      setTranscriptEnabled(false);
+      setTranscriptFile(null);
+      setImportResult(null);
     }
-  }, [userMode, isOpen, programs]);
+  }, [userMode, isOpen]);
 
   const [creating, setCreating] = useState(false);
   const [errors, setErrors] = useState({});
+
+  // Transcript upload state
+  const [transcriptEnabled, setTranscriptEnabled] = useState(false);
+  const [transcriptFile, setTranscriptFile] = useState(null);
+  const [importResult, setImportResult] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef(null);
 
   const validateForm = () => {
     const newErrors = {};
@@ -153,21 +171,43 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
     if (!formData.student_name.trim()) {
       newErrors.student_name = 'Student name is required';
     }
+
+    if (!formData.student_email || !formData.student_email.trim()) {
+      newErrors.student_email = 'Email is required';
+    } else if (!isValidEmail(formData.student_email)) {
+      newErrors.student_email = 'Please enter a valid email address';
+    }
     
     if (!formData.plan_name.trim()) {
       newErrors.plan_name = 'Plan name is required';
     }
 
-    if (!formData.program_id) {
-      newErrors.program_id = 'Please select a program';
+    if (!formData.current_institution) {
+      newErrors.current_institution = 'Please select your current institution';
     }
-    
-    if (formData.student_email && !isValidEmail(formData.student_email)) {
-      newErrors.student_email = 'Please enter a valid email address';
+
+    if (!formData.target_institution) {
+      newErrors.target_institution = 'Please select the transfer target institution';
+    }
+
+    if (!formData.program_id) {
+      newErrors.program_id = 'Please select a target program';
     }
     
     if (formData.advisor_email && !isValidEmail(formData.advisor_email)) {
       newErrors.advisor_email = 'Please enter a valid advisor email address';
+    }
+
+    // Build a summary of missing required fields for the submit error banner
+    const missingFields = [];
+    if (newErrors.student_name) missingFields.push('Name');
+    if (newErrors.student_email) missingFields.push('Email');
+    if (newErrors.plan_name) missingFields.push('Plan Name');
+    if (newErrors.current_institution) missingFields.push('Current Institution');
+    if (newErrors.target_institution) missingFields.push('Target Institution');
+    if (newErrors.program_id) missingFields.push('Target Program');
+    if (missingFields.length > 0) {
+      newErrors.submit = `Please fill in the required fields: ${missingFields.join(', ')}`;
     }
 
     setErrors(newErrors);
@@ -190,31 +230,59 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
     setErrors({});
 
     try {
-      // (Debug logging removed after token issue resolution)
       const createdPlan = await api.createPlan(formData);
-      console.debug('createdPlan', createdPlan);
-
       const plan = createdPlan?.plan ?? createdPlan;
-      console.log('About to call onPlanCreated with:', plan);
-      console.log('onPlanCreated function exists?', typeof onPlanCreated);
-      
+
+      // Set the plan code so subsequent requests include the X-Plan-Code header
+      if (plan?.plan_code) {
+        api.setPlanCode(plan.plan_code);
+      }
+
+      // If transcript file was selected, import it into the new plan
+      let transcriptResult = null;
+      if (transcriptEnabled && transcriptFile && plan?.id) {
+        setImporting(true);
+        try {
+          transcriptResult = await api.importTranscript(plan.id, transcriptFile);
+          setImportResult(transcriptResult);
+        } catch (importErr) {
+          console.error('Transcript import failed:', importErr);
+          setImportResult({ error: importErr.message || 'Transcript import failed' });
+        } finally {
+          setImporting(false);
+        }
+      }
+
       // Reset form data
       setFormData({
         student_name: '',
         student_email: '',
         advisor_email: '',
         plan_name: '',
-        current_program_id: programs.length > 0 ? programs[0].id : '',
-        program_id: programs.length > 0 ? programs[0].id : '',
+        current_institution: '',
+        target_institution: '',
+        current_program_id: '',
+        program_id: '',
       });
-      
+      setTranscriptFile(null);
+      setTranscriptEnabled(false);
+
       onPlanCreated?.(plan);
-      
-      // Close the modal after a brief delay to allow the success modal to open
-      setTimeout(() => {
-        onClose();
-      }, 100);
-      
+
+      // If we got a transcript result, keep modal open briefly to show it
+      if (transcriptResult && !transcriptResult.error) {
+        // Auto-close after 3 seconds so user can see the summary
+        setTimeout(() => {
+          setImportResult(null);
+          onClose();
+        }, 3000);
+      } else {
+        setTimeout(() => {
+          setImportResult(null);
+          onClose();
+        }, 100);
+      }
+
     } catch (error) {
       console.error('Failed to create plan:', error);
       setErrors({ 
@@ -226,7 +294,13 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
   };
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => {
+      const next = { ...prev, [field]: value };
+      // Clear dependent program selection when institution changes
+      if (field === 'current_institution') next.current_program_id = '';
+      if (field === 'target_institution') next.program_id = '';
+      return next;
+    });
     
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
@@ -318,16 +392,18 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
           <div>
             <label htmlFor="student-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               <Mail className="inline mr-1" size={16} aria-hidden="true" />
-              {userMode === 'advisor' ? "Student Email" : "Your Email"}
+              {userMode === 'advisor' ? "Student Email *" : "Your Email *"}
             </label>
             <input
               id="student-email"
               type="email"
+              required
+              aria-required="true"
               aria-invalid={errors.student_email ? "true" : "false"}
               aria-describedby={errors.student_email ? "student-email-error" : "student-email-desc"}
               value={formData.student_email}
               onChange={(e) => handleInputChange('student_email', e.target.value)}
-              placeholder={userMode === 'advisor' ? "student@example.com (optional)" : "your@example.com (optional)"}
+              placeholder={userMode === 'advisor' ? "student@example.com" : "your@example.com"}
               className={`w-full px-3 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors ${
                 errors.student_email ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
               }`}
@@ -336,7 +412,7 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
               <p id="student-email-error" className="mt-1 text-xs text-red-600 dark:text-red-400" role="alert">{errors.student_email}</p>
             )}
             <p id="student-email-desc" className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Optional: Used for notifications and plan sharing
+              Used for notifications and plan sharing
             </p>
           </div>
 
@@ -403,6 +479,37 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
             )}
           </div>
 
+          {/* Current Institution Selection */}
+          <div>
+            <label htmlFor="current-institution" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Current Institution *
+            </label>
+            <select
+              id="current-institution"
+              required
+              aria-required="true"
+              aria-invalid={errors.current_institution ? "true" : "false"}
+              aria-describedby={errors.current_institution ? "current-institution-error" : undefined}
+              value={formData.current_institution}
+              onChange={(e) => handleInputChange('current_institution', e.target.value)}
+              disabled={loadingPrograms}
+              className={`w-full px-3 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                errors.current_institution ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
+              }`}
+            >
+              <option value="">Select your current institution</option>
+              {institutions.map(inst => (
+                <option key={inst} value={inst}>{inst}</option>
+              ))}
+            </select>
+            {errors.current_institution && (
+              <p id="current-institution-error" className="mt-1 text-xs text-red-600 dark:text-red-400" role="alert">{errors.current_institution}</p>
+            )}
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Select your current school to filter programs
+            </p>
+          </div>
+
           {/* Current Program Selection */}
           <div>
             <label htmlFor="current-program" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -414,19 +521,19 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
               aria-describedby={errors.current_program_id ? "current-program-error" : "current-program-desc"}
               value={formData.current_program_id}
               onChange={(e) => handleInputChange('current_program_id', parseInt(e.target.value))}
-              disabled={loadingPrograms || programs.length === 0}
+              disabled={loadingPrograms || currentPrograms.length === 0}
               className={`w-full px-3 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                 errors.current_program_id ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
               }`}
             >
               {loadingPrograms ? (
                 <option value="">Loading programs...</option>
-              ) : programs.length === 0 ? (
+              ) : currentPrograms.length === 0 ? (
                 <option value="">No programs available</option>
               ) : (
                 <>
                   <option value="">Select current program (optional)</option>
-                  {programs.map(program => (
+                  {currentPrograms.map(program => (
                     <option key={program.id} value={program.id}>
                       {program.name} ({program.degree_type})
                     </option>
@@ -442,6 +549,34 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
             </p>
           </div>
 
+          {/* Target Institution Selection */}
+          <div>
+            <label htmlFor="target-institution" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Transfer Target Institution *
+            </label>
+            <select
+              id="target-institution"
+              required
+              aria-required="true"
+              aria-invalid={errors.target_institution ? "true" : "false"}
+              aria-describedby={errors.target_institution ? "target-institution-error" : undefined}
+              value={formData.target_institution}
+              onChange={(e) => handleInputChange('target_institution', e.target.value)}
+              disabled={loadingPrograms}
+              className={`w-full px-3 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                errors.target_institution ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
+              }`}
+            >
+              <option value="">Select target institution</option>
+              {institutions.map(inst => (
+                <option key={inst} value={inst}>{inst}</option>
+              ))}
+            </select>
+            {errors.target_institution && (
+              <p id="target-institution-error" className="mt-1 text-xs text-red-600 dark:text-red-400" role="alert">{errors.target_institution}</p>
+            )}
+          </div>
+
           {/* Program Selection */}
           <div>
             <label htmlFor="target-program" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -454,19 +589,19 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
               aria-describedby={errors.program_id ? "target-program-error" : "target-program-desc"}
               value={formData.program_id}
               onChange={(e) => handleInputChange('program_id', parseInt(e.target.value))}
-              disabled={loadingPrograms || programs.length === 0}
+              disabled={loadingPrograms || targetPrograms.length === 0}
               className={`w-full px-3 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                 errors.program_id ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
               }`}
             >
               {loadingPrograms ? (
                 <option value="">Loading programs...</option>
-              ) : programs.length === 0 ? (
+              ) : targetPrograms.length === 0 ? (
                 <option value="">No programs available</option>
               ) : (
                 <>
                   <option value="">Select a program</option>
-                  {programs.map(program => (
+                  {targetPrograms.map(program => (
                     <option key={program.id} value={program.id}>
                       {program.name} ({program.degree_type})
                     </option>
@@ -481,6 +616,117 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
               The program you want to transfer into or complete
             </p>
           </div>
+
+          {/* Transcript Upload (Optional) */}
+          <div className="border border-gray-200 dark:border-gray-700 rounded-md p-3">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={transcriptEnabled}
+                onChange={(e) => {
+                  setTranscriptEnabled(e.target.checked);
+                  if (!e.target.checked) {
+                    setTranscriptFile(null);
+                    setImportResult(null);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }
+                }}
+                className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+              />
+              <FileUp size={16} className="text-gray-500 dark:text-gray-400" />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Import courses from transcript
+              </span>
+            </label>
+
+            {transcriptEnabled && (
+              <div className="mt-3 space-y-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,.pdf"
+                  onChange={(e) => setTranscriptFile(e.target.files?.[0] || null)}
+                  className="block w-full text-sm text-gray-500 dark:text-gray-400
+                    file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0
+                    file:text-sm file:font-medium
+                    file:bg-blue-50 file:text-blue-700
+                    dark:file:bg-blue-900/40 dark:file:text-blue-300
+                    hover:file:bg-blue-100 dark:hover:file:bg-blue-900/60
+                    transition-colors"
+                />
+                {transcriptFile && (
+                  <p className="text-xs text-green-600 dark:text-green-400">
+                    Selected: {transcriptFile.name} ({(transcriptFile.size / 1024).toFixed(1)} KB)
+                  </p>
+                )}
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Upload a Workday "View My Academic Record" CSV export or a text-based transcript PDF.
+                  Courses will be matched against the database and added to your plan.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Transcript Import Progress */}
+          {importing && (
+            <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-md">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 dark:border-blue-400"></div>
+              <span className="text-sm text-blue-700 dark:text-blue-300">Importing courses from transcript...</span>
+            </div>
+          )}
+
+          {/* Transcript Import Results */}
+          {importResult && !importResult.error && (
+            <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-md space-y-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle size={16} className="text-green-600 dark:text-green-400" />
+                <span className="text-sm font-medium text-green-700 dark:text-green-300">
+                  {importResult.message}
+                </span>
+              </div>
+              {importResult.added?.length > 0 && (
+                <details className="text-xs text-green-700 dark:text-green-400">
+                  <summary className="cursor-pointer font-medium">
+                    {importResult.added.length} course(s) added
+                  </summary>
+                  <ul className="mt-1 ml-4 space-y-0.5">
+                    {importResult.added.map((c, i) => (
+                      <li key={i}>{c.code} — {c.title} ({c.grade})</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+              {importResult.skipped?.length > 0 && (
+                <details className="text-xs text-yellow-700 dark:text-yellow-400">
+                  <summary className="cursor-pointer font-medium flex items-center gap-1">
+                    <AlertTriangle size={12} /> {importResult.skipped.length} skipped (already in plan)
+                  </summary>
+                  <ul className="mt-1 ml-4 space-y-0.5">
+                    {importResult.skipped.map((c, i) => (
+                      <li key={i}>{c.code} — {c.title}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+              {importResult.not_found?.length > 0 && (
+                <details className="text-xs text-gray-600 dark:text-gray-400">
+                  <summary className="cursor-pointer font-medium flex items-center gap-1">
+                    <XCircle size={12} /> {importResult.not_found.length} not found in database
+                  </summary>
+                  <ul className="mt-1 ml-4 space-y-0.5">
+                    {importResult.not_found.map((c, i) => (
+                      <li key={i}>{c.code} — {c.title}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          )}
+          {importResult?.error && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-600 rounded-md">
+              <p className="text-sm text-red-700 dark:text-red-400">Transcript import failed: {importResult.error}</p>
+            </div>
+          )}
 
           {/* Submit Error */}
           {errors.submit && (
@@ -502,16 +748,16 @@ const CreatePlanModal = ({ isOpen, onClose, onPlanCreated, userMode = 'student' 
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={creating || !formData.student_name.trim() || !formData.plan_name.trim() || !formData.program_id || loadingPrograms}
+              disabled={creating || importing || !formData.student_name.trim() || !formData.plan_name.trim() || !formData.program_id || loadingPrograms}
               className="w-full sm:w-auto px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
             >
-              {creating ? (
+              {creating || importing ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Creating...
+                  {importing ? 'Importing transcript...' : 'Creating...'}
                 </>
               ) : (
-                'Create Plan'
+                transcriptEnabled && transcriptFile ? 'Create Plan & Import' : 'Create Plan'
               )}
             </button>
           </div>

@@ -122,9 +122,9 @@ export function DegreeProgressCarousel({
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             {views.map((v,i)=>(
-              <button key={v} aria-label={`Go to ${v}`} onClick={()=>setViewIndex(i)} className={`h-1.5 rounded-full transition-all ${i===viewIndex? 'w-4 bg-gray-700 dark:bg-gray-200':'w-2 bg-gray-300 dark:bg-gray-600'}`} />
+              <button key={v} aria-label={`Go to ${v}`} onClick={()=>setViewIndex(i)} className={`h-3 rounded-full transition-all ${i===viewIndex? 'w-6 bg-gray-700 dark:bg-gray-200':'w-3 bg-gray-300 dark:bg-gray-600'}`} style={{ minWidth: 12, minHeight: 12 }} />
             ))}
           </div>
         </div>

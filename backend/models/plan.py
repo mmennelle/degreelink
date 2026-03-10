@@ -17,6 +17,59 @@ import json
 import secrets
 import string
 
+# Subject-code mappings for matching courses to requirement categories.
+# Include ALL common variants:  e.g. PSYC *and* PSY, BIOS *and* BIOL, MUS *and* MUSC.
+_CATEGORY_SUBJECT_MAP = {
+    'english composition': ['ENGL', 'ENG'],
+    'composition': ['ENGL', 'ENG'],
+    'english': ['ENGL', 'ENG'],
+    'literature': ['ENGL', 'LIT'],
+    'mathematics': ['MATH', 'STAT', 'AMTH', 'GMAT', 'OMAT'],
+    'math': ['MATH', 'STAT', 'AMTH', 'GMAT', 'OMAT'],
+    'math/analytical reasoning': ['MATH', 'STAT', 'PHIL', 'OMAT', 'AMTH', 'GMAT'],
+    'analytical reasoning': ['MATH', 'STAT', 'PHIL'],
+    'reasoning': ['PHIL', 'MATH'],
+    'biology': ['BIOL', 'BIO', 'BIOS', 'BTEC'],
+    'biology electives': ['BIOL', 'BIO', 'BIOS', 'BTEC'],
+    'biological sciences': ['BIOL', 'BIO', 'BIOS', 'BTEC'],
+    'biological sciences major reqs': ['BIOL', 'BIO', 'BIOS', 'BTEC'],
+    'biological sciences - major requirements': ['BIOL', 'BIO', 'BIOS', 'BTEC'],
+    'chemistry': ['CHEM'],
+    'physics': ['PHYS'],
+    'history': ['HIST'],
+    'science': ['BIOL', 'BIO', 'BIOS', 'CHEM', 'PHYS', 'SCIE', 'SCI', 'GEOL', 'EES'],
+    'natural sciences': ['BIOL', 'BIO', 'BIOS', 'CHEM', 'PHYS', 'GEOL', 'ENVS', 'EES', 'SCIE'],
+    'social sciences': ['SOC', 'SOCI', 'PSY', 'PSYC', 'POLI', 'ANTH', 'ECON', 'GEOG', 'CRJU', 'JUST', 'GSOC'],
+    'social science': ['SOC', 'SOCI', 'PSY', 'PSYC', 'POLI', 'ANTH', 'ECON', 'GEOG', 'CRJU', 'JUST', 'GSOC'],
+    'social/behavioral sciences': ['SOC', 'SOCI', 'PSY', 'PSYC', 'POLI', 'ANTH', 'ECON', 'GEOG', 'CRJU', 'JUST', 'GSOC'],
+    'humanities': ['ENGL', 'HIST', 'PHIL', 'ART', 'ARTS', 'MUSC', 'MUS', 'THEA', 'HUMA', 'HUMS', 'GHUM', 'FREN', 'SPAN', 'LIT'],
+    'arts': ['ART', 'ARTS', 'MUSC', 'MUS', 'THEA', 'FNAR', 'FA', 'FTA', 'GFAR'],
+    'fine arts': ['ART', 'ARTS', 'MUSC', 'MUS', 'THEA', 'FNAR', 'FA', 'FTA', 'GFAR'],
+    'liberal arts': ['ENGL', 'HIST', 'PHIL', 'ART', 'ARTS', 'MUSC', 'MUS', 'THEA', 'SOC', 'SOCI', 'PSY', 'PSYC', 'POLI'],
+}
+
+def _get_expected_subjects(category_name):
+    """Look up expected subject codes for a category name.
+    
+    Handles compound names like 'Math/Analytical Reasoning' by checking
+    the full name first, then splitting on '/' and checking each part.
+    """
+    name_lower = (category_name or '').lower().strip()
+    # Direct lookup first
+    subjects = _CATEGORY_SUBJECT_MAP.get(name_lower)
+    if subjects:
+        return subjects
+    # Split on '/' and union all matches
+    if '/' in name_lower:
+        combined = set()
+        for part in name_lower.split('/'):
+            part = part.strip()
+            found = _CATEGORY_SUBJECT_MAP.get(part, [])
+            combined.update(found)
+        if combined:
+            return list(combined)
+    return []
+
 class Plan(db.Model):
     __tablename__ = 'plans'
     
@@ -135,12 +188,17 @@ class Plan(db.Model):
             'science': 'Science',
             'sciences': 'Science',
             'biology': 'Science',
+            'biology electives': 'Science',
+            'biological sciences major reqs': 'Science',
+            'biological sciences': 'Science',
             'chemistry': 'Science',
             'physics': 'Physics',
             'physical science': 'Physics',
             'humanities': 'Humanities',
             'social sciences': 'Social Sciences',
             'social science': 'Social Sciences',
+            'social/behavioral sciences': 'Social Sciences',
+            'behavioral sciences': 'Social Sciences',
             'arts': 'Arts',
             'fine arts': 'Arts'
         }
@@ -428,6 +486,7 @@ class Plan(db.Model):
         # Accumulate matching courses
         completed = 0
         applied = []
+        matched_pc_ids = set()  # Track which PlanCourse IDs matched this requirement
         
         for pc in relevant_courses:
             course_canon = canon(getattr(pc, 'requirement_category', ''))
@@ -456,10 +515,43 @@ class Plan(db.Model):
                         except Exception:
                             pass
             
+            # For simple requirements: if category doesn't match directly,
+            # try matching via equivalency — a course from the other institution
+            # should count if its equivalent at this program's institution would
+            # satisfy this requirement category.
+            if not cat_match and not group_match and req_type != 'grouped':
+                try:
+                    eq_course = self._get_equivalent_course(pc, program)
+                    if eq_course:
+                        # Check if the equivalent course's natural category matches
+                        eq_dept = (getattr(eq_course, 'department', '') or '').strip()
+                        if eq_dept and canon(eq_dept) == req_canon:
+                            cat_match = True
+                        # Also check subject_code based matching
+                        if not cat_match:
+                            eq_subj = (getattr(eq_course, 'subject_code', '') or '').upper().strip()
+                            expected_subjects = _get_expected_subjects(getattr(req, 'category', ''))
+                            if eq_subj and eq_subj in expected_subjects:
+                                cat_match = True
+                    # Direct institution match: course is from this program's institution
+                    if not cat_match and getattr(pc, 'course', None):
+                        if getattr(pc.course, 'institution', None) == program.institution:
+                            own_subj = (getattr(pc.course, 'subject_code', '') or '').upper().strip()
+                            own_dept = (getattr(pc.course, 'department', '') or '').strip()
+                            if own_dept and canon(own_dept) == req_canon:
+                                cat_match = True
+                            elif own_subj:
+                                expected_subjects = _get_expected_subjects(getattr(req, 'category', ''))
+                                if own_subj in expected_subjects:
+                                    cat_match = True
+                except Exception:
+                    pass
+            
             if not (cat_match or group_match):
                 continue
             
             # Course matches - add its credits
+            matched_pc_ids.add(pc.id)
             credits = (pc.credits or (pc.course.credits if pc.course else 0) or 0)
             completed += credits
             
@@ -489,9 +581,63 @@ class Plan(db.Model):
             
             applied.append(ci)
         
+        # --- Phase 2: Evaluate constraints if present ---
+        constraint_results = []
+        all_constraints_satisfied = True
+        
+        if hasattr(req, 'constraints') and req.constraints:
+            import logging
+            logging.info(f"Evaluating {len(req.constraints)} constraint(s) for simple requirement {req.id} ({req.category})")
+            
+            for constraint in req.constraints:
+                try:
+                    # Filter out courses marked as constraint violations before evaluating
+                    valid_courses = [c for c in relevant_courses if not getattr(c, 'constraint_violation', False)]
+                    constraint_eval = constraint.evaluate(valid_courses)
+                    constraint_results.append({
+                        **constraint_eval,
+                        'constraint_type': constraint.constraint_type,
+                        'constraint_id': constraint.id,
+                        'description': constraint.description,
+                        'params': constraint.get_params(),
+                        'scope_filter': constraint.get_scope_filter()
+                    })
+                    
+                    if not constraint_eval.get('satisfied', False):
+                        all_constraints_satisfied = False
+                        logging.info(f"Constraint {constraint.constraint_type} NOT satisfied: {constraint_eval.get('reason', '')}")
+                    else:
+                        logging.info(f"Constraint {constraint.constraint_type} satisfied")
+                        
+                except Exception as e:
+                    import logging
+                    logging.warning(f"Constraint evaluation failed for constraint {constraint.id} ({constraint.constraint_type}): {e}")
+                    constraint_results.append({
+                        'satisfied': False,
+                        'reason': f'Evaluation error: {str(e)}',
+                        'constraint_type': constraint.constraint_type,
+                        'constraint_id': getattr(constraint, 'id', None),
+                        'description': getattr(constraint, 'description', '')
+                    })
+                    all_constraints_satisfied = False
+        
+        # Recalculate credits excluding constraint-violating courses
+        valid_completed = 0
+        for pc in relevant_courses:
+            if pc.id not in matched_pc_ids:
+                continue
+            if not getattr(pc, 'constraint_violation', False):
+                valid_completed += (pc.credits or (pc.course.credits if pc.course else 0) or 0)
+        
+        # Use valid_completed if we filtered any violating courses
+        if valid_completed != completed:
+            completed = valid_completed
+        
         # Calculate final status
         clamped = min(completed, req_total) if req_total else completed
-        if req_total > 0 and clamped >= req_total:
+        
+        # Overall satisfaction requires BOTH base satisfaction AND all constraints satisfied
+        if req_total > 0 and clamped >= req_total and all_constraints_satisfied:
             req_status = 'met'
         elif clamped > 0:
             req_status = 'part'
@@ -510,6 +656,8 @@ class Plan(db.Model):
             'courses': applied,
             'description': getattr(req, 'description', ''),
             'requirement_type': req_type,
+            'constraint_results': constraint_results if constraint_results else [],
+            'constraints_satisfied': all_constraints_satisfied,
         }
 
     
@@ -584,6 +732,38 @@ class Plan(db.Model):
                   .first())
             if eq and eq.from_course:
                 return eq.from_course
+        except Exception:
+            pass
+
+        # CCN-mediated equivalency: course → CCN → target_course
+        # Both institutions map their local course to a shared CCN (Common Course Number)
+        # at "Louisiana Board of Regents".  If both map to the same CCN, they are equivalent.
+        try:
+            # Step 1: Find all CCN courses this course maps to
+            ccn_eqs = (Equivalency.query
+                       .filter(
+                           Equivalency.from_course_id == course_id,
+                           Equivalency.equivalency_type.in_(['articulation', 'subject_area'])
+                       )
+                       .all())
+            ccn_ids = [eq.to_course_id for eq in ccn_eqs]
+            
+            if ccn_ids:
+                # Step 2: Find courses at the target institution that map to the same CCN(s)
+                TargetC = aliased(Course)
+                target_eq = (Equivalency.query
+                             .join(TargetC, Equivalency.from_course_id == TargetC.id)
+                             .filter(
+                                 Equivalency.to_course_id.in_(ccn_ids),
+                                 Equivalency.equivalency_type.in_(['articulation', 'subject_area']),
+                                 TargetC.institution == target_institution,
+                                 Equivalency.from_course_id != course_id,  # not self
+                             )
+                             .first())
+                if target_eq:
+                    target_course = Course.query.get(target_eq.from_course_id)
+                    if target_course:
+                        return target_course
         except Exception:
             pass
 

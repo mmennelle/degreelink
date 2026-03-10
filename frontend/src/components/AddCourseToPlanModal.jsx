@@ -66,6 +66,8 @@ const AddCourseToPlanModal = ({
   const [requirementStatus, setRequirementStatus] = useState({});
   const [constraintWarnings, setConstraintWarnings] = useState({});
   const [showConstraintWarning, setShowConstraintWarning] = useState(null);
+  const [prerequisiteWarnings, setPrerequisiteWarnings] = useState({});
+  const [showPrerequisiteWarning, setShowPrerequisiteWarning] = useState(null);
   const [expandedCourses, setExpandedCourses] = useState(() => {
     // Expand first course by default, collapse others on mobile
     return courses.reduce((acc, _, index) => {
@@ -381,16 +383,48 @@ useEffect(() => {
       return;
     }
 
+    // Check for prerequisite violations
+    const prereqWarnings = {};
+    for (let i = 0; i < courseData.length; i++) {
+      const data = courseData[i];
+      if (plan?.plan_code) {
+        try {
+          const response = await fetch(`/api/plans/by-code/${plan.plan_code}/validate-prerequisites`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ course_id: data.course.id })
+          });
+          if (response.ok) {
+            const result = await response.json();
+            if (result.has_warnings) {
+              prereqWarnings[i] = result.warnings;
+            }
+          }
+        } catch (error) {
+          console.error('Failed to validate prerequisites:', error);
+        }
+      }
+    }
+
+    // If there are prerequisite warnings, show them
+    if (Object.keys(prereqWarnings).length > 0) {
+      setPrerequisiteWarnings(prereqWarnings);
+      setShowPrerequisiteWarning(0);
+      setLoading(false);
+      return;
+    }
+
     // Proceed with adding courses
     await addCoursesToPlan(courseData);
   };
 
   const addCoursesToPlan = async (courses, overrideConstraints = false) => {
-    const newErrors = [];
-    
+    // Build ALL courseToAdd objects first, then send them in a single batch
+    // to avoid the modal closing mid-loop (onCoursesAdded closes the modal)
+    const allCoursesToAdd = [];
+
     for (let i = 0; i < courses.length; i++) {
       const data = courses[i];
-      // Prepare course data with constraint violation info if overriding
       const courseToAdd = {
         course_id: data.course.id,
         semester: data.semester,
@@ -403,30 +437,25 @@ useEffect(() => {
         notes: data.notes || undefined
       };
 
-      // If overriding constraints, mark the course as a constraint violation
       if (overrideConstraints && constraintWarnings[i]) {
         courseToAdd.constraint_violation = true;
         courseToAdd.constraint_violation_reason = constraintWarnings[i].map(v => v.description).join('; ');
       }
 
-      try {
-        await onCoursesAdded([courseToAdd]);
-      } catch (error) {
-        newErrors.push({
-          course: data.course,
-          error: error.message || 'Failed to add course'
-        });
-      }
+      allCoursesToAdd.push(courseToAdd);
     }
 
-    setLoading(false);
-
-    if (newErrors.length > 0) {
-      setErrors(newErrors);
-    } else {
+    try {
+      await onCoursesAdded(allCoursesToAdd);
+      setLoading(false);
       setConstraintWarnings({});
       setShowConstraintWarning(null);
+      setPrerequisiteWarnings({});
+      setShowPrerequisiteWarning(null);
       onClose();
+    } catch (error) {
+      setLoading(false);
+      setErrors([{ course: null, error: error.message || 'Failed to add courses' }]);
     }
   };
 
@@ -439,6 +468,19 @@ useEffect(() => {
   const handleConstraintCancel = () => {
     setConstraintWarnings({});
     setShowConstraintWarning(null);
+    setLoading(false);
+  };
+
+  const handlePrerequisiteOverride = () => {
+    setLoading(true);
+    setShowPrerequisiteWarning(null);
+    setPrerequisiteWarnings({});
+    addCoursesToPlan(courseData);
+  };
+
+  const handlePrerequisiteCancel = () => {
+    setPrerequisiteWarnings({});
+    setShowPrerequisiteWarning(null);
     setLoading(false);
   };
 
@@ -836,6 +878,58 @@ useEffect(() => {
                 className="px-4 py-2 bg-orange-600 dark:bg-orange-700 text-white rounded-md hover:bg-orange-700 dark:hover:bg-orange-800 transition-colors"
               >
                 Add Anyway (Won't Count Credits)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Prerequisite Warning Modal */}
+      {showPrerequisiteWarning !== null && prerequisiteWarnings[showPrerequisiteWarning] && (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6 shadow-2xl">
+            <div className="flex items-start gap-3 mb-4">
+              <AlertCircle className="text-red-500 flex-shrink-0 mt-1" size={24} />
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Missing Prerequisite Warning
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                  The course <strong>{courseData[showPrerequisiteWarning]?.course?.code}</strong> has unmet prerequisite(s):
+                </p>
+                <div className="space-y-2 mb-4">
+                  {prerequisiteWarnings[showPrerequisiteWarning].map((warning, idx) => (
+                    <div key={idx} className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded p-2">
+                      <p className="text-sm font-medium text-red-800 dark:text-red-300">
+                        {warning.description}
+                      </p>
+                      {warning.equivalent_codes && warning.equivalent_codes.length > 0 && (
+                        <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                          Any of the equivalent courses above would also satisfy this prerequisite.
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded p-3 mb-4">
+                  <p className="text-xs text-yellow-800 dark:text-yellow-300">
+                    <strong>Note:</strong> You should complete the prerequisite course(s) before taking this course. You can still add it to your plan if you intend to complete the prerequisites first.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={handlePrerequisiteCancel}
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePrerequisiteOverride}
+                className="px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded-md hover:bg-red-700 dark:hover:bg-red-800 transition-colors"
+              >
+                Add Anyway
               </button>
             </div>
           </div>

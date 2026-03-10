@@ -627,7 +627,7 @@ const CourseSearch = ({
                         <div className="flex flex-wrap gap-2">
                           <button
                             onClick={(e) => { e.stopPropagation(); viewCourseDetails(course.id); }}
-                            className="px-3 py-1 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                            className="px-3 py-2 min-h-[44px] text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                           >
                             Details
                           </button>
@@ -635,7 +635,7 @@ const CourseSearch = ({
                           {showSingleSelect && (
                             <button
                               onClick={(e) => { e.stopPropagation(); onCourseSelect(course); }}
-                              className="px-3 py-1 text-sm bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/70 transition-colors"
+                              className="px-3 py-2 min-h-[44px] text-sm bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/70 transition-colors"
                             >
                               Select
                             </button>
@@ -651,7 +651,7 @@ const CourseSearch = ({
                                 };
                                 onAddToPlan(courseWithCategory); 
                               }}
-                              className="px-3 py-1 text-sm bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-900/70 transition-colors"
+                              className="px-3 py-2 min-h-[44px] text-sm bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-900/70 transition-colors"
                             >
                               Add to Plan
                             </button>
@@ -674,14 +674,14 @@ const CourseSearch = ({
                   <button
                     onClick={() => handlePageChange(1)}
                     disabled={!pagination.has_prev}
-                    className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-700 dark:text-gray-300"
+                    className="px-2.5 py-2 min-h-[44px] min-w-[44px] text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-700 dark:text-gray-300 flex items-center justify-center"
                   >
                     First
                   </button>
                   <button
                     onClick={() => handlePageChange(pagination.page - 1)}
                     disabled={!pagination.has_prev}
-                    className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-700 dark:text-gray-300"
+                    className="px-2.5 py-2 min-h-[44px] min-w-[44px] text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-700 dark:text-gray-300 flex items-center justify-center"
                   >
                     <ChevronLeft size={16} />
                   </button>
@@ -700,7 +700,7 @@ const CourseSearch = ({
                         <button
                           key={i}
                           onClick={() => handlePageChange(i)}
-                          className={`px-3 py-1 text-sm rounded transition-colors ${
+                          className={`px-3 py-2 min-h-[44px] min-w-[44px] text-sm rounded transition-colors flex items-center justify-center ${
                             i === current
                               ? 'bg-blue-600 text-white'
                               : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -715,14 +715,14 @@ const CourseSearch = ({
                   <button
                     onClick={() => handlePageChange(pagination.page + 1)}
                     disabled={!pagination.has_next}
-                    className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-700 dark:text-gray-300"
+                    className="px-2.5 py-2 min-h-[44px] min-w-[44px] text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-700 dark:text-gray-300 flex items-center justify-center"
                   >
                     <ChevronRight size={16} />
                   </button>
                   <button
                     onClick={() => handlePageChange(pagination.pages)}
                     disabled={!pagination.has_next}
-                    className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-700 dark:text-gray-300"
+                    className="px-2.5 py-2 min-h-[44px] min-w-[44px] text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-700 dark:text-gray-300 flex items-center justify-center"
                   >
                     Last
                   </button>

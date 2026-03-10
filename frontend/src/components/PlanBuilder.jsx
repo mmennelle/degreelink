@@ -21,6 +21,7 @@ import { PlanActions } from './PlanActions';
 import { DegreeProgressCarousel } from './DegreeProgressCarousel';
 import EditPlanModal from './EditPlanModal';
 import EditPlanCourseModal from './EditPlanCourseModal';
+import ImportTranscriptModal from './ImportTranscriptModal';
 import { downloadPlanAsHTML, printPlan } from '../utils/planDownload';
 
 const PlanBuilder = ({ 
@@ -75,6 +76,7 @@ const PlanBuilder = ({
   const [editCourseState, setEditCourseState] = useState({ isOpen: false, planCourse: null });
   const [overlayCloseTick, setOverlayCloseTick] = useState(0);
   const [showViewAllCourses, setShowViewAllCourses] = useState(false);
+  const [showImportTranscript, setShowImportTranscript] = useState(false);
 
   const getProgram = useCallback((programId) => programsList.find(p => p.id === programId), [programsList]);
   const getCurrentProgram = useCallback(() => selectedPlan?.current_program || getProgram(selectedPlan?.current_program_id), [selectedPlan, getProgram]);
@@ -238,6 +240,7 @@ const PlanBuilder = ({
             <PlanActions 
               onAddCourse={() => { setOverlayCloseTick(t => t + 1); setShowCourseSearch(true); }}
               onViewAllCourses={() => setShowViewAllCourses(true)}
+              onImportTranscript={() => setShowImportTranscript(true)}
             />
           </div>
         )}
@@ -310,6 +313,21 @@ const PlanBuilder = ({
         isOpen={showViewAllCourses}
         onClose={() => setShowViewAllCourses(false)}
         plan={selectedPlan}
+        onCoursesRemoved={() => {
+          if (selectedPlanId) reloadPlan(selectedPlanId);
+          setProgressTick(t => t + 1);
+        }}
+      />
+
+      {/* Import Transcript Modal */}
+      <ImportTranscriptModal
+        isOpen={showImportTranscript}
+        onClose={() => setShowImportTranscript(false)}
+        plan={selectedPlan}
+        onImported={() => {
+          if (selectedPlanId) reloadPlan(selectedPlanId);
+          setProgressTick(t => t + 1);
+        }}
       />
     </div>
   );

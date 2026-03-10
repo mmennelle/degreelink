@@ -281,24 +281,24 @@ const PlanCodeLookup = ({ onPlanFound = null, onClose = null, showAsModal = fals
                   // Pass the full plan data so it can be set directly in app state
                   onOpenPlan(foundPlan);
                 }}
-                className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors disabled:opacity-50"
+                className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors disabled:opacity-50"
               >
-                <Eye size={16} />
+                <Eye size={18} />
               </button>
             <div className="flex flex-col gap-2 ml-4">
               <button
                 onClick={copyPlanCode}
-                className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
                 title="Copy plan code"
               >
-                <Copy size={16} />
+                <Copy size={18} />
               </button>
               <button
                 onClick={sharePlan}
-                className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
                 title="Share plan"
               >
-                <Share2 size={16} />
+                <Share2 size={18} />
               </button>
             </div>
           </div>
@@ -376,7 +376,7 @@ const PlanCodeLookup = ({ onPlanFound = null, onClose = null, showAsModal = fals
               {onClose && (
                 <button
                   onClick={onClose}
-                  className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                  className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
                 >
                   <X size={20} />
                 </button>

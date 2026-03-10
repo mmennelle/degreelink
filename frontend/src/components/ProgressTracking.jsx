@@ -44,6 +44,70 @@ const COLOR = {
 	},
 };
 
+// Normalize requirement/category names to short, human-readable labels
+const CATEGORY_DISPLAY_NAMES = {
+	'english composition': 'English',
+	'english': 'English',
+	'composition': 'English',
+	'literature': 'Literature',
+	'math/analytical reasoning': 'Math',
+	'mathematical reasoning': 'Math',
+	'mathematics': 'Math',
+	'math': 'Math',
+	'analytical reasoning': 'Math',
+	'biology': 'Biology',
+	'biology electives': 'Bio Electives',
+	'biological sciences': 'Biology',
+	'biological sciences major reqs': 'Bio Major',
+	'biological sciences - major requirements': 'Bio Major',
+	'chemistry': 'Chemistry',
+	'physics': 'Physics',
+	'physical science': 'Physics',
+	'history': 'History',
+	'science': 'Science',
+	'natural sciences': 'Science',
+	'social sciences': 'Social Sci',
+	'social science': 'Social Sci',
+	'social/behavioral sciences': 'Social Sci',
+	'behavioral sciences': 'Social Sci',
+	'humanities': 'Humanities',
+	'arts': 'Arts',
+	'fine arts': 'Arts',
+	'liberal arts': 'Liberal Arts',
+	'core major requirements': 'Core Major',
+	'core requirements': 'Core',
+	'core courses': 'Core',
+	'core': 'Core',
+	'general education': 'Gen Ed',
+	'electives': 'Electives',
+	'elective': 'Electives',
+	'free elective': 'Free Elec',
+	'free electives': 'Free Elec',
+	'computer science': 'Comp Sci',
+	'foreign language': 'Language',
+	'world languages': 'Language',
+	'other major requirements': 'Other Major',
+	'communications': 'Comm',
+	'communication': 'Comm',
+	'quantitative reasoning': 'Quant',
+	'writing intensive': 'Writing',
+	'capstone': 'Capstone',
+};
+
+function getDisplayName(name) {
+	if (!name) return '??';
+	const key = name.toLowerCase().trim();
+	if (CATEGORY_DISPLAY_NAMES[key]) return CATEGORY_DISPLAY_NAMES[key];
+	// Fallback: capitalize first letter of each significant word, truncate to ~12 chars
+	const STOP = new Set(['of', 'and', 'the', 'in', 'for', 'to', 'a', 'an', 'at', 'by', 'or', 'with']);
+	const words = name.trim().split(/[\s\-\/]+/).filter(w => w.length > 0);
+	const sig = words.filter(w => !STOP.has(w.toLowerCase()));
+	const parts = sig.length > 0 ? sig : words;
+	let result = parts.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+	if (result.length > 12) result = result.substring(0, 11) + '\u2026';
+	return result;
+}
+
 // Detect mobile layout (Tailwind 'sm' breakpoint)
 function useIsMobile() {
 	const [isMobile, setIsMobile] = useState(() =>
@@ -87,100 +151,11 @@ export default function ProgressTracking({
 
 	const displayPercent = useMemo(() => percent || 0, [percent, title]);
 
-	// Stop-words to skip when building abbreviations from category names
-	const STOP_WORDS = new Set(['of', 'and', 'the', 'in', 'for', 'to', 'a', 'an', 'at', 'by', 'or', 'with']);
-
-	function getRequirementInitials(name, backendAbbreviation) {
-		// 1. Use advisor-defined abbreviation from the database if available
+	// Get a short, readable label for the segment (no cryptic abbreviations)
+	function getSegmentLabel(name, backendAbbreviation) {
+		// If advisor set a custom abbreviation, respect it
 		if (backendAbbreviation) return backendAbbreviation;
-
-		if (!name) return '??';
-
-		// 2. Exact match on full lowercased name
-		const knownAbbreviations = {
-			'mathematics': 'MATH', 'math': 'MATH',
-			'english': 'ENGL', 'english composition': 'ENGL-CMP',
-			'composition': 'COMP',
-			'literature': 'LIT',
-			'humanities': 'HUM',
-			'biology': 'BIOL', 'biological sciences': 'BIOL',
-			'chemistry': 'CHEM',
-			'physics': 'PHYS', 'physical science': 'PHYS-SCI',
-			'history': 'HIST',
-			'science': 'SCI', 'natural sciences': 'NAT-SCI', 'natural science': 'NAT-SCI',
-			'social science': 'SOC-SCI', 'social sciences': 'SOC-SCI',
-			'behavioral science': 'BEH-SCI', 'behavioral sciences': 'BEH-SCI',
-			'liberal arts': 'LIB-ART',
-			'fine arts': 'FINE-ART', 'arts': 'ARTS',
-			'core': 'CORE', 'core courses': 'CORE', 'core requirements': 'CORE-REQ',
-			'elective': 'ELEC', 'electives': 'ELEC',
-			'free elective': 'FREE-ELC', 'free electives': 'FREE-ELC',
-			'general education': 'GEN-ED',
-			'computer science': 'CSCI',
-			'foreign language': 'FRGN-LNG', 'world languages': 'WLD-LNG',
-			'communications': 'COMM', 'communication': 'COMM',
-			'quantitative reasoning': 'QNT-RSN',
-			'writing intensive': 'WRIT-INT',
-			'capstone': 'CAPST',
-		};
-		const nameLower = name.toLowerCase().trim();
-		if (knownAbbreviations[nameLower]) return knownAbbreviations[nameLower];
-
-		// 3. Smart abbreviation: take significant words, build from first letters/syllables
-		//    e.g. "Biology Electives" → "BIOL-ELC", "Upper-Level BIOS" → "UPR-BIOS"
-		const words = name.trim().split(/[\s\-]+/).filter(w => w.length > 0);
-		const significantWords = words.filter(w => !STOP_WORDS.has(w.toLowerCase()));
-		const parts = significantWords.length > 0 ? significantWords : words;
-
-		if (parts.length === 1) {
-			// Single word: take up to 4 characters
-			return parts[0].substring(0, 4).toUpperCase();
-		}
-
-		// Multiple words: abbreviate each word intelligently
-		const abbreviateWord = (word) => {
-			const w = word.toUpperCase();
-			// Check if word itself matches a known subject prefix
-			const wordLower = word.toLowerCase();
-			const subjectPrefixes = {
-				'biology': 'BIO', 'biological': 'BIO', 'bios': 'BIOS',
-				'chemistry': 'CHEM', 'chemical': 'CHEM',
-				'physics': 'PHYS', 'physical': 'PHYS',
-				'mathematics': 'MATH', 'mathematical': 'MATH',
-				'english': 'ENGL', 'computer': 'COMP',
-				'history': 'HIST', 'historical': 'HIST',
-				'science': 'SCI', 'sciences': 'SCI',
-				'elective': 'ELC', 'electives': 'ELC',
-				'core': 'CORE', 'general': 'GEN',
-				'education': 'ED', 'advanced': 'ADV',
-				'upper': 'UPR', 'lower': 'LWR',
-				'level': 'LVL', 'required': 'REQ',
-				'requirements': 'REQ', 'major': 'MAJ',
-				'minor': 'MNR', 'social': 'SOC',
-				'liberal': 'LIB', 'natural': 'NAT',
-				'humanities': 'HUM', 'behavioral': 'BEH',
-				'laboratory': 'LAB', 'labs': 'LAB', 'lab': 'LAB',
-				'courses': 'CRS', 'writing': 'WRIT',
-				'communication': 'COMM', 'communications': 'COMM',
-			};
-			if (subjectPrefixes[wordLower]) return subjectPrefixes[wordLower];
-			// Already short (like "BIOS", "CSCI") — keep as-is
-			if (w.length <= 4) return w;
-			// Truncate to 3-4 meaningful characters
-			return w.substring(0, 3);
-		};
-
-		const abbreviated = parts.map(abbreviateWord);
-		// Join with hyphen, cap total length at 10
-		let result = abbreviated.join('-');
-		if (result.length > 10) {
-			// Trim individual parts to fit
-			result = abbreviated.map(a => a.substring(0, 3)).join('-');
-		}
-		if (result.length > 10) {
-			result = result.substring(0, 10);
-		}
-		return result;
+		return getDisplayName(name);
 	}
 
 	const buildSegments = useCallback((reqList) => {
@@ -241,14 +216,20 @@ export default function ProgressTracking({
 		return list.map((req, index) => {
 			const tot = req.totalCredits ?? req.credits_required ?? 0;
 			const completed = req.completedCredits ?? req.credits_completed ?? 0;
-			const fillPercent = tot > 0 ? Math.min((completed / tot) * 100, 100) : 0;
+			// If totalCredits is 0 but we have completed credits, treat it as 100% filled
+			const fillPercent = tot > 0
+				? Math.min((completed / tot) * 100, 100)
+				: (completed > 0 ? 100 : 0);
+			// Muted, text-friendly fill colors — soft gradient from slate to teal
 			const getGradientColor = (p) => {
-				const normalizedPercent = Math.max(0, Math.min(100, p));
-				const red = Math.round(255 * (1 - normalizedPercent / 100));
-				const green = Math.round(255 * (normalizedPercent / 100));
-				return { backgroundColor: `rgb(${red}, ${green}, 0)` };
+				const t = Math.max(0, Math.min(100, p)) / 100;
+				// 0% → muted slate-blue (120,140,170), 100% → soft teal-green (70,160,130)
+				const r = Math.round(120 + (70 - 120) * t);
+				const g = Math.round(140 + (160 - 140) * t);
+				const b = Math.round(170 + (130 - 170) * t);
+				return { backgroundColor: `rgb(${r}, ${g}, ${b})` };
 			};
-			const initials = getRequirementInitials(req.name || req.category || '', req.abbreviation);
+			const initials = getSegmentLabel(req.name || req.category || '', req.abbreviation);
 			const side = index % 2 === 0 ? 'left' : 'right';
 			const segHeight = heights[index];
 			const start = cumulative;
@@ -400,7 +381,7 @@ export default function ProgressTracking({
 								<div className={`absolute bottom-0 left-0 w-full ${index === 0 ? 'rounded-t-sm' : ''} ${index === segments.length - 1 ? 'rounded-b-sm' : ''}`} style={{ height: `${seg.fillPercent}%`, transition: 'height .25s ease', ...seg.fillStyle }} />
 								{index < segments.length - 1 && (<div className="absolute bottom-0 left-0 w-full h-0.5 bg-gray-400 dark:bg-black z-10" />)}
 								<div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-									<span className="uppercase font-bold text-xs text-white drop-shadow-sm" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>{seg.initials}</span>
+									<span className="font-semibold text-[10px] leading-tight text-white drop-shadow-sm text-center px-0.5" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.4)' }}>{seg.initials}</span>
 								</div>
 							</div>
 							{isOpen && (isMobile ? (
@@ -439,16 +420,41 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 		
 		switch (type) {
 			case 'min_level_credits':
-				return `At least ${params.credits || 0} credits at ${params.level_min || 0}+ level`;
+				return `Need at least ${params.credits || 0} credits from ${params.level_min || 0}-level or higher courses`;
 			case 'max_tag_credits':
-				return `Maximum ${params.credits || 0} credits of ${params.tag || 'tagged'} courses`;
+				return `No more than ${params.credits || 0} credits from ${params.tag || 'tagged'} courses allowed`;
 			case 'min_tag_courses':
-				return `At least ${params.courses || 0} ${params.tag || 'tagged'} courses`;
+				return `Must include at least ${params.courses || 0} ${params.tag || 'tagged'} course${(params.courses || 0) !== 1 ? 's' : ''}`;
 			case 'min_courses_at_level':
-				return `At least ${params.courses || 0} courses at ${params.level || 0} level`;
+				return `Must include at least ${params.courses || 0} course${(params.courses || 0) !== 1 ? 's' : ''} at the ${params.level || 0}+ level`;
 			default:
 				return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 		}
+	};
+
+	// Make tally keys human-readable
+	const humanizeTallyKey = (key) => {
+		// e.g. "credits_3000_plus" -> "Credits at 3000+ level"
+		// "credits_3000_plus_required" -> "Credits required at 3000+ level"
+		// "lab_courses" -> "Lab courses"
+		// "lab_courses_required" -> "Lab courses required"
+		let s = key;
+		const levelMatch = s.match(/^(credits|courses)_(at_)?(\d+)(\+|_plus)?(_required)?$/);
+		if (levelMatch) {
+			const what = levelMatch[1] === 'credits' ? 'Credits' : 'Courses';
+			const level = levelMatch[3];
+			const isRequired = !!levelMatch[5];
+			return isRequired ? `${what} required (${level}+ level)` : `${what} earned (${level}+ level)`;
+		}
+		const tagMatch = s.match(/^(.+?)_(credits|courses)(_required|_max)?$/);
+		if (tagMatch) {
+			const tag = tagMatch[1].replace(/_/g, ' ');
+			const what = tagMatch[2] === 'credits' ? 'credits' : 'courses';
+			const suffix = tagMatch[3] === '_required' ? ' required' : tagMatch[3] === '_max' ? ' max' : ' earned';
+			const tagCap = tag.charAt(0).toUpperCase() + tag.slice(1);
+			return `${tagCap} ${what}${suffix}`;
+		}
+		return s.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 	};
 	
 	// Log suggestions state whenever it changes
@@ -461,6 +467,28 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 	
 	const requirementCourses = React.useMemo(() => {
 		if (!plan?.courses) return [];
+		
+		// Use the backend's authoritative courses array if available.
+		// The backend already does proper equivalency-based, subject-code, and
+		// group matching — so use its course IDs to look up full plan course data.
+		const backendCourses = requirement.courses || [];
+		if (backendCourses.length > 0) {
+			const matchedCourseIds = new Set(backendCourses.map(c => c.id).filter(Boolean));
+			// Also build a set of course codes for fallback matching (some courses may have
+			// different IDs across programs but same code via equivalency)
+			const matchedCodes = new Set(backendCourses.map(c => (c.code || '').toUpperCase()).filter(Boolean));
+			const equivCodes = new Set(backendCourses
+				.filter(c => c.equivalent_code)
+				.map(c => c.equivalent_code.toUpperCase()));
+			
+			return plan.courses.filter(pc => {
+				const courseId = pc.course?.id || pc.course_id;
+				const courseCode = (pc.course?.code || '').toUpperCase();
+				return matchedCourseIds.has(courseId) || matchedCodes.has(courseCode) || equivCodes.has(courseCode);
+			});
+		}
+		
+		// Fallback: fuzzy category matching for when backend courses array is empty
 		const normalizeCategory = (category) => (category || '').toLowerCase().replace(/[\/\-\s]+/g, ' ').replace(/\s+/g, ' ').trim();
 		const categoriesMatch = (reqCategory, courseCategory) => {
 			const reqNorm = normalizeCategory(reqCategory);
@@ -476,14 +504,16 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 			return false;
 		};
 		return plan.courses.filter(pc => categoriesMatch(name, pc.requirement_category || 'Uncategorized'));
-	}, [plan?.courses, name]);
+	}, [plan?.courses, name, requirement.courses]);
 	
 	// Extract constraint information from requirement
 	const constraints = requirement.constraint_results || [];
-	const constraintsSatisfied = requirement.constraints_satisfied !== false;
-	// Only show constraints if there are courses in this requirement OR if constraints are not satisfied
-	// This prevents showing "Complete" badge on empty segments with no context
-	const hasConstraints = constraints.length > 0 && (requirementCourses.length > 0 || !constraintsSatisfied);
+	// constraints_satisfied is only meaningful when there are actual courses to evaluate.
+	// With 0 courses, constraints are vacuously satisfied which is misleading.
+	const hasCourses = requirementCourses.length > 0;
+	const constraintsSatisfied = hasCourses ? (requirement.constraints_satisfied !== false) : false;
+	// Show constraints section only when there are constraints AND either courses exist or constraints failed
+	const hasConstraints = constraints.length > 0 && (hasCourses || constraints.some(c => !c.satisfied));
 
 	const generateSuggestions = useCallback(async () => {
 		if (loadingSuggestions || !plan) return;
@@ -888,7 +918,12 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 					<h4 className="text-base font-semibold text-gray-900 dark:text-gray-100 break-words">{name}</h4>
 					<div className="flex items-center flex-wrap gap-2 mt-1">
 						<span className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap ${getStatusChip(requirement.status)}`}>{getStatusText(requirement.status)}</span>
-						{totalCredits ? (<span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{(completedCredits ?? 0)}/{totalCredits} credits</span>) : null}
+						{totalCredits > 0
+							? (<span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{(completedCredits ?? 0)}/{totalCredits} credits</span>)
+							: (completedCredits > 0
+								? (<span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{completedCredits} credits earned</span>)
+								: null)
+						}
 					</div>
 					{description && <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 break-words">{description}</p>}
 				</div>
@@ -986,7 +1021,7 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 											{constraint.tally && Object.keys(constraint.tally).length > 0 && (
 												<div className="text-xs text-gray-600 dark:text-gray-400 mt-1 flex flex-wrap gap-2">
 													{Object.entries(constraint.tally).map(([key, value]) => (
-														<span key={key} className="whitespace-nowrap">{key}: {value}</span>
+														<span key={key} className="whitespace-nowrap">{humanizeTallyKey(key)}: {value}</span>
 													))}
 												</div>
 											)}

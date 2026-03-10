@@ -8,9 +8,9 @@
  */
 
 import React from 'react';
-import { Plus, List } from 'lucide-react';
+import { Plus, List, FileUp } from 'lucide-react';
 
-export function PlanActions({ onAddCourse, onViewAllCourses }) {
+export function PlanActions({ onAddCourse, onViewAllCourses, onImportTranscript }) {
   return (
     <div className="flex flex-col sm:flex-row justify-center gap-2 mb-4">
       <button
@@ -27,6 +27,15 @@ export function PlanActions({ onAddCourse, onViewAllCourses }) {
         >
           <List className="mr-1" size={16} />
           View All Courses
+        </button>
+      )}
+      {onImportTranscript && (
+        <button
+          onClick={onImportTranscript}
+          className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-green-800 dark:hover:bg-green-800 flex items-center justify-center transition-colors text-sm"
+        >
+          <FileUp className="mr-1" size={16} />
+          Import Transcript
         </button>
       )}
     </div>
