@@ -574,6 +574,8 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 				});
 
 				if (courses.length > 0) {
+					// Sort preferred courses to the top
+					courses.sort((a, b) => (b.is_preferred ? 1 : 0) - (a.is_preferred ? 1 : 0));
 					if (isRealGroup) {
 						grouped[groupName] = {
 							groupInfo,
@@ -589,6 +591,8 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 				setGroupedSuggestions(grouped);
 				setSuggestions([]);
 			} else {
+				// Sort preferred courses to the top for flat suggestions too
+				flat.sort((a, b) => (b.is_preferred ? 1 : 0) - (a.is_preferred ? 1 : 0));
 				setSuggestions(flat.slice(0, 12));
 				setGroupedSuggestions({});
 			}
@@ -833,7 +837,10 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 															<div key={course.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-2">
 																<div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
 																	<div className="flex-1 min-w-0">
-																		<h6 className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">{course.code}: {course.title}</h6>
+														<div className="flex items-center gap-1.5 flex-wrap">
+															<h6 className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">{course.code}: {course.title}</h6>
+															{course.is_preferred && <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded">Preferred</span>}
+														</div>
 																		<p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{course.credits} credits</p>
 																	</div>
 																	<button 
@@ -869,7 +876,10 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 											<div key={course.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-2 sm:p-3">
 												<div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
 													<div className="flex-1 min-w-0">
-														<h6 className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">{course.code}: {course.title}</h6>
+														<div className="flex items-center gap-1.5 flex-wrap">
+															<h6 className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">{course.code}: {course.title}</h6>
+															{course.is_preferred && <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded">Preferred</span>}
+														</div>
 														<p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{course.credits} credits • {course.institution}</p>
 														{course.group_name && (<p className="text-xs text-blue-600 dark:text-blue-400 mt-1">{course.group_name}</p>)}
 													</div>
