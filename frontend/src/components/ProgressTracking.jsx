@@ -693,7 +693,7 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 						<span className="flex items-center">
 							<Plus size={14} className="mr-1" />Course Suggestions
 							{hasConstraints && !constraintsSatisfied && <span className="ml-2 px-1.5 py-0.5 text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded">Constraints Not Met</span>}
-							{hasConstraints && constraintsSatisfied && allConstraintsCapOnly && <span className="ml-2 px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">Within Limits</span>}
+							{hasConstraints && constraintsSatisfied && allConstraintsCapOnly && <span className="ml-2 px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">Within Limits</span>}
 							{hasConstraints && constraintsSatisfied && !allConstraintsCapOnly && <span className="ml-2 px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">✓</span>}
 						</span>
 						{showSuggestions ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -710,27 +710,20 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 										const isOk = constraint.satisfied;
 										const cardClass = !isOk
 											? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700'
-											: isCap
-												? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700'
-												: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700';
+											: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700';
 										const iconClass = !isOk
 											? 'text-red-600 dark:text-red-400'
-											: isCap
-												? 'text-blue-600 dark:text-blue-400'
-												: 'text-green-600 dark:text-green-400';
+											: 'text-green-600 dark:text-green-400';
 										const textClass = !isOk
 											? 'text-red-800 dark:text-red-300'
-											: isCap
-												? 'text-blue-800 dark:text-blue-300'
-												: 'text-green-800 dark:text-green-300';
+											: 'text-green-800 dark:text-green-300';
 										return (
 										<div key={idx} className={`rounded-lg p-2 sm:p-3 border ${cardClass}`}>
 											<div className="flex items-start gap-2">
 												<div className="flex-shrink-0 mt-0.5">
 													{!isOk ? (
 														<AlertCircle size={16} className={iconClass} />
-													) : isCap ? (
-														<AlertCircle size={16} className={iconClass} />
+
 													) : (
 														<CheckCircle size={16} className={iconClass} />
 													)}
