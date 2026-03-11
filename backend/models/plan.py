@@ -657,7 +657,17 @@ class Plan(db.Model):
                         c._resolved_group_name = group_id_to_name[gid]
                     elif hasattr(c, 'course') and c.course:
                         cc = (c.course.code or '').upper().replace('-', ' ').strip()
-                        c._resolved_group_name = code_to_group_name.get(cc)
+                        resolved = code_to_group_name.get(cc)
+                        # For cross-institution courses, also check the equivalent course's code
+                        if not resolved:
+                            try:
+                                eq = self._get_equivalent_course(c, program)
+                                if eq:
+                                    eq_code = (eq.code or '').upper().replace('-', ' ').strip()
+                                    resolved = code_to_group_name.get(eq_code)
+                            except Exception:
+                                pass
+                        c._resolved_group_name = resolved
                 valid_courses.append(c)
             
             for constraint in req.constraints:

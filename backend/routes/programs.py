@@ -248,9 +248,10 @@ def get_requirement_suggestions(program_id, requirement_id):
         # Pull from defined group course options
         for group in requirement.groups:
             for option in group.course_options:
-                course = Course.query.filter_by(
-                    code=option.course_code,
-                    institution=option.institution or program.institution
+                inst = option.institution or program.institution
+                course = Course.query.filter(
+                    Course.code == option.course_code,
+                    db.func.lower(Course.institution) == inst.lower()
                 ).first()
                 if course and course.id not in excluded_ids:
                     candidates.append((course, group.group_name, option.is_preferred, option.notes, group))
