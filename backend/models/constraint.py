@@ -164,8 +164,12 @@ class RequirementConstraint(db.Model):
         if credits_max is not None:
             tally['credits_max'] = credits_max
         
+        # Flag cap-only constraints so the frontend can render them differently
+        is_cap_only = credits_max is not None and credits_min is None
+        
         return {
             'satisfied': satisfied,
+            'is_cap_only': is_cap_only,
             'reason': '; '.join(reasons) if reasons else None,
             'tally': tally
         }
@@ -192,8 +196,11 @@ class RequirementConstraint(db.Model):
         if courses_max is not None:
             tally['courses_max'] = courses_max
         
+        is_cap_only = courses_max is not None and courses_min is None
+        
         return {
             'satisfied': satisfied,
+            'is_cap_only': is_cap_only,
             'reason': '; '.join(reasons) if reasons else None,
             'tally': tally
         }

@@ -517,6 +517,7 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 	const constraints = requirement.constraint_results || [];
 	const hasCourses = requirementCourses.length > 0;
 	const constraintsSatisfied = hasCourses ? (requirement.constraints_satisfied !== false) : false;
+	const allConstraintsCapOnly = constraints.length > 0 && constraints.every(c => c.is_cap_only);
 	const hasConstraints = constraints.length > 0;
 
 	const generateSuggestions = useCallback(async () => {
@@ -692,7 +693,8 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 						<span className="flex items-center">
 							<Plus size={14} className="mr-1" />Course Suggestions
 							{hasConstraints && !constraintsSatisfied && <span className="ml-2 px-1.5 py-0.5 text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded">Constraints Not Met</span>}
-							{hasConstraints && constraintsSatisfied && <span className="ml-2 px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">✓</span>}
+							{hasConstraints && constraintsSatisfied && allConstraintsCapOnly && <span className="ml-2 px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">Within Limits</span>}
+							{hasConstraints && constraintsSatisfied && !allConstraintsCapOnly && <span className="ml-2 px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">✓</span>}
 						</span>
 						{showSuggestions ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
 					</button>
@@ -701,19 +703,41 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 							{/* Constraint status cards */}
 							{hasConstraints && (
 								<div className="space-y-2 mb-3">
-									{constraints.map((constraint, idx) => (
-										<div key={idx} className={`rounded-lg p-2 sm:p-3 border ${constraint.satisfied ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700'}`}>
+									{constraints.map((constraint, idx) => {
+										// Cap-only constraints (credits_max with no credits_min) use neutral styling
+										// since "within limit" != "completed"
+										const isCap = constraint.is_cap_only;
+										const isOk = constraint.satisfied;
+										const cardClass = !isOk
+											? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700'
+											: isCap
+												? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700'
+												: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700';
+										const iconClass = !isOk
+											? 'text-red-600 dark:text-red-400'
+											: isCap
+												? 'text-blue-600 dark:text-blue-400'
+												: 'text-green-600 dark:text-green-400';
+										const textClass = !isOk
+											? 'text-red-800 dark:text-red-300'
+											: isCap
+												? 'text-blue-800 dark:text-blue-300'
+												: 'text-green-800 dark:text-green-300';
+										return (
+										<div key={idx} className={`rounded-lg p-2 sm:p-3 border ${cardClass}`}>
 											<div className="flex items-start gap-2">
 												<div className="flex-shrink-0 mt-0.5">
-													{constraint.satisfied ? (
-														<CheckCircle size={16} className="text-green-600 dark:text-green-400" />
+													{!isOk ? (
+														<AlertCircle size={16} className={iconClass} />
+													) : isCap ? (
+														<AlertCircle size={16} className={iconClass} />
 													) : (
-														<AlertCircle size={16} className="text-red-600 dark:text-red-400" />
+														<CheckCircle size={16} className={iconClass} />
 													)}
 												</div>
 												<div className="flex-1 min-w-0">
-													<p className={`text-xs font-medium break-words ${constraint.satisfied ? 'text-green-800 dark:text-green-300' : 'text-red-800 dark:text-red-300'}`}>
-														{getConstraintDescription(constraint)}
+													<p className={`text-xs font-medium break-words ${textClass}`}>
+														{getConstraintDescription(constraint)}{isCap && isOk ? ' (within limit)' : ''}
 													</p>
 													{!constraint.satisfied && constraint.reason && (
 														<p className="text-xs text-red-600 dark:text-red-400 mt-1 break-words">{constraint.reason}</p>
@@ -728,7 +752,8 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 												</div>
 											</div>
 										</div>
-									))}
+										);
+									})}
 								</div>
 							)}
 							{loadingSuggestions ? (
