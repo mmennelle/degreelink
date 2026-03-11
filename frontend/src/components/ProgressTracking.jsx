@@ -522,381 +522,83 @@ function RequirementDetails({ requirement, onClose, onAddCourse, onEditPlanCours
 	const generateSuggestions = useCallback(async () => {
 		if (loadingSuggestions || !plan) return;
 		setLoadingSuggestions(true);
-		
-		console.log('=== generateSuggestions START ===');
-		console.log('requirement:', requirement);
-		console.log('program:', program);
-		console.log('hasConstraints:', hasConstraints);
-		console.log('constraints:', constraints);
-		
+
 		try {
-			const out = [];
-			const targetInstitution = program?.institution;
-			
-			// Extract constraint filters from requirement
-			const constraintFilters = {
-				minLevel: null,
-				excludeTags: [],
-				maxTagCredits: {}
-			};
-			
-			// Parse constraints to extract filtering rules
-			if (hasConstraints) {
-				constraints.forEach(c => {
-					const params = c.params || {};
-					if (c.constraint_type === 'min_level_credits' && params.level_min) {
-						constraintFilters.minLevel = params.level_min;
-					}
-					// Track tags that are at max capacity
-					if (c.constraint_type === 'max_tag_credits' && !c.satisfied) {
-						const tag = params.tag;
-						if (tag) constraintFilters.excludeTags.push(tag);
-					}
-				});
-			}
-			console.log('constraintFilters after initial parse:', constraintFilters);
-			
-			// Helper to check if course passes constraint filters
-			const passesConstraintFilters = (course) => {
-				// Check minimum level requirement
-				if (constraintFilters.minLevel) {
-					const courseLevel = course.course_level || course.course_number_numeric || 0;
-					if (courseLevel > 0 && courseLevel < constraintFilters.minLevel) {
-						return false;
-					}
-					// If we can't determine level but there's a min level requirement,
-					// be conservative and reject unless it's clearly a high-level course
-					if (courseLevel === 0 && constraintFilters.minLevel >= 3000) {
-						return false;
-					}
-				}
-				// Check tag exclusions
-				if (constraintFilters.excludeTags.length > 0 && course.course_type) {
-					if (constraintFilters.excludeTags.includes(course.course_type)) {
-						return false;
-					}
-				}
-				return true;
-			};
-			
-			// Try to find the actual requirement definition from the program
-			// This gives us access to constraints and better metadata
-			let actualRequirement = null;
-			if (program && program.requirements) {
-				actualRequirement = program.requirements.find(req => 
-					req.category === requirement.category || req.id === requirement.id
+			// Resolve the requirement ID from the program's requirements list
+			let reqId = requirement.id;
+			if (!reqId && program?.requirements) {
+				const match = program.requirements.find(r =>
+					r.category === requirement.category || r.category === requirement.name
 				);
+				if (match) reqId = match.id;
 			}
-			console.log('actualRequirement found:', actualRequirement);
-			if (actualRequirement && actualRequirement.constraints) {
-				console.log('actualRequirement.constraints:', actualRequirement.constraints);
+
+			if (!reqId || !program?.id) {
+				setSuggestions([]);
+				setGroupedSuggestions({});
+				return;
 			}
-			if (actualRequirement && actualRequirement.groups !== undefined) {
-				console.log('actualRequirement.groups:', actualRequirement.groups);
-				console.log('actualRequirement.groups.length:', actualRequirement.groups?.length);
-			}
-			
-			// If we found the actual requirement and it has constraints, update our constraint data
-			if (actualRequirement && actualRequirement.constraints && actualRequirement.constraints.length > 0) {
-				console.log('Re-extracting constraints from actualRequirement');
-				// Re-extract constraint filters from the actual requirement
-				actualRequirement.constraints.forEach(c => {
-					console.log('Processing constraint:', c.constraint_type, c.params);
-					const params = c.params || {};
-					if (c.constraint_type === 'min_level_credits' && params.level_min) {
-						constraintFilters.minLevel = params.level_min;
-						console.log('Set minLevel filter to:', params.level_min);
-					}
-					if (c.constraint_type === 'max_tag_credits' && !c.satisfied) {
-						const tag = params.tag;
-						if (tag) {
-							constraintFilters.excludeTags.push(tag);
-							console.log('Added tag to exclude:', tag);
-						}
-					}
-				});
-			}
-			console.log('constraintFilters after actualRequirement:', constraintFilters);
-			
-			// Smart defaults: For university-level (BS, BA) programs, only exclude clearly developmental courses
-			// Don't apply a blanket 2000-level filter since some valid 1000-level courses exist (like MATH 1125, 1126)
-			// The backend will have proper course_level data and grouped requirements should handle this
-			if (!constraintFilters.minLevel && program?.degree_type && ['BS', 'BA', 'MS', 'MA', 'PhD'].includes(program.degree_type.toUpperCase())) {
-				// Only exclude courses explicitly marked as developmental (below 1000 level)
-				constraintFilters.minLevel = 1000;
-				console.log('Applied smart default minLevel filter for university program:', constraintFilters.minLevel);
-			}
-			
-			console.log('Final constraintFilters:', constraintFilters);
-			
-			// For grouped requirements, prefer authoritative backend suggestions tied to program requirement definitions
-			// The progress data comes pre-filtered by program (current vs transfer), so we can trust
-			// that the requirement belongs to the program being displayed
-			const requirementBelongsToProgram = true; // Requirements are already filtered by program in calculate_progress
-			
-			console.log('requirementBelongsToProgram:', requirementBelongsToProgram);
-			console.log('requirement.program_id:', requirement?.program_id, '(Note: not included in progress data)');
-			console.log('program.id:', program?.id);
-			
-			// Use actualRequirement if we found it, otherwise fall back to what we have
-			const reqToUse = actualRequirement || requirement;
-			console.log('reqToUse:', reqToUse);
-			console.log('reqToUse.id:', reqToUse?.id);
-			console.log('reqToUse.requirement_type:', reqToUse?.requirement_type);
-			
-			if ((reqToUse?.requirement_type === 'grouped' || programRequirement?.requirement_type === 'grouped') && 
-			    reqToUse?.id && program?.id && requirementBelongsToProgram) {
-				console.log('Attempting backend API call for grouped requirement suggestions');
-				try {
-					const resp = await api.getProgramRequirementSuggestions(program.id, reqToUse.id);
-					console.log('Backend suggestions response:', resp);
-					
-					// Group suggestions by group_name
-					const grouped = {};
-					const groups = reqToUse?.groups || programRequirement?.groups || [];
-					
-					(resp?.suggestions || []).forEach(groupData => {
-						const groupInfo = groupData.group;
-						const groupName = groupInfo?.group_name || 'Other';
-						
-						const groupCourses = [];
-						(groupData.course_options || []).forEach(({ course, option_info, group_name }) => {
-							if (!course) return;
-							// Filter out courses already on plan and exclude developmental (< 1000 level or numeric < 100)
-							const already = (plan?.courses || []).some(pc => pc.course?.id === course.id);
-							const level = course.course_level ?? null;
-							const num = course.course_number_numeric ?? null;
-							if (already || (level !== null && level < 1000) || (num !== null && num < 100)) return;
-							
-							// Apply constraint filters
-							if (!passesConstraintFilters(course)) return;
-							groupCourses.push({
-								id: course.id,
-								code: course.code,
-								title: course.title,
-								credits: course.credits,
-								institution: course.institution,
-								description: course.description,
-								group_name: groupName,
-								is_preferred: option_info?.is_preferred || false,
-								notes: option_info?.notes || '',
-								requirement_category: requirement.name || requirement.category,
-								detectedCategory: requirement.name || requirement.category,
-								requirement_group_id: groupInfo?.id
-							});
-						});
-						
-						if (groupCourses.length > 0) {
-							grouped[groupName] = {
-								groupInfo: groupInfo,
-								courses: groupCourses.slice(0, 12) // Limit per group
-							};
-						}
-					});
-					
-					console.log('Processed grouped suggestions:', Object.keys(grouped).length, 'groups');
-					setGroupedSuggestions(grouped);
-					setSuggestions([]); // Clear flat suggestions for grouped requirements
-					console.log('SET GROUPED SUGGESTIONS:', Object.keys(grouped));
-					return;
-				} catch (err) {
-					console.log('Backend suggestions failed, falling through to local heuristics:', err);
-					// Fall through to local heuristics if backend suggestions fail
-				}
-			} else {
-				console.log('Skipping backend API - using local heuristics because:');
-				console.log('  - reqToUse.requirement_type:', reqToUse?.requirement_type);
-				console.log('  - reqToUse.id:', reqToUse?.id);
-				console.log('  - program.id:', program?.id);
-				console.log('  - requirementBelongsToProgram:', requirementBelongsToProgram);
-			}
-			// Helper: de-dupe accumulator
-			const pushUnique = (course, extra = {}) => {
-				// Exclude developmental/remedial courses (< 1000 level or explicitly marked)
-				if (typeof course.course_level === 'number') {
-					if (course.course_level < 1000) return;
-				} else if (typeof course.course_number_numeric === 'number') {
-					// Fallback: if no course_level but has course_number_numeric
-					if (course.course_number_numeric < 1000) return;
-				}
-				// Exclude courses with "No equivalent" or similar non-transferable indicators
-				if (course.title && (
-					course.title.includes('No equivalent') ||
-					course.title.includes('No Equivalent')
-				)) {
-					return;
-				}
-				// Exclude courses with NE suffix (non-equivalent courses)
-				if (course.code && course.code.endsWith('NE')) {
-					return;
-				}
-				// Apply constraint filters
-				if (!passesConstraintFilters(course)) return;
-				if (!out.find(e => e.id === course.id)) {
-					out.push({
+
+			const resp = await api.getProgramRequirementSuggestions(program.id, reqId, plan.id);
+
+			// Build grouped and flat structures from the unified response
+			const grouped = {};
+			const flat = [];
+
+			(resp?.suggestions || []).forEach(groupData => {
+				const groupInfo = groupData.group;
+				const groupName = groupInfo?.group_name || 'Other';
+				const isRealGroup = groupInfo?.id != null;
+
+				const courses = [];
+				(groupData.course_options || []).forEach(({ course, option_info, group_name }) => {
+					if (!course) return;
+					courses.push({
 						id: course.id,
 						code: course.code,
 						title: course.title,
 						credits: course.credits,
 						institution: course.institution,
 						description: course.description,
-						requirement_category: name,
-						is_preferred: false,
-						detectedCategory: name,
+						prerequisites: course.prerequisites,
+						group_name: isRealGroup ? groupName : undefined,
+						is_preferred: option_info?.is_preferred || false,
+						notes: option_info?.notes || '',
+						requirement_category: requirement.name || requirement.category,
+						detectedCategory: requirement.name || requirement.category,
+						requirement_group_id: groupInfo?.id,
 						course_level: course.course_level,
 						course_type: course.course_type,
-						...extra
 					});
-				}
-			};
+				});
 
-			// Collect IDs already on the plan to avoid suggesting duplicates
-			const existingIds = new Set((plan.courses || []).map(pc => pc.course?.id).filter(Boolean));
-			console.log('existingIds:', existingIds);
-
-			// Special case: If requirement is marked as "simple" but has groups with course_options,
-			// treat it like a grouped requirement and use the specific course codes
-			const hasGroupOptions = reqToUse?.groups?.length > 0 && 
-			                        reqToUse.groups.some(g => g.course_options && g.course_options.length > 0);
-			
-			if (hasGroupOptions) {
-				console.log('Simple requirement has groups with course options - using specific course codes');
-				for (const group of reqToUse.groups) {
-					if (!group.course_options) continue;
-					for (const option of group.course_options) {
-						try {
-							let searchUrl = `/api/courses?search=${encodeURIComponent(option.course_code)}`;
-							const institutionToSearch = option.institution || targetInstitution;
-							if (institutionToSearch) searchUrl += `&institution=${encodeURIComponent(institutionToSearch)}`;
-							const res = await fetch(searchUrl);
-							if (res.ok) {
-								const data = await res.json();
-								const course = data.courses?.[0];
-								if (course && !existingIds.has(course.id)) {
-									pushUnique(course, { 
-										group_name: group.group_name, 
-										is_preferred: option.is_preferred, 
-										notes: option.notes 
-									});
-								}
-							}
-						} catch { /* ignore */ }
+				if (courses.length > 0) {
+					if (isRealGroup) {
+						grouped[groupName] = {
+							groupInfo,
+							courses: courses.slice(0, 12),
+						};
+					} else {
+						flat.push(...courses);
 					}
 				}
-			} else if (!programRequirement || programRequirement.requirement_type === 'simple') {
-				console.log('Using simple requirement local heuristics');
-				console.log('requirement name:', name);
-				// Map requirement category keywords to subject codes and optional title filters
-				const subjectMap = {
-					'english composition': { subjects: ['ENGL', 'ENG'], titleIncludesAny: ['composition', 'writing', 'rhetoric'] },
-					'composition': { subjects: ['ENGL', 'ENG'], titleIncludesAny: ['composition', 'writing', 'rhetoric'] },
-					'english': { subjects: ['ENGL', 'ENG'] },
-					'literature': { subjects: ['ENGL', 'LIT'] },
-					'mathematics': { subjects: ['MATH', 'STAT'] },
-					'math': { subjects: ['MATH', 'STAT'] },
-					'analytical reasoning': { subjects: ['MATH', 'STAT', 'PHIL'], titleIncludesAny: ['logic', 'statistics', 'analysis'] },
-					'reasoning': { subjects: ['MATH', 'PHIL'], titleIncludesAny: ['logic'] },
-					'biology': { subjects: ['BIOL', 'BIO'] },
-					'chemistry': { subjects: ['CHEM'] },
-					'physics': { subjects: ['PHYS'] },
-					'history': { subjects: ['HIST'] },
-					'science': { subjects: ['BIOL', 'CHEM', 'PHYS'] },
-					'social sciences': { subjects: ['SOC', 'PSY', 'POLI'] },
-					'social science': { subjects: ['SOC', 'PSY', 'POLI'] },
-					'humanities': { subjects: ['ENGL', 'HIST', 'PHIL', 'ART', 'MUSC', 'THEA'] },
-					'arts': { subjects: ['ART', 'MUSC', 'THEA'] },
-					'fine arts': { subjects: ['ART', 'MUSC', 'THEA'] },
-					'liberal arts': { subjects: ['ENGL', 'HIST', 'PHIL', 'ART', 'MUSC', 'THEA', 'SOC', 'PSY', 'POLI'] }
-				};
-				const nameLower = name.toLowerCase();
-				let mappingKey = Object.keys(subjectMap).find(k => nameLower.includes(k));
-				const conf = mappingKey ? subjectMap[mappingKey] : { subjects: [] };
-				let subjects = conf.subjects;
-				// Fallback: try to infer a subject by taking the first uppercase token in the name
-				if (!subjects || subjects.length === 0) {
-					// No strong mapping; try a conservative search using subject-like tokens (e.g., "CSCI", "MATH")
-					subjects = [];
-				}
+			});
 
-				// Query by subject code to avoid broad full-text matches
-				const subjectsToQuery = subjects.slice(0, 3); // limit network calls
-				for (const subj of subjectsToQuery) {
-					try {
-						let url = `/api/courses?subject=${encodeURIComponent(subj)}&per_page=20`;
-						if (targetInstitution) url += `&institution=${encodeURIComponent(targetInstitution)}`;
-						const res = await fetch(url);
-						if (res.ok) {
-							const data = await res.json();
-							(data.courses || []).forEach(course => {
-								const instOk = !targetInstitution || (course.institution || '').toLowerCase() === targetInstitution.toLowerCase();
-								if (!instOk) return;
-								if (existingIds.has(course.id)) return;
-								// Optional stricter title filter for some categories
-								if (conf.titleIncludesAny && conf.titleIncludesAny.length > 0) {
-									const title = (course.title || '').toLowerCase();
-									if (!conf.titleIncludesAny.some(w => title.includes(w))) return;
-								}
-								pushUnique(course);
-							});
-						}
-					} catch {
-						// ignore fetch errors per subject
-					}
-				}
-
-				// If we still have no suggestions and we have a strong keyword (e.g., "composition"), run a narrow title search as a last resort
-				if (out.length === 0 && conf.titleIncludesAny && conf.titleIncludesAny.length > 0) {
-					for (const kw of conf.titleIncludesAny.slice(0, 1)) {
-						try {
-							let url = `/api/courses?search=${encodeURIComponent(kw)}&per_page=10`;
-							if (targetInstitution) url += `&institution=${encodeURIComponent(targetInstitution)}`;
-							const res = await fetch(url);
-							if (res.ok) {
-								const data = await res.json();
-								(data.courses || []).forEach(course => {
-									const instOk = !targetInstitution || (course.institution || '').toLowerCase() === targetInstitution.toLowerCase();
-									if (!instOk) return;
-									if (existingIds.has(course.id)) return;
-									pushUnique(course, { search_term: kw });
-								});
-							}
-						} catch {
-							// ignore
-						}
-					}
-				}
-			} else if ((reqToUse?.requirement_type === 'grouped' || programRequirement?.requirement_type === 'grouped') && (reqToUse?.groups || programRequirement?.groups)) {
-				const groupsToUse = reqToUse?.groups || programRequirement?.groups;
-				for (const group of groupsToUse) {
-					if (!group.course_options) continue;
-						for (const option of group.course_options) {
-							try {
-								let searchUrl = `/api/courses?search=${encodeURIComponent(option.course_code)}`;
-								const institutionToSearch = option.institution || targetInstitution;
-								if (institutionToSearch) searchUrl += `&institution=${encodeURIComponent(institutionToSearch)}`;
-								const res = await fetch(searchUrl);
-								if (res.ok) {
-									const data = await res.json();
-									const course = data.courses?.[0];
-									if (course && !existingIds.has(course.id)) pushUnique(course, { group_name: group.group_name, is_preferred: option.is_preferred, notes: option.notes });
-								}
-							} catch { /* ignore */ }
-						}
-				}
+			if (Object.keys(grouped).length > 0) {
+				setGroupedSuggestions(grouped);
+				setSuggestions([]);
+			} else {
+				setSuggestions(flat.slice(0, 12));
+				setGroupedSuggestions({});
 			}
-			// Trim to a reasonable number to keep UI focused
-			console.log('Final suggestions count:', out.length);
-			console.log('Final suggestions:', out.slice(0, 3));
-			console.log('SET SUGGESTIONS (local heuristics):', out.slice(0, 12).length, 'items');
-			setSuggestions(out.slice(0, 12));
-		} catch (err) { 
+		} catch (err) {
 			console.error('generateSuggestions error:', err);
-			setSuggestions([]); 
-		} finally { 
+			setSuggestions([]);
+			setGroupedSuggestions({});
+		} finally {
 			setLoadingSuggestions(false);
-			console.log('=== generateSuggestions END ===');
 		}
-	}, [programRequirement, loadingSuggestions, name, plan, program, hasConstraints, constraints]);
+	}, [loadingSuggestions, plan, program, requirement]);
 
 	const getStatusChip = (status) => {
 		switch (status) {

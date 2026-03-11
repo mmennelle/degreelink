@@ -214,36 +214,171 @@ def update_program_requirement(program_id, requirement_id):
 
 @bp.route('/<int:program_id>/requirements/<int:requirement_id>/suggestions', methods=['GET'])
 def get_requirement_suggestions(program_id, requirement_id):
-    
+    """Return constraint-filtered course suggestions for a requirement.
+
+    Query params:
+        plan_id  – optional; excludes courses already on this plan
+    """
+    from models.course import Course
+    from models.plan import PlanCourse
+
     requirement = ProgramRequirement.query.filter_by(
-        id=requirement_id, 
+        id=requirement_id,
         program_id=program_id
     ).first_or_404()
-    
-    suggestions = []
-    
-    if requirement.requirement_type == 'grouped':
+
+    program = Program.query.get_or_404(program_id)
+
+    # Courses already on the plan (to exclude from suggestions)
+    excluded_ids = set()
+    plan_id = request.args.get('plan_id')
+    if plan_id:
+        try:
+            excluded_ids = {
+                pc.course_id
+                for pc in PlanCourse.query.filter_by(plan_id=int(plan_id)).all()
+            }
+        except (TypeError, ValueError):
+            pass
+
+    # --- Gather raw candidate courses ---
+    candidates = []  # list of (Course, group_name|None, is_preferred, notes)
+
+    if requirement.requirement_type == 'grouped' or (requirement.groups and len(requirement.groups) > 0):
+        # Pull from defined group course options
         for group in requirement.groups:
-            group_suggestions = []
             for option in group.course_options:
-                
-                from models.course import Course
-                course = Course.query.filter_by(code=option.course_code).first()
-                if course:
-                    group_suggestions.append({
-                        'course': course.to_dict(),
-                        'option_info': option.to_dict(),
-                        'group_name': group.group_name
-                    })
-            
-            suggestions.append({
-                'group': group.to_dict(),
-                'course_options': group_suggestions
-            })
-    
+                course = Course.query.filter_by(
+                    code=option.course_code,
+                    institution=option.institution or program.institution
+                ).first()
+                if course and course.id not in excluded_ids:
+                    candidates.append((course, group.group_name, option.is_preferred, option.notes, group))
+    else:
+        # Simple requirement – use subject-code mappings
+        subject_mappings = {
+            'english composition': ['ENGL', 'ENG'],
+            'composition': ['ENGL', 'ENG'],
+            'english': ['ENGL', 'ENG'],
+            'literature': ['ENGL', 'LIT'],
+            'mathematics': ['MATH', 'STAT'],
+            'math': ['MATH', 'STAT'],
+            'analytical reasoning': ['MATH', 'STAT', 'PHIL'],
+            'reasoning': ['PHIL', 'MATH'],
+            'biology': ['BIOL', 'BIO'],
+            'chemistry': ['CHEM'],
+            'physics': ['PHYS'],
+            'history': ['HIST'],
+            'science': ['BIOL', 'CHEM', 'PHYS'],
+            'social sciences': ['SOC', 'PSY', 'POLI'],
+            'social science': ['SOC', 'PSY', 'POLI'],
+            'humanities': ['ENGL', 'HIST', 'PHIL', 'ART', 'MUSC', 'THEA'],
+            'arts': ['ART', 'MUSC', 'THEA'],
+            'fine arts': ['ART', 'MUSC', 'THEA'],
+            'liberal arts': ['ENGL', 'HIST', 'PHIL', 'ART', 'MUSC', 'THEA', 'SOC', 'PSY', 'POLI'],
+        }
+        norm = (requirement.category or '').strip().lower()
+        subjects = subject_mappings.get(norm, [])
+
+        query = Course.query.filter(
+            Course.institution == program.institution,
+            ~Course.id.in_(excluded_ids) if excluded_ids else True
+        )
+        if subjects:
+            query = query.filter(Course.subject_code.in_(subjects))
+        else:
+            if norm:
+                query = query.filter(Course.department.ilike(f"%{requirement.category}%"))
+
+        # Exclude developmental courses
+        try:
+            raw = query.filter(
+                ((Course.course_level != None) & (Course.course_level >= 1000)) |
+                ((Course.course_level == None) & (Course.course_number_numeric >= 1000))
+            ).limit(40).all()
+        except Exception:
+            raw = query.limit(40).all()
+
+        # Filter out non-equivalent / NE suffix courses
+        for c in raw:
+            if c.code and c.code.endswith('NE'):
+                continue
+            if c.title and 'no equivalent' in c.title.lower():
+                continue
+            candidates.append((c, None, False, None, None))
+
+    # --- Apply constraint filters to candidates ---
+    constraints = list(requirement.constraints) if hasattr(requirement, 'constraints') else []
+    constraint_info = [c.to_dict() for c in constraints]
+
+    def passes_constraints(course):
+        """Return True if course is not excluded by any constraint."""
+        for con in constraints:
+            params = con.get_params()
+            ctype = con.constraint_type
+
+            if ctype == 'min_level_credits':
+                # Prefer courses at or above the required level
+                level_min = params.get('level_min', 0)
+                if course.course_level is not None and course.course_level < level_min:
+                    return False
+                # If level unknown, allow through (conservative)
+
+            elif ctype == 'max_tag_credits':
+                # Don't exclude at suggestion time — this is a cap, not a filter
+                pass
+
+            elif ctype == 'min_courses_at_level':
+                # Informational; don't filter out lower-level courses entirely
+                pass
+
+            elif ctype == 'min_tag_courses':
+                # Informational; don't filter out non-tagged courses
+                pass
+
+        return True
+
+    # Build response grouped by group_name
+    grouped_output = {}  # group_name -> { group: {...}, course_options: [...] }
+    flat_output = []
+
+    for course, group_name, is_preferred, notes, group_obj in candidates:
+        if not passes_constraints(course):
+            continue
+
+        course_dict = course.to_dict()
+        entry = {
+            'course': course_dict,
+            'option_info': {
+                'is_preferred': is_preferred,
+                'notes': notes,
+                'course_code': course.code,
+            },
+            'group_name': group_name,
+        }
+
+        if group_name and group_obj:
+            if group_name not in grouped_output:
+                grouped_output[group_name] = {
+                    'group': group_obj.to_dict(),
+                    'course_options': []
+                }
+            grouped_output[group_name]['course_options'].append(entry)
+        else:
+            flat_output.append(entry)
+
+    suggestions = list(grouped_output.values()) if grouped_output else []
+    # For simple requirements with no groups, wrap flat output for consistent shape
+    if flat_output and not suggestions:
+        suggestions = [{
+            'group': {'group_name': requirement.category, 'id': None},
+            'course_options': flat_output[:12]
+        }]
+
     return jsonify({
         'requirement': requirement.to_dict(),
-        'suggestions': suggestions
+        'suggestions': suggestions,
+        'constraints': constraint_info,
     })
 
 @bp.route('/<int:program_id>/requirements', methods=['GET'])
