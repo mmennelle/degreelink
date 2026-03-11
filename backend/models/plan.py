@@ -568,27 +568,38 @@ class Plan(db.Model):
                             eq_code_norm = (eq_course.code or '').upper().replace('-', ' ').strip()
                             if eq_code_norm in allowed_codes:
                                 cat_match = True
-                        # Otherwise fall back to department/subject matching
-                        if not cat_match:
+                        # Only fall back to broad department/subject matching when the
+                        # requirement has NO explicit course lists (allowed_codes).
+                        # When groups define specific courses, those are the source of truth.
+                        if not cat_match and not allowed_codes:
                             eq_dept = (getattr(eq_course, 'department', '') or '').strip()
                             if eq_dept and canon(eq_dept) == req_canon:
                                 cat_match = True
-                        if not cat_match:
-                            eq_subj = (getattr(eq_course, 'subject_code', '') or '').upper().strip()
-                            expected_subjects = _get_expected_subjects(getattr(req, 'category', ''))
-                            if eq_subj and eq_subj in expected_subjects:
-                                cat_match = True
+                            if not cat_match:
+                                eq_subj = (getattr(eq_course, 'subject_code', '') or '').upper().strip()
+                                expected_subjects = _get_expected_subjects(getattr(req, 'category', ''))
+                                if eq_subj and eq_subj in expected_subjects:
+                                    cat_match = True
                     # Direct institution match: course is from this program's institution
                     if not cat_match and getattr(pc, 'course', None):
                         if getattr(pc.course, 'institution', None) == program.institution:
-                            own_subj = (getattr(pc.course, 'subject_code', '') or '').upper().strip()
-                            own_dept = (getattr(pc.course, 'department', '') or '').strip()
-                            if own_dept and canon(own_dept) == req_canon:
-                                cat_match = True
-                            elif own_subj:
-                                expected_subjects = _get_expected_subjects(getattr(req, 'category', ''))
-                                if own_subj in expected_subjects:
+                            # When requirement has explicit allowed_codes, only match by code
+                            if allowed_codes:
+                                try:
+                                    own_code_norm = (pc.course.code or '').upper().replace('-', ' ').strip()
+                                    if own_code_norm in allowed_codes:
+                                        cat_match = True
+                                except Exception:
+                                    pass
+                            else:
+                                own_subj = (getattr(pc.course, 'subject_code', '') or '').upper().strip()
+                                own_dept = (getattr(pc.course, 'department', '') or '').strip()
+                                if own_dept and canon(own_dept) == req_canon:
                                     cat_match = True
+                                elif own_subj:
+                                    expected_subjects = _get_expected_subjects(getattr(req, 'category', ''))
+                                    if own_subj in expected_subjects:
+                                        cat_match = True
                 except Exception:
                     pass
             
