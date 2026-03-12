@@ -411,13 +411,13 @@ class Plan(db.Model):
             import logging
             logging.info(f"Evaluating {len(req.constraints)} constraint(s) for requirement {req.id} ({req.category})")
             
-            # Annotate matched PlanCourses with resolved group names for scope filtering
+            # Annotate matched PlanCourses with resolved group names for scope filtering.
+            # Always set (not conditionally) to avoid stale values from prior evaluations.
             valid_courses = []
             for c in relevant_courses:
                 if c.id not in matched_pc_ids or getattr(c, 'constraint_violation', False):
                     continue
-                if c.id in pc_group_names:
-                    c._resolved_group_name = pc_group_names[c.id]
+                c._resolved_group_name = pc_group_names.get(c.id)
                 valid_courses.append(c)
             
             for constraint in req.constraints:
@@ -645,29 +645,32 @@ class Plan(db.Model):
             import logging
             logging.info(f"Evaluating {len(req.constraints)} constraint(s) for simple requirement {req.id} ({req.category})")
             
-            # Annotate matched courses with resolved group_name for scope filtering
+            # Annotate matched courses with resolved group_name for scope filtering.
+            # Always re-resolve per requirement because group names are program-specific;
+            # a stale _resolved_group_name from a prior program's evaluation would cause
+            # scope filters to silently exclude the course.
             valid_courses = []
             for c in relevant_courses:
                 if c.id not in matched_pc_ids or getattr(c, 'constraint_violation', False):
                     continue
-                # Resolve group name: explicit group_id → name, or course code → group name
-                if not getattr(c, '_resolved_group_name', None):
-                    gid = getattr(c, 'requirement_group_id', None)
-                    if gid and gid in group_id_to_name:
-                        c._resolved_group_name = group_id_to_name[gid]
-                    elif hasattr(c, 'course') and c.course:
-                        cc = (c.course.code or '').upper().replace('-', ' ').strip()
-                        resolved = code_to_group_name.get(cc)
-                        # For cross-institution courses, also check the equivalent course's code
-                        if not resolved:
-                            try:
-                                eq = self._get_equivalent_course(c, program)
-                                if eq:
-                                    eq_code = (eq.code or '').upper().replace('-', ' ').strip()
-                                    resolved = code_to_group_name.get(eq_code)
-                            except Exception:
-                                pass
-                        c._resolved_group_name = resolved
+                # Re-resolve group name for THIS requirement's groups
+                resolved = None
+                gid = getattr(c, 'requirement_group_id', None)
+                if gid and gid in group_id_to_name:
+                    resolved = group_id_to_name[gid]
+                elif hasattr(c, 'course') and c.course:
+                    cc = (c.course.code or '').upper().replace('-', ' ').strip()
+                    resolved = code_to_group_name.get(cc)
+                    # For cross-institution courses, also check the equivalent course's code
+                    if not resolved:
+                        try:
+                            eq = self._get_equivalent_course(c, program)
+                            if eq:
+                                eq_code = (eq.code or '').upper().replace('-', ' ').strip()
+                                resolved = code_to_group_name.get(eq_code)
+                        except Exception:
+                            pass
+                c._resolved_group_name = resolved
                 valid_courses.append(c)
             
             for constraint in req.constraints:
@@ -944,29 +947,24 @@ class Plan(db.Model):
         }
     
     def get_unmet_requirements(self, program=None):
+        """Return requirements that still need credits, using the full progress engine
+        so that cross-institution equivalency credits are counted correctly."""
         program = program or self.target_program
         unmet = []
         if not program:
             return unmet
-            
-        canon = self.normalize_category
-        # Compare plan's completed credits against the program's requirements
-        if program == self.target_program:
-            requirements_list = self.get_locked_requirements()
-        else:
-            requirements_list = program.requirements or []
-        for requirement in requirements_list:
-            completed_credits = sum(
-                (pc.credits or (pc.course.credits if pc.course else 0) or 0)
-                for pc in self.courses
-                if pc.status == 'completed'
-                and canon(getattr(pc, 'requirement_category', '')) == canon(requirement.category)
-            )
-            if completed_credits < requirement.credits_required:
+
+        # Use the real progress calculation (All Courses view) so equivalency and
+        # group-match credits are included — not just direct category matches.
+        progress = self.calculate_progress(program=program, view_filter='All Courses')
+        for req_data in progress.get('requirements', []):
+            total = req_data.get('totalCredits', 0) or 0
+            earned = req_data.get('completedCredits', 0) or 0
+            if total and earned < total:
                 unmet.append({
-                    'category': requirement.category,
-                    'credits_needed': requirement.credits_required - completed_credits,
-                    'description': requirement.description
+                    'category': req_data.get('category', ''),
+                    'credits_needed': total - earned,
+                    'description': req_data.get('description', '')
                 })
         return unmet
 
@@ -978,7 +976,19 @@ class Plan(db.Model):
         
         suggestions = []
         # Exclude any course already on the plan (planned, in_progress, completed)
-        excluded_course_ids = [course.course_id for course in (self.courses or [])]
+        excluded_course_ids = set(course.course_id for course in (self.courses or []))
+
+        # Also exclude courses whose cross-institution equivalents are already on the plan.
+        # e.g. if BIOL 141 (Delgado) is on the plan and is equivalent to BIOS 1083 (UNO),
+        # BIOS 1083 should not be suggested.
+        for pc in (self.courses or []):
+            try:
+                eq = self._get_equivalent_course(pc, program)
+                if eq:
+                    excluded_course_ids.add(eq.id)
+            except Exception:
+                pass
+
         unmet_requirements = self.get_unmet_requirements(program=program)
 
         # Get locked requirements for target program, or program's own requirements for current
