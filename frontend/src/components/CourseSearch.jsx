@@ -71,22 +71,26 @@ const CourseSearch = ({
     
     const codeMap = new Map();
     const subjectMap = {
-      'BIOL': ['bio', 'biology', 'life science'],
-      'CHEM': ['chem', 'chemistry'],
+      'BIOL': ['bio', 'biology', 'life science', 'science', 'major req'],
+      'BIOS': ['bio', 'biology', 'life science', 'science', 'major req', 'core major'],
+      'CHEM': ['chem', 'chemistry', 'science', 'major req'],
       'MATH': ['math', 'mathematics', 'analytical'],
       'STAT': ['stat', 'statistics', 'analytical'],
-      'PHYS': ['phys', 'physics'],
+      'PHYS': ['phys', 'physics', 'science'],
       'ENG': ['english', 'composition', 'writing'],
       'ENGL': ['english', 'composition', 'writing', 'literature'],
       'HIST': ['history', 'humanities'],
       'PHIL': ['philosophy', 'humanities', 'reasoning'],
       'SOC': ['social', 'sociology'],
+      'SOCI': ['social', 'sociology'],
       'PSYC': ['psych', 'social'],
       'PSY': ['psych', 'social'],
       'CS': ['computer', 'comp sci'],
       'CSCI': ['computer', 'comp sci'],
       'POLI': ['political', 'government'],
-      'ECON': ['economics', 'social']
+      'ECON': ['economics', 'social'],
+      'ANTH': ['social', 'anthropology'],
+      'GEOL': ['science', 'geology']
     };
     
     // Build lookup map for exact course code matches

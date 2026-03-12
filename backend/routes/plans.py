@@ -1434,11 +1434,75 @@ def _assign_requirement_group(plan: Plan, plan_course: PlanCourse):
                 if code_match and inst_match:
                     matches.append((req, grp, opt))
     
+    # If no direct match, try equivalency-based matching for cross-institution courses
+    if not matches:
+        try:
+            from models.equivalency import Equivalency
+            from models.course import Course as CourseModel
+            from sqlalchemy.orm import aliased
+
+            target_inst = getattr(plan.target_program, 'institution', None)
+            eq_codes = set()
+
+            # Forward: course -> equivalent at target institution
+            if target_inst:
+                ToC = aliased(CourseModel)
+                fwd = (db.session.query(ToC.code)
+                       .join(Equivalency, Equivalency.to_course_id == ToC.id)
+                       .filter(
+                           Equivalency.from_course_id == plan_course.course.id,
+                           ToC.institution == target_inst
+                       ).all())
+                eq_codes.update(c.upper().replace('-', ' ').strip() for (c,) in fwd if c)
+
+                # Reverse: equivalent at target institution -> course
+                FromC = aliased(CourseModel)
+                rev = (db.session.query(FromC.code)
+                       .join(Equivalency, Equivalency.from_course_id == FromC.id)
+                       .filter(
+                           Equivalency.to_course_id == plan_course.course.id,
+                           FromC.institution == target_inst
+                       ).all())
+                eq_codes.update(c.upper().replace('-', ' ').strip() for (c,) in rev if c)
+
+                # CCN-mediated: course -> CCN -> target course
+                ccn_eqs = Equivalency.query.filter(
+                    Equivalency.from_course_id == plan_course.course.id,
+                    Equivalency.equivalency_type.in_(['articulation', 'subject_area'])
+                ).all()
+                ccn_ids = [eq.to_course_id for eq in ccn_eqs]
+                if ccn_ids:
+                    TargetC = aliased(CourseModel)
+                    ccn_targets = (db.session.query(TargetC.code)
+                                   .join(Equivalency, Equivalency.from_course_id == TargetC.id)
+                                   .filter(
+                                       Equivalency.to_course_id.in_(ccn_ids),
+                                       Equivalency.equivalency_type.in_(['articulation', 'subject_area']),
+                                       TargetC.institution == target_inst,
+                                       Equivalency.from_course_id != plan_course.course.id,
+                                   ).all())
+                    eq_codes.update(c.upper().replace('-', ' ').strip() for (c,) in ccn_targets if c)
+
+            if eq_codes:
+                for req in (plan.target_program.requirements or []):
+                    if getattr(req, 'requirement_type', '') != 'grouped':
+                        continue
+                    for grp in (req.groups or []):
+                        for opt in (grp.course_options or []):
+                            opt_code_norm = (opt.course_code or '').upper().replace('-', ' ').strip()
+                            if opt_code_norm in eq_codes:
+                                matches.append((req, grp, opt))
+                if matches:
+                    logger.info(f"Equivalency match for {code_norm} via {eq_codes} in plan {plan.id}")
+        except Exception as e:
+            logger.warning(f"Equivalency lookup failed for {code_norm}: {e}")
+    
     if not matches:
         logger.info(f"No group match for course {code_norm} (institution: {course_inst}) in plan {plan.id}")
         # Fall back: try to assign requirement_category for simple requirements
         # based on subject code matching (so imported courses aren't left NULL).
-        if not plan_course.requirement_category:
+        # Treat 'Free Electives' as unassigned so it can be overridden.
+        if not plan_course.requirement_category or plan_course.requirement_category == 'Free Electives':
             _assign_simple_requirement_category(plan, plan_course, logger)
         return
     
@@ -1464,7 +1528,8 @@ def _assign_requirement_group(plan: Plan, plan_course: PlanCourse):
     chosen_req, chosen_group, chosen_opt = candidates[0]
     plan_course.requirement_group_id = chosen_group.id
     # Also set requirement_category so category-based matching works for both programs
-    if not plan_course.requirement_category:
+    # Override 'Free Electives' since a real match was found
+    if not plan_course.requirement_category or plan_course.requirement_category == 'Free Electives':
         plan_course.requirement_category = chosen_req.category
     
     logger.debug(
@@ -1480,6 +1545,10 @@ def _assign_simple_requirement_category(plan, plan_course, logger=None):
 
     Checks BOTH the target program and the current program requirements so that
     the course is categorised for whichever bar it naturally fits.
+
+    Also resolves equivalencies so cross-institution courses (e.g. Delgado BIOL
+    matching UNO's 'Science' requirement via the equivalent BIOS subject code)
+    are correctly categorised.
     """
     if not plan_course.course:
         return
@@ -1490,6 +1559,32 @@ def _assign_simple_requirement_category(plan, plan_course, logger=None):
     if not subj:
         return
 
+    # Collect subject codes to try: the course's own + equivalent courses'
+    all_subjects = {subj}
+    try:
+        from models.equivalency import Equivalency
+        from models.course import Course as CourseModel
+        from sqlalchemy.orm import aliased
+
+        # Forward equivalencies
+        ToC = aliased(CourseModel)
+        fwd = (db.session.query(ToC.subject_code)
+               .join(Equivalency, Equivalency.to_course_id == ToC.id)
+               .filter(Equivalency.from_course_id == plan_course.course.id)
+               .all())
+        all_subjects.update(s.upper().strip() for (s,) in fwd if s)
+
+        # Reverse equivalencies
+        FromC = aliased(CourseModel)
+        rev = (db.session.query(FromC.subject_code)
+               .join(Equivalency, Equivalency.from_course_id == FromC.id)
+               .filter(Equivalency.to_course_id == plan_course.course.id)
+               .all())
+        all_subjects.update(s.upper().strip() for (s,) in rev if s)
+    except Exception as e:
+        if logger:
+            logger.warning(f"Equivalency subject lookup failed for {subj}: {e}")
+
     # Gather requirements from both programs
     candidates = []
     for prog in (plan.target_program, plan.current_program):
@@ -1499,12 +1594,12 @@ def _assign_simple_requirement_category(plan, plan_course, logger=None):
             if getattr(req, 'requirement_type', '') == 'grouped':
                 continue  # grouped handled elsewhere
             expected = _get_expected_subjects(getattr(req, 'category', ''))
-            if subj in expected:
+            if any(s in expected for s in all_subjects):
                 candidates.append(req)
 
     if not candidates:
         if logger:
-            logger.info(f"No simple-requirement subject match for {subj} in plan {plan.id}")
+            logger.info(f"No simple-requirement subject match for {all_subjects} in plan {plan.id}")
         return
 
     # Pick the first matching requirement (stable by query order)
@@ -1513,7 +1608,7 @@ def _assign_simple_requirement_category(plan, plan_course, logger=None):
     if logger:
         logger.debug(
             f"Assigned course {plan_course.course.code} to simple requirement "
-            f"'{chosen.category}' via subject code '{subj}' for plan {plan.id}"
+            f"'{chosen.category}' via subject codes {all_subjects} for plan {plan.id}"
         )
 
 # For advisor access - could be expanded with proper authentication
