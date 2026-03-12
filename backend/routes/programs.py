@@ -234,10 +234,19 @@ def get_requirement_suggestions(program_id, requirement_id):
     plan_id = request.args.get('plan_id')
     if plan_id:
         try:
-            excluded_ids = {
-                pc.course_id
-                for pc in PlanCourse.query.filter_by(plan_id=int(plan_id)).all()
-            }
+            from models.plan import Plan
+            plan_obj = Plan.query.get(int(plan_id))
+            if plan_obj:
+                excluded_ids = {pc.course_id for pc in (plan_obj.courses or [])}
+                # Also exclude courses whose cross-institution equivalents are
+                # already on the plan (e.g. BIOL 141 on plan → exclude BIOS 1083).
+                for pc in (plan_obj.courses or []):
+                    try:
+                        eq = plan_obj._get_equivalent_course(pc, program)
+                        if eq:
+                            excluded_ids.add(eq.id)
+                    except Exception:
+                        pass
         except (TypeError, ValueError):
             pass
 
