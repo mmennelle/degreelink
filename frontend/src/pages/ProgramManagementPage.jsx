@@ -9,7 +9,6 @@
 
 import React, { useState } from 'react';
 import ProgramManagement from './ProgramManagement';
-import UploadPage from './UploadPage';
 
 export default function ProgramManagementPage() {
   const [activeSubTab, setActiveSubTab] = useState('programs');
@@ -30,21 +29,21 @@ export default function ProgramManagementPage() {
             Programs
           </button>
           <button
-            onClick={() => setActiveSubTab('upload')}
+            onClick={() => setActiveSubTab('courses')}
             className={`px-4 py-2 border-b-2 font-medium transition-colors ${
-              activeSubTab === 'upload'
+              activeSubTab === 'courses'
                 ? 'border-blue-600 text-blue-600 dark:text-blue-400'
                 : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
             }`}
           >
-            CSV Upload
+            Courses
           </button>
         </div>
       </div>
 
       {/* Content */}
-      {activeSubTab === 'programs' && <ProgramManagement />}
-      {activeSubTab === 'upload' && <UploadPage />}
+      {activeSubTab === 'programs' && <ProgramManagement mode="programs" />}
+      {activeSubTab === 'courses' && <ProgramManagement mode="courses" />}
     </div>
   );
 }

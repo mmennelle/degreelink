@@ -100,8 +100,8 @@ const PaginationControls = ({ currentPage, totalPages, onPageChange }) => {
   );
 };
 
-const ProgramManagement = () => {
-  const [activeTab, setActiveTab] = useState('courses');
+const ProgramManagement = ({ mode = 'all' }) => {
+  const [activeTab, setActiveTab] = useState(mode === 'programs' ? 'programs' : 'courses');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterInstitution, setFilterInstitution] = useState('all');
   const [showOnlyWithPrerequisites, setShowOnlyWithPrerequisites] = useState(false);
@@ -326,12 +326,18 @@ const ProgramManagement = () => {
     return data;
   };
 
-  const tabs = [
+  const allTabs = [
     { id: 'courses', label: 'Courses', icon: BookOpen },
     { id: 'equivalencies', label: 'Equivalencies', icon: Link2 },
     { id: 'prerequisites', label: 'Prerequisites', icon: GitBranch },
     { id: 'programs', label: 'Programs', icon: Settings }
   ];
+
+  const tabs = mode === 'programs'
+    ? allTabs.filter(t => t.id === 'programs')
+    : mode === 'courses'
+    ? allTabs.filter(t => ['courses', 'equivalencies', 'prerequisites'].includes(t.id))
+    : allTabs;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -342,10 +348,14 @@ const ProgramManagement = () => {
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
                 <Settings className="mr-3" size={32} />
-                Program Management
+                {mode === 'programs' ? 'Program Management' : mode === 'courses' ? 'Course Management' : 'Program Management'}
               </h1>
               <p className="mt-2 text-gray-600 dark:text-gray-400">
-                Manage courses, equivalencies, prerequisites, and program requirements
+                {mode === 'programs'
+                  ? 'Manage programs and their requirements'
+                  : mode === 'courses'
+                  ? 'Manage courses, equivalencies, and prerequisites'
+                  : 'Manage courses, equivalencies, prerequisites, and program requirements'}
               </p>
             </div>
           </div>
@@ -355,7 +365,7 @@ const ProgramManagement = () => {
       {/* Tabs */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="border-b border-gray-200 dark:border-gray-700">
+          {tabs.length > 1 && <div className="border-b border-gray-200 dark:border-gray-700">
             <nav className="flex -mb-px">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
@@ -380,7 +390,7 @@ const ProgramManagement = () => {
                 );
               })}
             </nav>
-          </div>
+          </div>}
 
           {/* Search and Filter Bar */}
           <div className="p-4 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
