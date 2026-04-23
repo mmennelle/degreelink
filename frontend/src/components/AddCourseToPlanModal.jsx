@@ -20,11 +20,31 @@ const AddCourseToPlanModal = ({
   onCoursesAdded 
 }) => {
   const initializeCourseData = () => {
+    // Subject-to-keyword map for fallback category detection
+    const subjectKeywords = {
+      'BIOL': ['bio', 'biology', 'life science', 'science', 'major req'],
+      'BIOS': ['bio', 'biology', 'life science', 'science', 'major req', 'core major'],
+      'CHEM': ['chem', 'chemistry', 'science', 'major req'],
+      'MATH': ['math', 'mathematics', 'analytical'],
+      'STAT': ['stat', 'statistics', 'analytical'],
+      'PHYS': ['phys', 'physics', 'science'],
+      'ENGL': ['english', 'composition', 'writing', 'literature'],
+      'HIST': ['history', 'humanities'],
+      'PHIL': ['philosophy', 'humanities', 'reasoning'],
+      'SOC': ['social', 'sociology'],
+      'SOCI': ['social', 'sociology'],
+      'PSYC': ['psych', 'social'],
+      'PSY': ['psych', 'social'],
+      'ANTH': ['social', 'anthropology'],
+      'GEOL': ['science', 'geology']
+    };
+
     return courses.map(course => {
       let suggestedCategory = course.detectedCategory || 'Free Electives';
       let suggestedGroup = null;
 
       if (program && program.requirements) {
+        // First: try exact code match in grouped requirements
         const match = program.requirements.find(req => {
           if (req.groups) {
             const groupMatch = req.groups.find(g =>
@@ -38,6 +58,19 @@ const AddCourseToPlanModal = ({
           }
           return false;
         });
+
+        // Second: if no group match and still defaulted, try subject-keyword heuristic
+        if (!match && ['Free Electives', 'Elective', 'General Elective', 'Free Elective'].includes(suggestedCategory)) {
+          const courseSubject = (course.subject_code || course.code?.match(/^[A-Z]+/)?.[0] || '').toUpperCase();
+          const keywords = subjectKeywords[courseSubject];
+          if (keywords) {
+            const reqMatch = program.requirements.find(req => {
+              const reqName = req.category.toLowerCase();
+              return keywords.some(kw => reqName.includes(kw));
+            });
+            if (reqMatch) suggestedCategory = reqMatch.category;
+          }
+        }
       }
 
       if (['Elective', 'General Elective', 'Free Elective'].includes(suggestedCategory)) {

@@ -10,6 +10,7 @@
 import React, { useState } from 'react';
 import AdvisorCenter from '../components/AdvisorCenter';
 import AuditPage from './AuditPage';
+import UploadPage from './UploadPage';
 
 export default function AdvisorCenterPage({ onOpenPlan, selectedPlanId, plans }) {
   const [activeSubTab, setActiveSubTab] = useState('students');
@@ -39,12 +40,23 @@ export default function AdvisorCenterPage({ onOpenPlan, selectedPlanId, plans })
           >
             Degree Audit
           </button>
+          <button
+            onClick={() => setActiveSubTab('upload')}
+            className={`px-4 py-2 border-b-2 font-medium transition-colors ${
+              activeSubTab === 'upload'
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+            }`}
+          >
+            CSV Upload
+          </button>
         </div>
       </div>
 
       {/* Content */}
       {activeSubTab === 'students' && <AdvisorCenter onOpenPlan={(planData) => onOpenPlan && onOpenPlan(planData)} />}
       {activeSubTab === 'audit' && <AuditPage selectedPlanId={selectedPlanId} plans={plans} />}
+      {activeSubTab === 'upload' && <UploadPage />}
     </div>
   );
 }

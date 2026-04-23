@@ -259,8 +259,10 @@ class ApiService {
       });
     }
     
-    async getProgramRequirementSuggestions(programId, requirementId) {
-      return this.request(`/programs/${programId}/requirements/${requirementId}/suggestions`);
+    async getProgramRequirementSuggestions(programId, requirementId, planId) {
+      let url = `/programs/${programId}/requirements/${requirementId}/suggestions`;
+      if (planId) url += `?plan_id=${planId}`;
+      return this.request(url);
     }
     
     // Plan progress with view filtering support

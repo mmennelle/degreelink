@@ -164,8 +164,15 @@ class RequirementConstraint(db.Model):
         if credits_max is not None:
             tally['credits_max'] = credits_max
         
+        # Cap-only constraints (max with no min): red when 0, blue "within limit" when > 0
+        is_cap_only = credits_max is not None and credits_min is None
+        if is_cap_only and total_credits == 0:
+            satisfied = False
+            reasons.append(f'No credits earned yet (max {credits_max}cr)')
+        
         return {
             'satisfied': satisfied,
+            'is_cap_only': is_cap_only and total_credits > 0,
             'reason': '; '.join(reasons) if reasons else None,
             'tally': tally
         }
@@ -192,8 +199,14 @@ class RequirementConstraint(db.Model):
         if courses_max is not None:
             tally['courses_max'] = courses_max
         
+        is_cap_only = courses_max is not None and courses_min is None
+        if is_cap_only and total_courses == 0:
+            satisfied = False
+            reasons.append(f'No courses added yet (max {courses_max})')
+        
         return {
             'satisfied': satisfied,
+            'is_cap_only': is_cap_only and total_courses > 0,
             'reason': '; '.join(reasons) if reasons else None,
             'tally': tally
         }
