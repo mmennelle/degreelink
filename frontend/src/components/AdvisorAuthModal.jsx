@@ -46,8 +46,9 @@ export default function AdvisorAuthModal({ isOpen, onClose, onSuccess, isAuthent
 
   if (!isOpen) return null;
 
-  const handleRequestCode = async (e) => {
-    e.preventDefault();
+  // method = 'email' (request a code and email it) or 'totp' (skip email, use authenticator)
+  const handleRequestCode = async (e, method = 'email') => {
+    if (e && e.preventDefault) e.preventDefault();
     if (!email.trim()) return;
 
     setLoading(true);
@@ -55,6 +56,15 @@ export default function AdvisorAuthModal({ isOpen, onClose, onSuccess, isAuthent
     setSuccess('');
 
     try {
+      if (method === 'totp') {
+        // Skip emailing a code; just advance to the verification screen on the
+        // TOTP tab. The backend still enforces email whitelisting at verify-time.
+        setUseTotp(true);
+        setHasTotp(true); // assume existing user; if wrong they can request a code
+        setStep('code');
+        return;
+      }
+
       const response = await api.requestAdvisorCode(email.trim());
       
       // Check if user already has TOTP set up
@@ -67,10 +77,10 @@ export default function AdvisorAuthModal({ isOpen, onClose, onSuccess, isAuthent
         setTotpSecret(response.totp_secret);
       }
       
-      // Default to TOTP tab if user already has it set up
-      if (userHasTotp) {
-        setUseTotp(true);
-      }
+      // Default to the Email Code tab — the user just clicked "Send Access Code",
+      // so they're expecting to type the emailed code, not a TOTP. The Authenticator
+      // tab is still one click away for users who prefer it.
+      setUseTotp(false);
       
       // Development mode: Show code in alert
       if (response.dev_mode && response.dev_code) {
@@ -224,10 +234,10 @@ export default function AdvisorAuthModal({ isOpen, onClose, onSuccess, isAuthent
 
           {/* Email Entry Step */}
           {step === 'email' && (
-            <form onSubmit={handleRequestCode} className="space-y-4">
+            <form onSubmit={(e) => handleRequestCode(e, 'email')} className="space-y-4">
               <div>
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
-                  Enter your whitelisted advisor email to receive an access code.
+                  Enter your whitelisted advisor email and choose how to sign in.
                 </p>
 
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -271,12 +281,28 @@ export default function AdvisorAuthModal({ isOpen, onClose, onSuccess, isAuthent
                 className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2 font-medium"
               >
                 <Mail size={16} />
-                {loading ? 'Sending...' : 'Send Access Code'}
+                {loading ? 'Sending...' : 'Email Me an Access Code'}
+              </button>
+
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+                <span className="text-xs text-gray-500 dark:text-gray-400">or</span>
+                <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+              </div>
+
+              <button
+                type="button"
+                onClick={(e) => handleRequestCode(e, 'totp')}
+                disabled={loading || !email.trim()}
+                className="w-full px-4 py-3 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-lg transition-colors flex items-center justify-center gap-2 font-medium"
+              >
+                <Key size={16} />
+                Use Authenticator App
               </button>
 
               <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
                 <p className="text-xs text-blue-800 dark:text-blue-300">
-                  Your email must be whitelisted by an administrator to receive an access code.
+                  Your email must be whitelisted by an administrator to sign in with either method.
                 </p>
               </div>
             </form>
