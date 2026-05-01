@@ -20,86 +20,70 @@ import secrets
 bp = Blueprint('advisor_auth', __name__, url_prefix='/api/advisor-auth')
 
 
-# Helper to send email (configure for production)
+# Helper to send email via Resend (https://resend.com)
 def send_access_code_email(email, code):
     """
-    Send access code to advisor's email.
-    In development: Returns code in response for display in alert
-    In production: Configure SMTP/email service below
-    
-    NOTE: Until SMTP is configured, backdoor code is available (shared separately)
+    Send the 6-digit access code to the advisor's email via Resend.
+
+    Configuration (environment variables):
+        RESEND_API_KEY  - API key from https://resend.com/api-keys (required for live sending)
+        RESEND_FROM     - From address (default: 'Degree Link <noreply.dlink@resend.dev>')
+
+    Behavior:
+        - If RESEND_API_KEY is not set, the code is logged to stdout only and the
+          function returns True so development flows continue to work (the code is
+          also surfaced via `dev_code` in the API response when not in production).
+        - If sending fails, returns False so the caller can surface an error.
     """
     import os
-    
-    # Log the code (visible in server logs)
+
+    api_key = os.environ.get('RESEND_API_KEY')
+    from_addr = os.environ.get('RESEND_FROM', 'Degree Link <noreply.dlink@resend.dev>')
+
     print(f"[EMAIL] Access code generated for {email}")
-    
-    # Until SMTP is configured, always return True to allow backdoor code
-    # The backdoor code is checked in the AdvisorAuth.verify_code() method
-    return True
-    
-    # PRODUCTION SMTP: Uncomment and configure your email service when ready
-    # 
-    # Option 1: SMTP Configuration
-    # import smtplib
-    # from email.mime.text import MIMEText
-    # from email.mime.multipart import MIMEMultipart
-    # 
-    # smtp_host = 'smtp.your-provider.com'  # e.g., 'smtp.gmail.com', 'smtp.sendgrid.net'
-    # smtp_port = 587  # or 465 for SSL
-    # smtp_user = 'your-email@domain.com'  # SMTP username
-    # smtp_pass = os.environ.get('SMTP_PASSWORD')  # Store password in environment variable
-    # from_email = 'noreply@yourdomain.edu'
-    # 
-    # msg = MIMEMultipart('alternative')
-    # msg['Subject'] = 'Your Advisor Portal Access Code'
-    # msg['From'] = from_email
-    # msg['To'] = email
-    # 
-    # html = f"""<html>
-    # <body>
-    #     <h2>Advisor Portal Access Code</h2>
-    #     <p>Your access code is: <strong>{code}</strong></p>
-    #     <p>This code expires in 15 minutes.</p>
-    # </body>
-    # </html>"""
-    # 
-    # msg.attach(MIMEText(html, 'html'))
-    # 
-    # with smtplib.SMTP(smtp_host, smtp_port) as server:
-    #     server.starttls()
-    #     server.login(smtp_user, smtp_pass)
-    #     server.sendmail(from_email, email, msg.as_string())
-    # 
-    # return True
-    #
-    # Option 2: SendGrid
-    # import sendgrid
-    # from sendgrid.helpers.mail import Mail
-    # 
-    # sg = sendgrid.SendGridAPIClient(api_key=os.environ.get('SENDGRID_API_KEY'))
-    # message = Mail(
-    #     from_email='noreply@yourdomain.edu',
-    #     to_emails=email,
-    #     subject='Your Advisor Portal Access Code',
-    #     html_content=f'<p>Your code: <strong>{code}</strong></p>'
-    # )
-    # sg.send(message)
-    # return True
-    #
-    # Option 3: AWS SES
-    # import boto3
-    # 
-    # client = boto3.client('ses', region_name='us-east-1')
-    # client.send_email(
-    #     Source='noreply@yourdomain.edu',
-    #     Destination={'ToAddresses': [email]},
-    #     Message={
-    #         'Subject': {'Data': 'Your Advisor Portal Access Code'},
-    #         'Body': {'Html': {'Data': f'<p>Your code: <strong>{code}</strong></p>'}}
-    #     }
-    # )
-    # return True
+
+    if not api_key:
+        print("[EMAIL] RESEND_API_KEY not set; skipping live send (dev mode).")
+        return True
+
+    subject = 'Your Degree Link Advisor Portal Access Code'
+    html = f"""<!doctype html>
+<html>
+  <body style="font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color:#111;">
+    <div style="max-width:520px; margin:0 auto; padding:24px;">
+      <h2 style="margin:0 0 16px;">Advisor Portal Access Code</h2>
+      <p>Use the following code to sign in to the Degree Link advisor portal:</p>
+      <p style="font-size:28px; font-weight:700; letter-spacing:6px; background:#f3f4f6;
+                padding:16px 20px; border-radius:8px; text-align:center; margin:20px 0;">
+        {code}
+      </p>
+      <p style="color:#555;">This code expires in 15 minutes. If you did not request it, you can ignore this email.</p>
+      <hr style="border:none; border-top:1px solid #eee; margin:24px 0;">
+      <p style="font-size:12px; color:#888;">University of New Orleans &mdash; Degree Link</p>
+    </div>
+  </body>
+</html>"""
+    text = (
+        f"Your Degree Link advisor portal access code is: {code}\n\n"
+        "This code expires in 15 minutes.\n"
+        "If you did not request it, you can ignore this email."
+    )
+
+    try:
+        import resend
+        resend.api_key = api_key
+        result = resend.Emails.send({
+            "from": from_addr,
+            "to": [email],
+            "subject": subject,
+            "html": html,
+            "text": text,
+        })
+        print(f"[EMAIL] Resend accepted message for {email}: {result}")
+        return True
+    except Exception as e:
+        print(f"[EMAIL] Resend send failed for {email}: {e}")
+        return False
 
 
 @bp.route('/request-code', methods=['POST'])
