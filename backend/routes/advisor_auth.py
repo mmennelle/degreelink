@@ -20,31 +20,36 @@ import secrets
 bp = Blueprint('advisor_auth', __name__, url_prefix='/api/advisor-auth')
 
 
-# Helper to send email via Resend (https://resend.com)
+# Helper to send email — prefers SMTP relay if configured, falls back to Resend
 def send_access_code_email(email, code):
     """
-    Send the 6-digit access code to the advisor's email via Resend.
+    Send the 6-digit access code to the advisor's email.
 
-    Configuration (environment variables):
-        RESEND_API_KEY  - API key from https://resend.com/api-keys (required for live sending)
-        RESEND_FROM     - From address (default: 'Degree Link <noreply.dlink@resend.dev>')
+    Sender selection (in order):
+        1. SMTP relay        — if SMTP_HOST is set
+        2. Resend HTTP API   — if RESEND_API_KEY is set
+        3. Dev no-op         — otherwise (logs only, returns True)
 
-    Behavior:
-        - If RESEND_API_KEY is not set, the code is logged to stdout only and the
-          function returns True so development flows continue to work (the code is
-          also surfaced via `dev_code` in the API response when not in production).
-        - If sending fails, returns False so the caller can surface an error.
+    SMTP environment variables:
+        SMTP_HOST            - e.g. 'mailu.cs.uno.edu'
+        SMTP_PORT            - default 587
+        SMTP_USERNAME        - relay account username
+        SMTP_PASSWORD        - relay account password
+        SMTP_FROM            - From header, e.g. 'Degree Link <noreply@dlink.cs.uno.edu>'
+        SMTP_STARTTLS        - 'true' (default) to upgrade with STARTTLS on 587
+        SMTP_USE_SSL         - 'true' to use implicit TLS (e.g. port 465); default 'false'
+        SMTP_VERIFY_CERT     - 'true' (default) to verify the relay's TLS cert.
+                               Set to 'false' for self-signed relays.
+
+    Resend environment variables:
+        RESEND_API_KEY       - API key from https://resend.com/api-keys
+        RESEND_FROM          - From address (default: 'Degree Link <noreply.dlink@resend.dev>')
+
+    Returns True on success, False on failure.
     """
     import os
 
-    api_key = os.environ.get('RESEND_API_KEY')
-    from_addr = os.environ.get('RESEND_FROM', 'Degree Link <noreply.dlink@resend.dev>')
-
     print(f"[EMAIL] Access code generated for {email}")
-
-    if not api_key:
-        print("[EMAIL] RESEND_API_KEY not set; skipping live send (dev mode).")
-        return True
 
     subject = 'Your Degree Link Advisor Portal Access Code'
     html = f"""<!doctype html>
@@ -69,21 +74,73 @@ def send_access_code_email(email, code):
         "If you did not request it, you can ignore this email."
     )
 
-    try:
-        import resend
-        resend.api_key = api_key
-        result = resend.Emails.send({
-            "from": from_addr,
-            "to": [email],
-            "subject": subject,
-            "html": html,
-            "text": text,
-        })
-        print(f"[EMAIL] Resend accepted message for {email}: {result}")
-        return True
-    except Exception as e:
-        print(f"[EMAIL] Resend send failed for {email}: {e}")
-        return False
+    smtp_host = os.environ.get('SMTP_HOST')
+    if smtp_host:
+        import smtplib
+        import ssl
+        from email.message import EmailMessage
+
+        smtp_port = int(os.environ.get('SMTP_PORT', '587'))
+        smtp_user = os.environ.get('SMTP_USERNAME')
+        smtp_pass = os.environ.get('SMTP_PASSWORD')
+        from_addr = os.environ.get('SMTP_FROM', 'Degree Link <noreply@dlink.cs.uno.edu>')
+        use_starttls = os.environ.get('SMTP_STARTTLS', 'true').lower() in ('1', 'true', 'yes')
+        use_ssl = os.environ.get('SMTP_USE_SSL', 'false').lower() in ('1', 'true', 'yes')
+        verify_cert = os.environ.get('SMTP_VERIFY_CERT', 'true').lower() in ('1', 'true', 'yes')
+
+        # Build TLS context — relax verification for self-signed relays.
+        tls_ctx = ssl.create_default_context()
+        if not verify_cert:
+            tls_ctx.check_hostname = False
+            tls_ctx.verify_mode = ssl.CERT_NONE
+
+        msg = EmailMessage()
+        msg['Subject'] = subject
+        msg['From'] = from_addr
+        msg['To'] = email
+        msg.set_content(text)
+        msg.add_alternative(html, subtype='html')
+
+        try:
+            if use_ssl:
+                server = smtplib.SMTP_SSL(smtp_host, smtp_port, context=tls_ctx, timeout=15)
+            else:
+                server = smtplib.SMTP(smtp_host, smtp_port, timeout=15)
+            with server:
+                server.ehlo()
+                if use_starttls and not use_ssl:
+                    server.starttls(context=tls_ctx)
+                    server.ehlo()
+                if smtp_user and smtp_pass:
+                    server.login(smtp_user, smtp_pass)
+                server.send_message(msg)
+            print(f"[EMAIL] SMTP relay delivered code to {email} via {smtp_host}:{smtp_port}")
+            return True
+        except Exception as e:
+            print(f"[EMAIL] SMTP send failed for {email} via {smtp_host}:{smtp_port}: {e}")
+            return False
+
+    api_key = os.environ.get('RESEND_API_KEY')
+    if api_key:
+        from_addr = os.environ.get('RESEND_FROM', 'Degree Link <noreply.dlink@resend.dev>')
+        try:
+            import resend
+            resend.api_key = api_key
+            result = resend.Emails.send({
+                "from": from_addr,
+                "to": [email],
+                "subject": subject,
+                "html": html,
+                "text": text,
+            })
+            print(f"[EMAIL] Resend accepted message for {email}: {result}")
+            return True
+        except Exception as e:
+            print(f"[EMAIL] Resend send failed for {email}: {e}")
+            return False
+
+    print("[EMAIL] No mail transport configured (set SMTP_HOST or RESEND_API_KEY); dev mode.")
+    return True
 
 
 @bp.route('/request-code', methods=['POST'])
